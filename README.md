@@ -41,9 +41,11 @@ See `docs/ARCHITECTURE.md`, `docs/SECURITY.md` and `docs/SYNC_PROTOCOL.md`.
 
 ## Signed Android releases
 
-`.github/workflows/release-apk.yml` is the production Android release pipeline. It validates the release configuration, runs the Cloudflare relay typecheck/runtime tests, deploys the encrypted sync relay, verifies its `/health` endpoint, runs the Flutter/package/content gates, builds a signed universal release APK, verifies the APK signature, writes a SHA-256 checksum, uploads the build artifact and can publish/update a GitHub Release.
+`.github/workflows/release-apk.yml` is **manual only**. Normal pushes and tags do not build or publish a release APK.
 
-Add these values under **Repository Settings → Secrets and variables → Actions → Repository secrets** before running it:
+The workflow validates the release configuration, validates the Cloudflare relay, runs the Flutter/package/content gates, builds and verifies the signed APK, then deploys the relay and optionally publishes the APK plus SHA-256 checksum as a GitHub Release.
+
+Add these values under **Repository Settings → Secrets and variables → Actions → Repository secrets**:
 
 ```text
 CLOUDFLARE_API_TOKEN
@@ -55,12 +57,52 @@ ANDROID_KEY_ALIAS
 ANDROID_KEY_PASSWORD
 ```
 
-`NYLA_SYNC_BASE_URL` is the HTTPS public base URL of the deployed Nyla Worker. It is build configuration rather than a credential, but keeping all release configuration in Actions secrets gives the release workflow one simple setup surface.
+### Credential examples
 
-`ANDROID_KEYSTORE_BASE64` must contain the complete release JKS/keystore encoded as base64. The workflow decodes it only into the ephemeral GitHub runner; signing passwords are passed to Gradle through environment variables and are not written into the repository or a generated `key.properties` file.
+The examples below are deliberately fake.
+
+```text
+CLOUDFLARE_API_TOKEN
+example: wP9_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+where: Cloudflare → My Profile → API Tokens
+note: use a token allowed to deploy/edit Workers; never use the Global API Key.
+
+CLOUDFLARE_ACCOUNT_ID
+example: 023e105f4ecef8ad9ca31a8372d0c353
+where: Cloudflare dashboard → Workers & Pages / account overview
+note: this is an ID, not a password.
+
+NYLA_SYNC_BASE_URL
+example: https://nyla-sync.example-subdomain.workers.dev
+where: the public URL shown for the nyla-sync Worker
+note: HTTPS origin only; no /health, query string or trailing path.
+
+ANDROID_KEYSTORE_BASE64
+example: MIIK...very-long-single-line-base64...AB
+where: base64 form of the permanent Android release .jks keystore
+note: base64 is not encryption. Keep the original keystore permanently and privately.
+
+ANDROID_KEYSTORE_PASSWORD
+example: a-long-random-password
+note: password protecting the keystore file.
+
+ANDROID_KEY_ALIAS
+example: nyla
+note: the key name inside the keystore. Keep this the same forever.
+
+ANDROID_KEY_PASSWORD
+example: another-long-random-password
+note: password for the signing key itself. It may equal the keystore password, but separate strong values are cleaner.
+```
+
+### Important signing rule
+
+The Android release keystore is permanent. Once a Nyla APK signed by it is distributed, future updates must use the same signing key. Do not regenerate it casually and do not use an online keystore/base64 generator.
+
+Because this project is managed without a PC, the keystore only needs to be created once; afterward GitHub Actions reconstructs it from `ANDROID_KEYSTORE_BASE64` inside the temporary runner and signs releases automatically. Signing passwords are passed directly to Gradle through environment variables and are never committed or written to `key.properties`.
 
 ### Releasing
 
-For a manual release, open **Actions → Release APK → Run workflow**, enter a semantic version such as `1.0.0`, and leave **Publish GitHub Release** enabled if the APK should be attached to a GitHub Release.
+Open **Actions → Release APK → Run workflow**, choose the branch, enter a version such as `1.0.0`, keep **Publish GitHub Release** enabled if desired, then press **Run workflow**.
 
-Pushing a tag such as `v1.0.0` also runs the production release pipeline and publishes the matching GitHub Release automatically.
+That is the only way the production APK workflow starts.
