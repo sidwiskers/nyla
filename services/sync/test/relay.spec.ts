@@ -184,7 +184,7 @@ describe('Nyla relay in Workers runtime', () => {
 
     const oldAccess = await authenticated(subject, 'GET', '/devices');
     expect(oldAccess.status).toBe(404);
-    expect(await oldAccess.json()).toEqual({ error: 'vault_not_initialized' });
+    expect(await oldAccess.json()).toEqual({ error: 'vault_not_found' });
 
     const recreated = await bootstrap(subject);
     expect(recreated.status).toBe(201);
