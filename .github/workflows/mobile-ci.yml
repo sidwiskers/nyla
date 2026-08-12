@@ -25,23 +25,26 @@ concurrency:
   group: mobile-ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  FLUTTER_VERSION: '3.44.9'
+
 jobs:
-  analyze-and-test:
+  analyze-test-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Flutter stable
+      - name: Install pinned Flutter
         shell: bash
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch stable https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/flutter/bin/flutter" config --no-analytics
           "$RUNNER_TEMP/flutter/bin/flutter" --version
 
-      - name: Bootstrap platform scaffolds for validation
+      - name: Generate pinned platform scaffolds
         shell: bash
         run: |
           set -euo pipefail
@@ -53,6 +56,7 @@ jobs:
           cp -R "$RUNNER_TEMP/nyla-platform/android" apps/mobile/
           cp -R "$RUNNER_TEMP/nyla-platform/ios" apps/mobile/
           cp "$RUNNER_TEMP/nyla-platform/.metadata" apps/mobile/.metadata
+          python3 apps/mobile/tool/configure_platforms.py
 
       - name: Resolve dependencies
         working-directory: apps/mobile
@@ -81,6 +85,10 @@ jobs:
       - name: Validate health content
         working-directory: content/tips
         run: dart test
+
+      - name: Build Android debug APK
+        working-directory: apps/mobile
+        run: flutter build apk --debug
 
   sync-typecheck:
     runs-on: ubuntu-latest
