@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:health_content/health_content.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,7 +16,7 @@ class LearnScreen extends StatefulWidget {
 }
 
 class _LearnScreenState extends State<LearnScreen> {
-  final PageController _controller = PageController(viewportFraction: 0.92);
+  final PageController _controller = PageController(viewportFraction: 0.94);
   TipCategory? selected;
   String query = '';
   int currentIndex = 0;
@@ -32,12 +34,12 @@ class _LearnScreenState extends State<LearnScreen> {
         .where((tip) => tip.matches(query))
         .toList(growable: false);
     final index = cards.isEmpty ? 0 : currentIndex.clamp(0, cards.length - 1);
-    final screenHeight = MediaQuery.sizeOf(context).height;
-    final deckHeight = (screenHeight * 0.64).clamp(520.0, 680.0).toDouble();
+    final deckHeight =
+        (MediaQuery.sizeOf(context).height * 0.61).clamp(440.0, 610.0).toDouble();
 
     return NylaPage(
       title: 'Learn',
-      subtitle: 'One useful thing at a time.',
+      subtitle: 'Small cards for questions that deserve clear answers.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -50,46 +52,42 @@ class _LearnScreenState extends State<LearnScreen> {
               _resetDeck();
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 11),
           _CategoryStrip(selected: selected, onSelected: _chooseCategory),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
           if (cards.isEmpty)
             const _EmptyDeck()
           else ...[
             _DeckHeader(index: index, total: cards.length),
-            const SizedBox(height: 11),
+            const SizedBox(height: 10),
             SizedBox(
               height: deckHeight,
               child: Stack(
                 alignment: Alignment.topCenter,
                 children: [
                   Positioned(
-                    left: 32,
-                    right: 32,
-                    top: 20,
-                    bottom: 3,
-                    child: Transform.rotate(
-                      angle: -0.014,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: NylaColors.lavender.withValues(alpha: 0.56),
-                          borderRadius: BorderRadius.circular(38),
-                        ),
+                    left: 24,
+                    right: 24,
+                    top: 13,
+                    bottom: 11,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: NylaColors.lavenderSoft,
+                        borderRadius: BorderRadius.circular(31),
+                        border: Border.all(color: Colors.white),
                       ),
                     ),
                   ),
                   Positioned(
-                    left: 26,
-                    right: 26,
-                    top: 11,
-                    bottom: 11,
-                    child: Transform.rotate(
-                      angle: 0.011,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: NylaColors.peachSoft,
-                          borderRadius: BorderRadius.circular(38),
-                        ),
+                    left: 17,
+                    right: 17,
+                    top: 7,
+                    bottom: 17,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: NylaColors.roseWash,
+                        borderRadius: BorderRadius.circular(31),
+                        border: Border.all(color: Colors.white),
                       ),
                     ),
                   ),
@@ -102,22 +100,21 @@ class _LearnScreenState extends State<LearnScreen> {
                       setState(() => currentIndex = value);
                     },
                     itemBuilder: (context, cardIndex) => Padding(
-                      padding: const EdgeInsets.fromLTRB(5, 0, 5, 18),
+                      padding: const EdgeInsets.fromLTRB(4, 0, 4, 22),
                       child: _KnowledgeCard(
                         key: ValueKey(cards[cardIndex].id),
                         tip: cards[cardIndex],
-                        index: cardIndex,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             _DeckProgress(index: index, total: cards.length),
           ],
-          const SizedBox(height: 26),
-          _EditorialNote(),
+          const SizedBox(height: 24),
+          const _EditorialNote(),
           const SizedBox(height: 88),
         ],
       ),
@@ -146,19 +143,14 @@ class _SearchField extends StatelessWidget {
   final ValueChanged<String> onChanged;
 
   @override
-  Widget build(BuildContext context) => TextField(
-        onChanged: onChanged,
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: 'Find cramps, flow, products…',
-          prefixIcon: const Icon(Icons.search_rounded, color: NylaColors.violet),
-          suffixIcon: Container(
-            margin: const EdgeInsets.all(9),
-            decoration: BoxDecoration(
-              color: NylaColors.lavenderSoft,
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: const Icon(Icons.auto_awesome_rounded, size: 17, color: NylaColors.wine),
+  Widget build(BuildContext context) => SizedBox(
+        height: 49,
+        child: TextField(
+          onChanged: onChanged,
+          textInputAction: TextInputAction.search,
+          decoration: const InputDecoration(
+            hintText: 'Search cramps, flow, products…',
+            prefixIcon: Icon(Icons.search_rounded, color: NylaColors.violet, size: 20),
           ),
         ),
       );
@@ -207,27 +199,28 @@ class _DeckHeader extends StatelessWidget {
         child: Row(
           children: [
             Text(
-              'Card ${index + 1}',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(color: NylaColors.wine),
-            ),
-            Text(
-              '  of $total',
-              style: Theme.of(context).textTheme.bodyMedium,
+              '${index + 1} of $total',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: NylaColors.wine,
+                    fontSize: 13.5,
+                  ),
             ),
             const Spacer(),
-            const Icon(Icons.swipe_rounded, size: 18, color: NylaColors.violet),
-            const SizedBox(width: 6),
-            Text('Swipe', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+            const Icon(Icons.swipe_rounded, size: 17, color: NylaColors.violet),
+            const SizedBox(width: 5),
+            Text(
+              'Swipe for another',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
+            ),
           ],
         ),
       );
 }
 
 class _KnowledgeCard extends StatefulWidget {
-  const _KnowledgeCard({required this.tip, required this.index, super.key});
+  const _KnowledgeCard({required this.tip, super.key});
 
   final HealthTip tip;
-  final int index;
 
   @override
   State<_KnowledgeCard> createState() => _KnowledgeCardState();
@@ -238,18 +231,11 @@ class _KnowledgeCardState extends State<_KnowledgeCard> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = _paletteFor(widget.tip.category, widget.index);
+    final palette = _paletteFor(widget.tip.category);
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 280),
+      duration: const Duration(milliseconds: 200),
       switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
-      transitionBuilder: (child, animation) => FadeTransition(
-        opacity: animation,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.975, end: 1).animate(animation),
-          child: child,
-        ),
-      ),
+      switchOutCurve: Curves.easeOutCubic,
       child: detailed
           ? _DetailedCard(
               key: const ValueKey('detail'),
@@ -273,7 +259,12 @@ class _KnowledgeCardState extends State<_KnowledgeCard> {
 }
 
 class _QuickCard extends StatelessWidget {
-  const _QuickCard({required this.tip, required this.palette, required this.onOpen, super.key});
+  const _QuickCard({
+    required this.tip,
+    required this.palette,
+    required this.onOpen,
+    super.key,
+  });
 
   final HealthTip tip;
   final _CardPalette palette;
@@ -284,7 +275,7 @@ class _QuickCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onOpen,
-          borderRadius: BorderRadius.circular(38),
+          borderRadius: BorderRadius.circular(30),
           child: Ink(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -292,27 +283,26 @@ class _QuickCard extends StatelessWidget {
                 end: Alignment.bottomRight,
                 colors: [palette.start, palette.end],
               ),
-              borderRadius: BorderRadius.circular(38),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: Colors.white, width: 1.2),
               boxShadow: const [
-                BoxShadow(color: Color(0x2A33203E), blurRadius: 34, offset: Offset(0, 16)),
+                BoxShadow(
+                  color: Color(0x162B2231),
+                  blurRadius: 22,
+                  offset: Offset(0, 10),
+                ),
               ],
             ),
-            child: Stack(
-              children: [
-                Positioned(
-                  right: -48,
-                  top: -34,
-                  child: Container(
-                    width: 156,
-                    height: 156,
-                    decoration: BoxDecoration(
-                      color: palette.ink.withValues(alpha: 0.065),
-                      shape: BoxShape.circle,
-                    ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxHeight < 450;
+                return Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    compact ? 20 : 24,
+                    compact ? 19 : 23,
+                    compact ? 20 : 24,
+                    compact ? 18 : 22,
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(27, 27, 27, 25),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -321,31 +311,44 @@ class _QuickCard extends StatelessWidget {
                           _CategoryBadge(category: tip.category, palette: palette),
                           const Spacer(),
                           Container(
-                            width: 46,
-                            height: 46,
+                            width: compact ? 39 : 44,
+                            height: compact ? 39 : 44,
                             decoration: BoxDecoration(
-                              color: palette.ink.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(16),
+                              color: Colors.white.withValues(alpha: 0.58),
+                              borderRadius: BorderRadius.circular(15),
                             ),
-                            child: Icon(_categoryIcon(tip.category), color: palette.ink, size: 23),
+                            alignment: Alignment.center,
+                            child: Icon(
+                              _categoryIcon(tip.category),
+                              color: palette.ink,
+                              size: compact ? 19 : 21,
+                            ),
                           ),
                         ],
                       ),
-                      const Spacer(),
+                      SizedBox(height: compact ? 16 : 23),
                       Text(
                         tip.title,
+                        maxLines: compact ? 3 : 4,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.displaySmall?.copyWith(
                               color: palette.ink,
-                              fontSize: 34,
-                              height: 1.04,
+                              fontSize: compact ? 27 : 31,
+                              height: 1.05,
                             ),
                       ),
-                      const SizedBox(height: 20),
+                      SizedBox(height: compact ? 14 : 19),
                       Container(
-                        padding: const EdgeInsets.fromLTRB(17, 15, 17, 16),
+                        width: double.infinity,
+                        padding: EdgeInsets.fromLTRB(
+                          compact ? 14 : 16,
+                          compact ? 13 : 15,
+                          compact ? 14 : 16,
+                          compact ? 14 : 16,
+                        ),
                         decoration: BoxDecoration(
-                          color: palette.panel,
-                          borderRadius: BorderRadius.circular(22),
+                          color: Colors.white.withValues(alpha: 0.64),
+                          borderRadius: BorderRadius.circular(21),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,53 +356,70 @@ class _QuickCard extends StatelessWidget {
                             Text(
                               'THE TAKEAWAY',
                               style: TextStyle(
-                                color: palette.ink.withValues(alpha: 0.62),
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.05,
+                                color: palette.ink.withValues(alpha: 0.64),
+                                fontSize: 9.2,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.9,
                               ),
                             ),
-                            const SizedBox(height: 7),
+                            const SizedBox(height: 6),
                             Text(
                               tip.flash,
-                              maxLines: 5,
+                              maxLines: compact ? 4 : 5,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                     color: palette.ink,
-                                    fontSize: 16.5,
-                                    height: 1.42,
                                     fontWeight: FontWeight.w600,
+                                    height: 1.4,
                                   ),
                             ),
                           ],
                         ),
                       ),
+                      if (!compact && tip.details.isNotEmpty) ...[
+                        const SizedBox(height: 15),
+                        Text(
+                          tip.details.first,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: palette.ink.withValues(alpha: 0.74),
+                              ),
+                        ),
+                      ],
                       const Spacer(),
                       Row(
                         children: [
                           Container(
-                            width: 38,
-                            height: 38,
+                            width: 36,
+                            height: 36,
                             decoration: BoxDecoration(
-                              color: palette.ink,
+                              color: palette.ink.withValues(alpha: 0.1),
                               shape: BoxShape.circle,
                             ),
-                            child: Icon(Icons.menu_book_rounded, color: palette.start, size: 18),
+                            alignment: Alignment.center,
+                            child: Icon(
+                              Icons.menu_book_rounded,
+                              color: palette.ink,
+                              size: 17,
+                            ),
                           ),
-                          const SizedBox(width: 11),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               'Read the full card',
-                              style: Theme.of(context).textTheme.labelLarge?.copyWith(color: palette.ink),
+                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                    color: palette.ink,
+                                  ),
                             ),
                           ),
-                          Icon(Icons.arrow_forward_rounded, color: palette.ink, size: 20),
+                          Icon(Icons.arrow_forward_rounded, color: palette.ink, size: 18),
                         ],
                       ),
                     ],
                   ),
-                ),
-              ],
+                );
+              },
             ),
           ),
         ),
@@ -407,7 +427,12 @@ class _QuickCard extends StatelessWidget {
 }
 
 class _DetailedCard extends StatelessWidget {
-  const _DetailedCard({required this.tip, required this.palette, required this.onClose, super.key});
+  const _DetailedCard({
+    required this.tip,
+    required this.palette,
+    required this.onClose,
+    super.key,
+  });
 
   final HealthTip tip;
   final _CardPalette palette;
@@ -417,23 +442,26 @@ class _DetailedCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
           color: NylaColors.cream,
-          borderRadius: BorderRadius.circular(38),
-          border: Border.all(color: Colors.white, width: 1.4),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: Colors.white, width: 1.2),
           boxShadow: const [
-            BoxShadow(color: Color(0x2433203E), blurRadius: 34, offset: Offset(0, 16)),
+            BoxShadow(
+              color: Color(0x162B2231),
+              blurRadius: 22,
+              offset: Offset(0, 10),
+            ),
           ],
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.fromLTRB(23, 19, 17, 17),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [palette.start, palette.end]),
-              ),
+              padding: const EdgeInsets.fromLTRB(20, 14, 10, 12),
+              color: palette.start,
               child: Row(
                 children: [
-                  Expanded(child: _CategoryBadge(category: tip.category, palette: palette)),
+                  _CategoryBadge(category: tip.category, palette: palette),
+                  const Spacer(),
                   IconButton(
                     tooltip: 'Back to takeaway',
                     onPressed: onClose,
@@ -445,35 +473,36 @@ class _DetailedCard extends StatelessWidget {
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(24, 23, 24, 28),
+                padding: const EdgeInsets.fromLTRB(21, 18, 21, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(tip.title, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 28)),
-                    const SizedBox(height: 14),
-                    _LeadTakeaway(text: tip.flash),
-                    const SizedBox(height: 22),
+                    Text(
+                      tip.title,
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 25),
+                    ),
+                    const SizedBox(height: 13),
+                    _LeadTakeaway(text: tip.flash, palette: palette),
+                    const SizedBox(height: 20),
                     for (final paragraph in tip.details) ...[
                       Text(paragraph, style: Theme.of(context).textTheme.bodyLarge),
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 14),
                     ],
                     if (tip.practical.isNotEmpty) ...[
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       _GuidanceBlock(
                         icon: Icons.favorite_rounded,
-                        eyebrow: 'PRACTICAL',
                         title: 'What can help',
                         tint: NylaColors.sageSoft,
-                        iconColor: NylaColors.violet,
+                        iconColor: const Color(0xFF688E7A),
                         items: tip.practical,
                       ),
                     ],
                     if (tip.seekCare.isNotEmpty) ...[
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 13),
                       _GuidanceBlock(
                         icon: Icons.health_and_safety_rounded,
-                        eyebrow: 'CARE NOTE',
-                        title: 'When it is worth checking in',
+                        title: 'When to check in',
                         tint: NylaColors.peachSoft,
                         iconColor: NylaColors.warning,
                         items: tip.seekCare,
@@ -491,37 +520,36 @@ class _DetailedCard extends StatelessWidget {
 }
 
 class _LeadTakeaway extends StatelessWidget {
-  const _LeadTakeaway({required this.text});
+  const _LeadTakeaway({required this.text, required this.palette});
 
   final String text;
+  final _CardPalette palette;
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(18, 17, 18, 18),
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [NylaColors.lavenderSoft, NylaColors.roseWash],
-          ),
-          borderRadius: BorderRadius.circular(24),
+          color: palette.start.withValues(alpha: 0.62),
+          borderRadius: BorderRadius.circular(21),
         ),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 1),
-              child: Icon(Icons.auto_awesome_rounded, color: NylaColors.violet, size: 21),
+            Text(
+              'In one sentence',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: palette.ink.withValues(alpha: 0.68),
+                    fontSize: 11.5,
+                  ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                text,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: NylaColors.wine,
-                    ),
-              ),
+            const SizedBox(height: 6),
+            Text(
+              text,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: palette.ink,
+                    fontWeight: FontWeight.w600,
+                  ),
             ),
           ],
         ),
@@ -531,7 +559,6 @@ class _LeadTakeaway extends StatelessWidget {
 class _GuidanceBlock extends StatelessWidget {
   const _GuidanceBlock({
     required this.icon,
-    required this.eyebrow,
     required this.title,
     required this.tint,
     required this.iconColor,
@@ -539,7 +566,6 @@ class _GuidanceBlock extends StatelessWidget {
   });
 
   final IconData icon;
-  final String eyebrow;
   final String title;
   final Color tint;
   final Color iconColor;
@@ -547,59 +573,58 @@ class _GuidanceBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(25)),
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 15, 16, 8),
+        decoration: BoxDecoration(
+          color: tint,
+          borderRadius: BorderRadius.circular(22),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.7), borderRadius: BorderRadius.circular(14)),
-                  child: Icon(icon, color: iconColor, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        eyebrow,
-                        style: TextStyle(
-                          color: iconColor,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.9,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(title, style: Theme.of(context).textTheme.titleMedium),
-                    ],
+                  width: 35,
+                  height: 35,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  alignment: Alignment.center,
+                  child: Icon(icon, color: iconColor, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(title, style: Theme.of(context).textTheme.titleMedium),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             for (final item in items) ...[
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.only(top: 7),
                     child: Container(
                       width: 5,
                       height: 5,
                       decoration: BoxDecoration(color: iconColor, shape: BoxShape.circle),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text(item, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: NylaColors.ink))),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      item,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: NylaColors.ink,
+                          ),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 9),
+              const SizedBox(height: 10),
             ],
           ],
         ),
@@ -612,50 +637,18 @@ class _SourceFooter extends StatelessWidget {
   final HealthTip tip;
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: () {
-            NylaHaptics.select();
-            showModalBottomSheet<void>(
-              context: context,
-              isScrollControlled: true,
-              useSafeArea: true,
-              builder: (context) => _SourcesSheet(tip: tip),
-            );
-          },
-          child: Ink(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
-            decoration: BoxDecoration(
-              color: NylaColors.lavenderMist,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.verified_rounded, color: NylaColors.violet, size: 19),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Reviewed ${_reviewDate(tip.lastReviewed)}',
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(fontSize: 12.5),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${tip.sources.length} trusted source${tip.sources.length == 1 ? '' : 's'}',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right_rounded, color: NylaColors.mutedInk),
-              ],
-            ),
-          ),
-        ),
+  Widget build(BuildContext context) => OutlinedButton.icon(
+        onPressed: () {
+          NylaHaptics.select();
+          showModalBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            useSafeArea: true,
+            builder: (context) => _SourcesSheet(tip: tip),
+          );
+        },
+        icon: const Icon(Icons.verified_outlined, size: 17),
+        label: Text('Reviewed sources · ${_reviewDate(tip.lastReviewed)}'),
       );
 }
 
@@ -668,43 +661,61 @@ class _SourcesSheet extends StatelessWidget {
   Widget build(BuildContext context) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.58,
-        minChildSize: 0.42,
-        maxChildSize: 0.88,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
         builder: (context, controller) => ListView(
           controller: controller,
-          padding: const EdgeInsets.fromLTRB(22, 4, 22, 30),
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 30),
           children: [
-            Text('Reviewed sources', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 27)),
-            const SizedBox(height: 7),
+            Text('Reviewed sources', style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: 6),
             Text(
-              'These support the card. You never need to open them to read the guidance.',
+              'These references support the card. You do not need to leave Nyla to read the guidance.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
             for (final source in tip.sources) ...[
               Material(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(22),
+                color: Colors.transparent,
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(22),
-                  onTap: () => launchUrl(Uri.parse(source.url), mode: LaunchMode.externalApplication),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
+                  onTap: () => launchUrl(
+                    Uri.parse(source.url),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Ink(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: NylaColors.lavenderMist,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: NylaColors.outline),
+                    ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          width: 39,
-                          height: 39,
-                          decoration: BoxDecoration(color: NylaColors.lavenderSoft, borderRadius: BorderRadius.circular(13)),
-                          child: const Icon(Icons.open_in_new_rounded, color: NylaColors.violet, size: 18),
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.open_in_new_rounded,
+                            color: NylaColors.violet,
+                            size: 17,
+                          ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 11),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(source.organization, style: Theme.of(context).textTheme.titleMedium),
+                              Text(
+                                source.organization,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
                               const SizedBox(height: 3),
                               Text(source.title, style: Theme.of(context).textTheme.bodyMedium),
                             ],
@@ -715,13 +726,8 @@ class _SourcesSheet extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 9),
             ],
-            const SizedBox(height: 8),
-            Text(
-              'Content v${tip.version}',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
-            ),
           ],
         ),
       );
@@ -735,20 +741,19 @@ class _CategoryBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: palette.panel,
+          color: Colors.white.withValues(alpha: 0.6),
           borderRadius: BorderRadius.circular(99),
         ),
         child: Text(
-          _categoryName(category).toUpperCase(),
+          _categoryName(category),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: palette.ink,
-            fontSize: 9.5,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.85,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
           ),
         ),
       );
@@ -761,48 +766,45 @@ class _DeckProgress extends StatelessWidget {
   final int total;
 
   @override
-  Widget build(BuildContext context) => Row(
-        children: [
-          for (var i = 0; i < total.clamp(1, 9); i++) ...[
-            Expanded(
-              flex: i == (index % total.clamp(1, 9)) ? 2 : 1,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                height: 5,
-                decoration: BoxDecoration(
-                  color: i == (index % total.clamp(1, 9)) ? NylaColors.violet : NylaColors.lavender.withValues(alpha: 0.48),
-                  borderRadius: BorderRadius.circular(99),
-                ),
-              ),
+  Widget build(BuildContext context) {
+    final visible = math.min(total, 7);
+    final selected = index.clamp(0, visible - 1);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < visible; i++) ...[
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 170),
+            width: i == selected ? 24 : 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: i == selected ? NylaColors.violet : NylaColors.lavender,
+              borderRadius: BorderRadius.circular(99),
             ),
-            if (i != total.clamp(1, 9) - 1) const SizedBox(width: 5),
-          ],
+          ),
+          if (i != visible - 1) const SizedBox(width: 5),
         ],
-      );
+      ],
+    );
+  }
 }
 
 class _EditorialNote extends StatelessWidget {
+  const _EditorialNote();
+
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(18, 17, 18, 18),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.7),
-          borderRadius: BorderRadius.circular(25),
-          border: Border.all(color: Colors.white),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.bookmark_rounded, size: 20, color: NylaColors.violet),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Text(
-                'Nyla keeps the medical reading inside each card. Sources are there for trust and verification, not as homework.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: NylaColors.ink),
-              ),
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.verified_rounded, color: NylaColors.violet, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Every card is written for Nyla and reviewed against trusted medical sources. Sources stay available without taking over the experience.',
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
-          ],
-        ),
+          ),
+        ],
       );
 }
 
@@ -811,92 +813,73 @@ class _EmptyDeck extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 52, horizontal: 24),
+        padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [NylaColors.lavenderSoft, NylaColors.roseWash]),
-          borderRadius: BorderRadius.circular(32),
+          color: NylaColors.lavenderMist,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: NylaColors.outline),
         ),
         child: Column(
           children: [
-            const Icon(Icons.search_off_rounded, size: 35, color: NylaColors.violet),
-            const SizedBox(height: 13),
-            Text('No card found', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 5),
-            Text('Try another word or category.', style: Theme.of(context).textTheme.bodyMedium),
+            const Icon(Icons.search_off_rounded, color: NylaColors.violet, size: 28),
+            const SizedBox(height: 9),
+            Text('Nothing matched that search', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text('Try a shorter phrase or switch back to All.', style: Theme.of(context).textTheme.bodyMedium),
           ],
         ),
       );
 }
 
 class _CardPalette {
-  const _CardPalette({required this.start, required this.end, required this.ink, required this.panel});
+  const _CardPalette({required this.start, required this.end, required this.ink});
 
   final Color start;
   final Color end;
   final Color ink;
-  final Color panel;
 }
 
-_CardPalette _paletteFor(TipCategory category, int index) => switch (category) {
+_CardPalette _paletteFor(TipCategory category) => switch (category) {
       TipCategory.cycle => const _CardPalette(
-          start: NylaColors.night,
-          end: NylaColors.violet,
-          ink: Colors.white,
-          panel: Color(0x28FFFFFF),
+          start: Color(0xFFF8DCE5),
+          end: Color(0xFFF7EAF3),
+          ink: Color(0xFF6E4357),
         ),
       TipCategory.understanding => const _CardPalette(
-          start: Color(0xFFCBDBCA),
-          end: Color(0xFFE8D9B1),
-          ink: NylaColors.ink,
-          panel: Color(0xAFFFFFFF),
+          start: Color(0xFFECE4F7),
+          end: Color(0xFFF6F1FA),
+          ink: Color(0xFF58456D),
         ),
       TipCategory.body => const _CardPalette(
-          start: NylaColors.lavender,
-          end: Color(0xFFE7C3D5),
-          ink: NylaColors.ink,
-          panel: Color(0xAFFFFFFF),
+          start: Color(0xFFF5ECDC),
+          end: Color(0xFFFBF6ED),
+          ink: Color(0xFF665745),
         ),
-      TipCategory.care => _CardPalette(
-          start: index.isEven ? NylaColors.peach : NylaColors.sage,
-          end: index.isEven ? NylaColors.roseSoft : NylaColors.lavender,
-          ink: NylaColors.ink,
-          panel: const Color(0xAFFFFFFF),
+      TipCategory.care => const _CardPalette(
+          start: Color(0xFFE1F0E8),
+          end: Color(0xFFF0F6F2),
+          ink: Color(0xFF49695B),
         ),
       TipCategory.products => const _CardPalette(
-          start: Color(0xFFE6B6CE),
-          end: Color(0xFFF4D7C5),
-          ink: NylaColors.ink,
-          panel: Color(0xAFFFFFFF),
+          start: Color(0xFFF9E4D9),
+          end: Color(0xFFFCF1EA),
+          ink: Color(0xFF765343),
         ),
       TipCategory.comfort => const _CardPalette(
-          start: NylaColors.peach,
-          end: NylaColors.butter,
-          ink: NylaColors.ink,
-          panel: Color(0xAFFFFFFF),
+          start: Color(0xFFF8EED2),
+          end: Color(0xFFFCF7EA),
+          ink: Color(0xFF725E3B),
         ),
       TipCategory.symptoms => const _CardPalette(
-          start: Color(0xFFBDA9DE),
-          end: Color(0xFFE6B9C9),
-          ink: NylaColors.ink,
-          panel: Color(0xAFFFFFFF),
+          start: Color(0xFFE8E4F5),
+          end: Color(0xFFF4F1FA),
+          ink: Color(0xFF5F5274),
         ),
       TipCategory.seekCare => const _CardPalette(
-          start: Color(0xFFF0B19F),
-          end: Color(0xFFEEC89F),
-          ink: NylaColors.ink,
-          panel: Color(0xAFFFFFFF),
+          start: Color(0xFFF6E2DF),
+          end: Color(0xFFFBF0ED),
+          ink: Color(0xFF79554C),
         ),
-    };
-
-IconData _categoryIcon(TipCategory category) => switch (category) {
-      TipCategory.cycle => Icons.loop_rounded,
-      TipCategory.understanding => Icons.lightbulb_rounded,
-      TipCategory.body => Icons.spa_rounded,
-      TipCategory.care => Icons.favorite_rounded,
-      TipCategory.products => Icons.inventory_2_rounded,
-      TipCategory.comfort => Icons.self_improvement_rounded,
-      TipCategory.symptoms => Icons.monitor_heart_rounded,
-      TipCategory.seekCare => Icons.health_and_safety_rounded,
     };
 
 String _categoryName(TipCategory category) => switch (category) {
@@ -907,10 +890,34 @@ String _categoryName(TipCategory category) => switch (category) {
       TipCategory.products => 'Products',
       TipCategory.comfort => 'Comfort',
       TipCategory.symptoms => 'Symptoms',
-      TipCategory.seekCare => 'Care guidance',
+      TipCategory.seekCare => 'Seek care',
+    };
+
+IconData _categoryIcon(TipCategory category) => switch (category) {
+      TipCategory.cycle => Icons.autorenew_rounded,
+      TipCategory.understanding => Icons.lightbulb_outline_rounded,
+      TipCategory.body => Icons.accessibility_new_rounded,
+      TipCategory.care => Icons.spa_rounded,
+      TipCategory.products => Icons.inventory_2_outlined,
+      TipCategory.comfort => Icons.favorite_outline_rounded,
+      TipCategory.symptoms => Icons.monitor_heart_outlined,
+      TipCategory.seekCare => Icons.health_and_safety_outlined,
     };
 
 String _reviewDate(DateTime value) {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return '${months[value.month - 1]} ${value.day}, ${value.year}';
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return '${months[value.month - 1]} ${value.year}';
 }
