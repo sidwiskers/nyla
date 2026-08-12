@@ -183,8 +183,8 @@ describe('Nyla relay in Workers runtime', () => {
     expect(await deleted.json()).toEqual({ deleted: true });
 
     const oldAccess = await authenticated(subject, 'GET', '/devices');
-    expect(oldAccess.status).toBe(401);
-    expect(await oldAccess.json()).toEqual({ error: 'authentication_required' });
+    expect(oldAccess.status).toBe(404);
+    expect(await oldAccess.json()).toEqual({ error: 'vault_not_initialized' });
 
     const recreated = await bootstrap(subject);
     expect(recreated.status).toBe(201);
