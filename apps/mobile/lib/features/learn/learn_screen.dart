@@ -35,8 +35,8 @@ class _LearnScreenState extends State<LearnScreen> {
         .where((tip) => tip.matches(query))
         .toList(growable: false);
     final index = cards.isEmpty ? 0 : currentIndex.clamp(0, cards.length - 1);
-    final screenHeight = MediaQuery.sizeOf(context).height;
-    final deckHeight = (screenHeight * 0.63).clamp(480.0, 650.0).toDouble();
+    final deckHeight =
+        (MediaQuery.sizeOf(context).height * 0.63).clamp(480.0, 650.0).toDouble();
 
     return NylaPage(
       title: 'Learn',
@@ -44,7 +44,7 @@ class _LearnScreenState extends State<LearnScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SearchField(
+          TextField(
             onChanged: (value) {
               setState(() {
                 query = value;
@@ -52,6 +52,11 @@ class _LearnScreenState extends State<LearnScreen> {
               });
               _resetDeck();
             },
+            textInputAction: TextInputAction.search,
+            decoration: const InputDecoration(
+              hintText: 'Find cramps, flow, products…',
+              prefixIcon: Icon(Icons.search_rounded, color: NylaColors.violet),
+            ),
           ),
           const SizedBox(height: 12),
           _CategoryStrip(selected: selected, onSelected: _chooseCategory),
@@ -71,14 +76,20 @@ class _LearnScreenState extends State<LearnScreen> {
                     right: 31,
                     top: 18,
                     bottom: 0,
-                    child: _BackCard(rotation: -0.018, color: NylaColors.lavenderSoft),
+                    child: _BackCard(
+                      rotation: -0.018,
+                      color: NylaColors.lavenderSoft,
+                    ),
                   ),
                   const Positioned(
                     left: 24,
                     right: 24,
                     top: 10,
                     bottom: 9,
-                    child: _BackCard(rotation: 0.012, color: NylaColors.peachSoft),
+                    child: _BackCard(
+                      rotation: 0.012,
+                      color: NylaColors.peachSoft,
+                    ),
                   ),
                   PageView.builder(
                     controller: _controller,
@@ -104,7 +115,13 @@ class _LearnScreenState extends State<LearnScreen> {
             _DeckProgress(index: index, total: cards.length),
           ],
           const SizedBox(height: 30),
-          const _EditorialNote(),
+          const NylaInlineNote(
+            icon: Icons.verified_rounded,
+            title: 'Written to be useful first',
+            body:
+                'Each card is reviewed against trusted medical sources. References stay available without taking over the reading experience.',
+            accent: Color(0xFF4C7565),
+          ),
           const SizedBox(height: 92),
         ],
       ),
@@ -127,23 +144,9 @@ class _LearnScreenState extends State<LearnScreen> {
   }
 }
 
-class _SearchField extends StatelessWidget {
-  const _SearchField({required this.onChanged});
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) => TextField(
-        onChanged: onChanged,
-        textInputAction: TextInputAction.search,
-        decoration: const InputDecoration(
-          hintText: 'Find cramps, flow, products…',
-          prefixIcon: Icon(Icons.search_rounded, color: NylaColors.violet),
-        ),
-      );
-}
-
 class _CategoryStrip extends StatelessWidget {
   const _CategoryStrip({required this.selected, required this.onSelected});
+
   final TipCategory? selected;
   final ValueChanged<TipCategory?> onSelected;
 
@@ -174,6 +177,7 @@ class _CategoryStrip extends StatelessWidget {
 
 class _DeckHeader extends StatelessWidget {
   const _DeckHeader({required this.index, required this.total});
+
   final int index;
   final int total;
 
@@ -184,7 +188,10 @@ class _DeckHeader extends StatelessWidget {
           children: [
             Text(
               '${index + 1}',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(color: NylaColors.wine),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(color: NylaColors.wine),
             ),
             Text(' / $total', style: Theme.of(context).textTheme.bodyMedium),
             const Spacer(),
@@ -201,6 +208,7 @@ class _DeckHeader extends StatelessWidget {
 
 class _BackCard extends StatelessWidget {
   const _BackCard({required this.rotation, required this.color});
+
   final double rotation;
   final Color color;
 
@@ -224,6 +232,7 @@ class _BackCard extends StatelessWidget {
 
 class _KnowledgeCard extends StatefulWidget {
   const _KnowledgeCard({required this.tip, required this.index, super.key});
+
   final HealthTip tip;
   final int index;
 
@@ -236,7 +245,7 @@ class _KnowledgeCardState extends State<_KnowledgeCard> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = _paletteFor(widget.tip.category, widget.index);
+    final palette = _paletteFor(widget.tip.category);
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(end: detailed ? 1 : 0),
       duration: const Duration(milliseconds: 420),
@@ -244,22 +253,28 @@ class _KnowledgeCardState extends State<_KnowledgeCard> {
       builder: (context, value, child) {
         final angle = value * math.pi;
         final showBack = angle > math.pi / 2;
-        final card = showBack
-            ? _DetailedCard(tip: widget.tip, palette: palette, onClose: _toggle)
-            : _QuickCard(tip: widget.tip, palette: palette, onOpen: _toggle);
         final matrix = Matrix4.identity()
           ..setEntry(3, 2, 0.0012)
           ..rotateY(angle);
-        final childMatrix = showBack
-            ? (Matrix4.identity()..rotateY(math.pi))
-            : Matrix4.identity();
         return Transform(
           alignment: Alignment.center,
           transform: matrix,
           child: Transform(
             alignment: Alignment.center,
-            transform: childMatrix,
-            child: card,
+            transform: showBack
+                ? (Matrix4.identity()..rotateY(math.pi))
+                : Matrix4.identity(),
+            child: showBack
+                ? _DetailedCard(
+                    tip: widget.tip,
+                    palette: palette,
+                    onClose: _toggle,
+                  )
+                : _QuickCard(
+                    tip: widget.tip,
+                    palette: palette,
+                    onOpen: _toggle,
+                  ),
           ),
         );
       },
@@ -272,8 +287,16 @@ class _KnowledgeCardState extends State<_KnowledgeCard> {
   }
 }
 
+const _cardRadius = BorderRadius.only(
+  topLeft: Radius.circular(34),
+  topRight: Radius.circular(34),
+  bottomLeft: Radius.circular(26),
+  bottomRight: Radius.circular(18),
+);
+
 class _QuickCard extends StatelessWidget {
   const _QuickCard({required this.tip, required this.palette, required this.onOpen});
+
   final HealthTip tip;
   final _CardPalette palette;
   final VoidCallback onOpen;
@@ -281,92 +304,127 @@ class _QuickCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => NylaPressable(
         onTap: onOpen,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(34),
-          topRight: Radius.circular(34),
-          bottomLeft: Radius.circular(26),
-          bottomRight: Radius.circular(18),
-        ),
+        borderRadius: _cardRadius,
         child: Container(
-          decoration: BoxDecoration(
-            color: NylaColors.paper,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(34),
-              topRight: Radius.circular(34),
-              bottomLeft: Radius.circular(26),
-              bottomRight: Radius.circular(18),
-            ),
-            border: Border.all(color: Colors.white),
-            boxShadow: const [
-              BoxShadow(color: Color(0x222A111E), blurRadius: 34, offset: Offset(0, 16)),
-            ],
-          ),
+          decoration: _cardDecoration(),
           clipBehavior: Clip.antiAlias,
           child: Stack(
             children: [
               Positioned.fill(
                 child: IgnorePointer(
-                  child: CustomPaint(painter: _CardMotifPainter(accent: palette.accent)),
+                  child: CustomPaint(
+                    painter: _CardMotifPainter(accent: palette.accent),
+                  ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(25, 24, 25, 23),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxHeight < 470;
+                  final horizontal = compact ? 21.0 : 25.0;
+                  return Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontal,
+                      compact ? 20 : 24,
+                      horizontal,
+                      compact ? 18 : 23,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _CategoryBadge(category: tip.category, palette: palette),
-                        const Spacer(),
-                        NylaIconToken(
-                          icon: _categoryIcon(tip.category),
-                          size: 44,
-                          background: palette.soft,
-                          foreground: palette.accent,
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    Text(
-                      tip.title,
-                      style: Theme.of(context).textTheme.displaySmall?.copyWith(fontSize: 33, height: 1.04),
-                    ),
-                    const SizedBox(height: 19),
-                    _Takeaway(text: tip.flash, accent: palette.accent),
-                    if (tip.details.isNotEmpty) ...[
-                      const SizedBox(height: 17),
-                      Text(
-                        tip.details.first,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: NylaColors.mutedInk,
-                              height: 1.46,
+                        Row(
+                          children: [
+                            Flexible(
+                              child: _CategoryBadge(
+                                category: tip.category,
+                                palette: palette,
+                              ),
                             ),
-                      ),
-                    ],
-                    const Spacer(),
-                    Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(color: palette.accent, shape: BoxShape.circle),
-                          alignment: Alignment.center,
-                          child: const Icon(Icons.flip_rounded, color: Colors.white, size: 19),
+                            const Spacer(),
+                            NylaIconToken(
+                              icon: _categoryIcon(tip.category),
+                              size: compact ? 38 : 44,
+                              background: palette.soft,
+                              foreground: palette.accent,
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 11),
+                        SizedBox(height: compact ? 14 : 21),
                         Expanded(
-                          child: Text(
-                            'Turn card',
-                            style: Theme.of(context).textTheme.labelLarge?.copyWith(color: NylaColors.wine),
+                          child: SingleChildScrollView(
+                            physics: const BouncingScrollPhysics(),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  tip.title,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .displaySmall
+                                      ?.copyWith(
+                                        fontSize: compact ? 28 : 33,
+                                        height: 1.04,
+                                      ),
+                                ),
+                                SizedBox(height: compact ? 14 : 19),
+                                _Takeaway(text: tip.flash, accent: palette.accent),
+                                if (tip.details.isNotEmpty) ...[
+                                  SizedBox(height: compact ? 13 : 17),
+                                  Text(
+                                    tip.details.first,
+                                    maxLines: compact ? 2 : 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: NylaColors.mutedInk,
+                                          height: 1.46,
+                                        ),
+                                  ),
+                                ],
+                                const SizedBox(height: 4),
+                              ],
+                            ),
                           ),
                         ),
-                        const Icon(Icons.arrow_forward_rounded, color: NylaColors.wine, size: 19),
+                        SizedBox(height: compact ? 11 : 15),
+                        Row(
+                          children: [
+                            Container(
+                              width: compact ? 36 : 40,
+                              height: compact ? 36 : 40,
+                              decoration: BoxDecoration(
+                                color: palette.accent,
+                                shape: BoxShape.circle,
+                              ),
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.flip_rounded,
+                                color: Colors.white,
+                                size: 19,
+                              ),
+                            ),
+                            const SizedBox(width: 11),
+                            Expanded(
+                              child: Text(
+                                'Turn card',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelLarge
+                                    ?.copyWith(color: NylaColors.wine),
+                              ),
+                            ),
+                            const Icon(
+                              Icons.arrow_forward_rounded,
+                              color: NylaColors.wine,
+                              size: 19,
+                            ),
+                          ],
+                        ),
                       ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ],
           ),
@@ -376,34 +434,28 @@ class _QuickCard extends StatelessWidget {
 
 class _DetailedCard extends StatelessWidget {
   const _DetailedCard({required this.tip, required this.palette, required this.onClose});
+
   final HealthTip tip;
   final _CardPalette palette;
   final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(
-          color: NylaColors.paper,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(34),
-            topRight: Radius.circular(34),
-            bottomLeft: Radius.circular(26),
-            bottomRight: Radius.circular(18),
-          ),
-          border: Border.all(color: Colors.white),
-          boxShadow: const [
-            BoxShadow(color: Color(0x222A111E), blurRadius: 34, offset: Offset(0, 16)),
-          ],
-        ),
+        decoration: _cardDecoration(),
         clipBehavior: Clip.antiAlias,
         child: Column(
           children: [
             Container(height: 8, color: palette.accent),
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 14, 14, 6),
+              padding: const EdgeInsets.fromLTRB(22, 13, 12, 4),
               child: Row(
                 children: [
-                  Expanded(child: _CategoryBadge(category: tip.category, palette: palette)),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: _CategoryBadge(category: tip.category, palette: palette),
+                    ),
+                  ),
                   IconButton(
                     tooltip: 'Turn to front',
                     onPressed: onClose,
@@ -416,13 +468,16 @@ class _DetailedCard extends StatelessWidget {
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(24, 10, 24, 27),
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 27),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       tip.title,
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 27),
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineMedium
+                          ?.copyWith(fontSize: 27),
                     ),
                     const SizedBox(height: 16),
                     _Takeaway(text: tip.flash, accent: palette.accent),
@@ -431,8 +486,7 @@ class _DetailedCard extends StatelessWidget {
                       Text(paragraph, style: Theme.of(context).textTheme.bodyLarge),
                       const SizedBox(height: 15),
                     ],
-                    if (tip.practical.isNotEmpty) ...[
-                      const SizedBox(height: 4),
+                    if (tip.practical.isNotEmpty)
                       _GuidanceSection(
                         eyebrow: 'Try this',
                         title: 'What can help',
@@ -441,7 +495,6 @@ class _DetailedCard extends StatelessWidget {
                         accent: const Color(0xFF4C7565),
                         surface: NylaColors.sageSoft,
                       ),
-                    ],
                     if (tip.seekCare.isNotEmpty) ...[
                       const SizedBox(height: 16),
                       _GuidanceSection(
@@ -464,8 +517,17 @@ class _DetailedCard extends StatelessWidget {
       );
 }
 
+BoxDecoration _cardDecoration() => const BoxDecoration(
+      color: NylaColors.paper,
+      borderRadius: _cardRadius,
+      boxShadow: [
+        BoxShadow(color: Color(0x222A111E), blurRadius: 34, offset: Offset(0, 16)),
+      ],
+    );
+
 class _Takeaway extends StatelessWidget {
   const _Takeaway({required this.text, required this.accent});
+
   final String text;
   final Color accent;
 
@@ -476,7 +538,10 @@ class _Takeaway extends StatelessWidget {
           Container(
             width: 3,
             height: 62,
-            decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(99)),
+            decoration: BoxDecoration(
+              color: accent,
+              borderRadius: BorderRadius.circular(99),
+            ),
           ),
           const SizedBox(width: 13),
           Expanded(
@@ -517,6 +582,7 @@ class _GuidanceSection extends StatelessWidget {
     required this.accent,
     required this.surface,
   });
+
   final String eyebrow;
   final String title;
   final IconData icon;
@@ -577,7 +643,10 @@ class _GuidanceSection extends StatelessWidget {
                   Expanded(
                     child: Text(
                       item,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: NylaColors.ink),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: NylaColors.ink),
                     ),
                   ),
                 ],
@@ -591,6 +660,7 @@ class _GuidanceSection extends StatelessWidget {
 
 class _ReferencesButton extends StatelessWidget {
   const _ReferencesButton({required this.tip});
+
   final HealthTip tip;
 
   @override
@@ -631,6 +701,7 @@ class _ReferencesButton extends StatelessWidget {
 
 class _SourcesSheet extends StatelessWidget {
   const _SourcesSheet({required this.tip});
+
   final HealthTip tip;
 
   @override
@@ -647,7 +718,10 @@ class _SourcesSheet extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               'Reviewed sources',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 27),
+              style: Theme.of(context)
+                  .textTheme
+                  .headlineMedium
+                  ?.copyWith(fontSize: 27),
             ),
             const SizedBox(height: 7),
             Text(
@@ -657,7 +731,10 @@ class _SourcesSheet extends StatelessWidget {
             const SizedBox(height: 20),
             for (final source in tip.sources) ...[
               NylaPressable(
-                onTap: () => launchUrl(Uri.parse(source.url), mode: LaunchMode.externalApplication),
+                onTap: () => launchUrl(
+                  Uri.parse(source.url),
+                  mode: LaunchMode.externalApplication,
+                ),
                 borderRadius: BorderRadius.circular(22),
                 child: Container(
                   padding: const EdgeInsets.all(16),
@@ -680,7 +757,10 @@ class _SourcesSheet extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(source.organization, style: Theme.of(context).textTheme.titleMedium),
+                            Text(
+                              source.organization,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
                             const SizedBox(height: 3),
                             Text(source.title, style: Theme.of(context).textTheme.bodyMedium),
                           ],
@@ -699,13 +779,17 @@ class _SourcesSheet extends StatelessWidget {
 
 class _CategoryBadge extends StatelessWidget {
   const _CategoryBadge({required this.category, required this.palette});
+
   final TipCategory category;
   final _CardPalette palette;
 
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-        decoration: BoxDecoration(color: palette.soft, borderRadius: BorderRadius.circular(99)),
+        decoration: BoxDecoration(
+          color: palette.soft,
+          borderRadius: BorderRadius.circular(99),
+        ),
         child: Text(
           _categoryName(category).toUpperCase(),
           maxLines: 1,
@@ -722,22 +806,24 @@ class _CategoryBadge extends StatelessWidget {
 
 class _DeckProgress extends StatelessWidget {
   const _DeckProgress({required this.index, required this.total});
+
   final int index;
   final int total;
 
   @override
   Widget build(BuildContext context) {
     final visible = math.min(total, 8);
+    final selected = index.clamp(0, visible - 1);
     return Row(
       children: [
         for (var i = 0; i < visible; i++) ...[
           Expanded(
-            flex: i == index.clamp(0, visible - 1) ? 3 : 1,
+            flex: i == selected ? 3 : 1,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 220),
               height: 4,
               decoration: BoxDecoration(
-                color: i == index.clamp(0, visible - 1) ? NylaColors.wine : NylaColors.outlineStrong,
+                color: i == selected ? NylaColors.wine : NylaColors.outlineStrong,
                 borderRadius: BorderRadius.circular(99),
               ),
             ),
@@ -746,7 +832,10 @@ class _DeckProgress extends StatelessWidget {
         ],
         if (total > visible) ...[
           const SizedBox(width: 8),
-          Text('+${total - visible}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 10.5)),
+          Text(
+            '+${total - visible}',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 10.5),
+          ),
         ],
       ],
     );
@@ -755,6 +844,7 @@ class _DeckProgress extends StatelessWidget {
 
 class _CardMotifPainter extends CustomPainter {
   const _CardMotifPainter({required this.accent});
+
   final Color accent;
 
   @override
@@ -765,7 +855,10 @@ class _CardMotifPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..color = accent.withValues(alpha: 0.055);
     canvas.drawArc(
-      Rect.fromCircle(center: Offset(size.width * 0.88, size.height * 0.16), radius: size.width * 0.28),
+      Rect.fromCircle(
+        center: Offset(size.width * 0.88, size.height * 0.16),
+        radius: size.width * 0.28,
+      ),
       -0.8,
       2.5,
       false,
@@ -775,7 +868,10 @@ class _CardMotifPainter extends CustomPainter {
       ..strokeWidth = 5
       ..color = accent.withValues(alpha: 0.075);
     canvas.drawArc(
-      Rect.fromCircle(center: Offset(size.width * 0.94, size.height * 0.21), radius: size.width * 0.18),
+      Rect.fromCircle(
+        center: Offset(size.width * 0.94, size.height * 0.21),
+        radius: size.width * 0.18,
+      ),
       1.0,
       3.0,
       false,
@@ -784,19 +880,8 @@ class _CardMotifPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _CardMotifPainter oldDelegate) => oldDelegate.accent != accent;
-}
-
-class _EditorialNote extends StatelessWidget {
-  const _EditorialNote();
-
-  @override
-  Widget build(BuildContext context) => const NylaInlineNote(
-        icon: Icons.verified_rounded,
-        title: 'Written to be useful first',
-        body: 'Each card is reviewed against trusted medical sources. References stay available without taking over the reading experience.',
-        accent: Color(0xFF4C7565),
-      );
+  bool shouldRepaint(covariant _CardMotifPainter oldDelegate) =>
+      oldDelegate.accent != accent;
 }
 
 class _EmptyDeck extends StatelessWidget {
@@ -815,19 +900,44 @@ class _EmptyDeck extends StatelessWidget {
 
 class _CardPalette {
   const _CardPalette({required this.accent, required this.soft});
+
   final Color accent;
   final Color soft;
 }
 
-_CardPalette _paletteFor(TipCategory category, int index) => switch (category) {
-      TipCategory.cycle => const _CardPalette(accent: NylaColors.rose, soft: NylaColors.roseWash),
-      TipCategory.understanding => const _CardPalette(accent: NylaColors.violet, soft: NylaColors.lavenderSoft),
-      TipCategory.body => const _CardPalette(accent: Color(0xFF6E6651), soft: Color(0xFFF2EEE1)),
-      TipCategory.care => const _CardPalette(accent: Color(0xFF4C7565), soft: NylaColors.sageSoft),
-      TipCategory.products => const _CardPalette(accent: Color(0xFF8A6048), soft: NylaColors.peachSoft),
-      TipCategory.comfort => const _CardPalette(accent: Color(0xFF8C6C33), soft: Color(0xFFF7EFD5)),
-      TipCategory.symptoms => const _CardPalette(accent: NylaColors.iris, soft: NylaColors.lavenderMist),
-      TipCategory.seekCare => const _CardPalette(accent: NylaColors.warning, soft: Color(0xFFF7E5E0)),
+_CardPalette _paletteFor(TipCategory category) => switch (category) {
+      TipCategory.cycle => const _CardPalette(
+          accent: NylaColors.rose,
+          soft: NylaColors.roseWash,
+        ),
+      TipCategory.understanding => const _CardPalette(
+          accent: NylaColors.violet,
+          soft: NylaColors.lavenderSoft,
+        ),
+      TipCategory.body => const _CardPalette(
+          accent: Color(0xFF6E6651),
+          soft: Color(0xFFF2EEE1),
+        ),
+      TipCategory.care => const _CardPalette(
+          accent: Color(0xFF4C7565),
+          soft: NylaColors.sageSoft,
+        ),
+      TipCategory.products => const _CardPalette(
+          accent: Color(0xFF8A6048),
+          soft: NylaColors.peachSoft,
+        ),
+      TipCategory.comfort => const _CardPalette(
+          accent: Color(0xFF8C6C33),
+          soft: Color(0xFFF7EFD5),
+        ),
+      TipCategory.symptoms => const _CardPalette(
+          accent: NylaColors.iris,
+          soft: NylaColors.lavenderMist,
+        ),
+      TipCategory.seekCare => const _CardPalette(
+          accent: NylaColors.warning,
+          soft: Color(0xFFF7E5E0),
+        ),
     };
 
 String _categoryName(TipCategory category) => switch (category) {
@@ -853,6 +963,19 @@ IconData _categoryIcon(TipCategory category) => switch (category) {
     };
 
 String _reviewDate(DateTime value) {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   return '${months[value.month - 1]} ${value.year}';
 }
