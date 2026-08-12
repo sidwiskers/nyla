@@ -86,6 +86,26 @@ jobs:
         working-directory: content/tips
         run: dart test
 
+      - name: Install launcher icon renderer
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends librsvg2-bin
+
+      - name: Generate Nyla launcher icons
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: apps/mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          rsvg-convert -w 1024 -h 1024 assets/branding/nyla_app_icon.svg \
+            -o assets/branding/nyla_app_icon.png
+          rsvg-convert -w 1024 -h 1024 assets/branding/nyla_app_icon_foreground.svg \
+            -o assets/branding/nyla_app_icon_foreground.png
+          dart run flutter_launcher_icons
+
       - name: Build Android debug APK
         if: github.event_name == 'workflow_dispatch'
         working-directory: apps/mobile
