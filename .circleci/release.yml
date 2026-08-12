@@ -1,0 +1,442 @@
+name: Release APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version, for example 1.0.0'
+        required: true
+        default: '1.0.0'
+        type: string
+      publish_github_release:
+        description: 'Publish/update the GitHub Release'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nyla-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: '3.44.9'
+
+jobs:
+  preflight:
+    name: Validate release secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require release configuration
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in \
+            CLOUDFLARE_API_TOKEN \
+            CLOUDFLARE_ACCOUNT_ID \
+            ANDROID_KEYSTORE_BASE64 \
+            ANDROID_KEYSTORE_PASSWORD \
+            ANDROID_KEY_ALIAS \
+            ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            printf '::error::Missing required GitHub Actions secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+  resolve-sync-url:
+    name: Resolve Cloudflare sync URL
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      base_url: ${{ steps.resolve.outputs.base_url }}
+      worker_name: ${{ steps.resolve.outputs.worker_name }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve workers.dev endpoint
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          worker_name="$(python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          text = Path('services/sync/wrangler.jsonc').read_text()
+          match = re.search(r'"name"\s*:\s*"([^"]+)"', text)
+          if match is None:
+              raise SystemExit('services/sync/wrangler.jsonc must define a Worker name')
+          print(match.group(1))
+          PY
+          )"
+
+          api="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"
+
+          response="$(curl --silent --show-error \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "$api")"
+
+          subdomain="$(printf '%s' "$response" | python3 -c '
+          import json, sys
+          try:
+              payload = json.load(sys.stdin)
+          except json.JSONDecodeError:
+              print("")
+              raise SystemExit
+          result = payload.get("result") or {}
+          value = result.get("subdomain")
+          print(value if payload.get("success") is True and isinstance(value, str) else "")
+          ')"
+
+          if [[ -z "$subdomain" ]]; then
+            desired="nyla-${CLOUDFLARE_ACCOUNT_ID:0:12}"
+            response="$(curl --silent --show-error \
+              --request PUT \
+              --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              --header 'Content-Type: application/json' \
+              --data "{\"subdomain\":\"$desired\"}" \
+              "$api")"
+
+            subdomain="$(printf '%s' "$response" | python3 -c '
+          import json, sys
+          try:
+              payload = json.load(sys.stdin)
+          except json.JSONDecodeError:
+              raise SystemExit("Cloudflare returned an unreadable response while creating workers.dev")
+          if payload.get("success") is not True:
+              errors = payload.get("errors") or []
+              detail = "; ".join(str(item.get("message", "unknown Cloudflare error")) for item in errors)
+              raise SystemExit("Cloudflare could not create a workers.dev subdomain: " + (detail or "unknown error"))
+          result = payload.get("result") or {}
+          value = result.get("subdomain")
+          if not isinstance(value, str) or not value:
+              raise SystemExit("Cloudflare created workers.dev but did not return its subdomain")
+          print(value)
+          ')"
+          fi
+
+          base_url="https://${worker_name}.${subdomain}.workers.dev"
+          echo "worker_name=$worker_name" >> "$GITHUB_OUTPUT"
+          echo "base_url=$base_url" >> "$GITHUB_OUTPUT"
+          echo "Using Cloudflare endpoint: $base_url" >> "$GITHUB_STEP_SUMMARY"
+
+  build-release:
+    name: Build and validate signed APK
+    needs: resolve-sync-url
+    runs-on: ubuntu-latest
+    # The first encrypted Android build gets enough room to populate caches.
+    # The Flutter compile itself has a separate 60-minute watchdog below.
+    timeout-minutes: 80
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      artifact_name: ${{ steps.release.outputs.artifact_name }}
+      apk_name: ${{ steps.release.outputs.apk_name }}
+    env:
+      NYLA_SYNC_BASE_URL: ${{ needs.resolve-sync-url.outputs.base_url }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      MANUAL_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve release metadata
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${MANUAL_VERSION#v}"
+          tag="v${version}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid release version: $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=nyla-$version" >> "$GITHUB_OUTPUT"
+          echo "apk_name=Nyla-$version.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Install pinned Flutter
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/flutter/bin/flutter" config --no-analytics
+          "$RUNNER_TEMP/flutter/bin/flutter" --version
+          "$RUNNER_TEMP/flutter/bin/flutter" precache --android
+
+      - name: Generate pinned native scaffolds
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter create \
+            --org app.nyla \
+            --project-name nyla \
+            --platforms=android,ios \
+            "$RUNNER_TEMP/nyla-platform"
+          cp -R "$RUNNER_TEMP/nyla-platform/android" apps/mobile/
+          cp -R "$RUNNER_TEMP/nyla-platform/ios" apps/mobile/
+          cp "$RUNNER_TEMP/nyla-platform/.metadata" apps/mobile/.metadata
+          python3 apps/mobile/tool/configure_platforms.py
+
+      - name: Set up Java and Gradle cache
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: |
+            apps/mobile/android/**/*.gradle*
+            apps/mobile/android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Restore Dart and native-asset cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.pub-cache
+            apps/mobile/.dart_tool
+          key: nyla-flutter-${{ runner.os }}-${{ env.FLUTTER_VERSION }}-${{ hashFiles('apps/mobile/pubspec.yaml', 'apps/mobile/pubspec.lock', 'packages/**/pubspec.yaml', 'content/**/pubspec.yaml') }}
+          restore-keys: |
+            nyla-flutter-${{ runner.os }}-${{ env.FLUTTER_VERSION }}-
+
+      - name: Render Nyla icon artwork
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends librsvg2-bin
+          cd apps/mobile
+          rsvg-convert -w 1024 -h 1024 assets/branding/nyla_app_icon.svg \
+            -o assets/branding/nyla_app_icon.png
+          rsvg-convert -w 1024 -h 1024 assets/branding/nyla_app_icon_foreground.svg \
+            -o assets/branding/nyla_app_icon_foreground.png
+
+      - name: Restore release keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+          keystore="$RUNNER_TEMP/nyla-release.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          if [[ ! -s "$keystore" ]]; then
+            echo '::error::ANDROID_KEYSTORE_BASE64 decoded to an empty keystore.'
+            exit 1
+          fi
+          chmod 600 "$keystore"
+          echo "ANDROID_KEYSTORE_PATH=$keystore" >> "$GITHUB_ENV"
+
+      - name: Resolve Flutter dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Generate native launcher icons
+        working-directory: apps/mobile
+        run: dart run flutter_launcher_icons
+
+      - name: Generate Drift code
+        working-directory: apps/mobile
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze release source
+        working-directory: apps/mobile
+        run: flutter analyze --fatal-infos
+
+      - name: Run app tests
+        working-directory: apps/mobile
+        run: flutter test
+
+      - name: Test cycle engine
+        working-directory: packages/cycle_engine
+        run: dart test
+
+      - name: Test sync core
+        working-directory: packages/sync_core
+        run: dart test
+
+      - name: Validate medical content
+        working-directory: content/tips
+        run: dart test
+
+      - name: Build signed release APK
+        working-directory: apps/mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_log="$RUNNER_TEMP/flutter-release-build.log"
+
+          # Keep the exact Gradle/native-assets output if the build fails, and
+          # stop the compile itself before the surrounding job timeout.
+          set +e
+          timeout --signal=TERM --kill-after=30s 60m \
+            flutter build apk \
+              --release \
+              --no-pub \
+              --verbose \
+              --build-name='${{ steps.release.outputs.version }}' \
+              --build-number='${{ github.run_number }}' \
+              --dart-define="NYLA_SYNC_BASE_URL=${NYLA_SYNC_BASE_URL}" \
+            2>&1 | tee "$build_log"
+          build_status=${PIPESTATUS[0]}
+          set -e
+
+          if [[ "$build_status" -eq 124 ]]; then
+            echo '::error::Flutter release compilation exceeded 60 minutes and was stopped.'
+            exit 124
+          fi
+          exit "$build_status"
+
+      - name: Upload failed-build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nyla-build-diagnostics-${{ github.run_id }}
+          path: ${{ runner.temp }}/flutter-release-build.log
+          if-no-files-found: warn
+          retention-days: 3
+
+      - name: Verify signature and create checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_apk='apps/mobile/build/app/outputs/flutter-apk/app-release.apk'
+          mkdir -p dist
+          final_apk="dist/${{ steps.release.outputs.apk_name }}"
+          test -s "$source_apk"
+          cp "$source_apk" "$final_apk"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          if [[ -z "$apksigner" ]]; then
+            echo '::error::Android apksigner was not found on the runner.'
+            exit 1
+          fi
+          "$apksigner" verify --verbose --print-certs "$final_apk"
+          (
+            cd dist
+            sha256sum '${{ steps.release.outputs.apk_name }}' > '${{ steps.release.outputs.apk_name }}.sha256'
+          )
+
+      - name: Upload validated release package
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.release.outputs.artifact_name }}
+          path: |
+            dist/${{ steps.release.outputs.apk_name }}
+            dist/${{ steps.release.outputs.apk_name }}.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  validate-sync:
+    name: Validate encrypted sync relay
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/sync
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install relay dependencies
+        run: npm install --no-audit --no-fund
+      - name: Typecheck relay
+        run: npm run typecheck
+      - name: Test relay in workerd
+        run: npm test
+
+  deploy-sync:
+    name: Deploy encrypted sync relay
+    needs: [resolve-sync-url, build-release, validate-sync]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/sync
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      NYLA_SYNC_BASE_URL: ${{ needs.resolve-sync-url.outputs.base_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install relay dependencies
+        run: npm install --no-audit --no-fund
+      - name: Deploy relay to Cloudflare
+        run: npm run deploy
+      - name: Verify the endpoint embedded in the APK
+        shell: bash
+        working-directory: .
+        run: |
+          set -euo pipefail
+          endpoint="${NYLA_SYNC_BASE_URL%/}/health"
+          for _ in {1..12}; do
+            body="$(curl --fail --silent --show-error --max-time 10 "$endpoint" 2>/dev/null || true)"
+            if [[ "$body" == 'ok' ]]; then
+              echo "Verified $endpoint" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo '::error::The Cloudflare endpoint embedded in the APK did not become healthy after deployment.'
+          exit 1
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-release, deploy-sync]
+    if: inputs.publish_github_release == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Download validated APK
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.build-release.outputs.artifact_name }}
+          path: dist
+      - name: Publish or update release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build-release.outputs.tag }}
+          VERSION: ${{ needs.build-release.outputs.version }}
+          APK_NAME: ${{ needs.build-release.outputs.apk_name }}
+        run: |
+          set -euo pipefail
+          apk="dist/$APK_NAME"
+          checksum="$apk.sha256"
+          test -s "$apk"
+          test -s "$checksum"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$apk" "$checksum" --clobber
+          else
+            gh release create "$TAG" \
+              "$apk" \
+              "$checksum" \
+              --target "$GITHUB_SHA" \
+              --title "Nyla $VERSION" \
+              --generate-notes
+          fi
