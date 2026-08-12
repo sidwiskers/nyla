@@ -13,9 +13,6 @@ on:
         required: true
         default: true
         type: boolean
-  push:
-    tags:
-      - 'v*'
 
 permissions:
   contents: write
@@ -102,13 +99,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF_TYPE" == 'tag' ]]; then
-            tag="$GITHUB_REF_NAME"
-            version="${tag#v}"
-          else
-            version="${MANUAL_VERSION#v}"
-            tag="v${version}"
-          fi
+          version="${MANUAL_VERSION#v}"
+          tag="v${version}"
 
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
             echo "::error::Invalid release version: $version"
@@ -296,7 +288,7 @@ jobs:
   publish-release:
     name: Publish GitHub Release
     needs: [build-release, deploy-sync]
-    if: github.ref_type == 'tag' || inputs.publish_github_release == true
+    if: inputs.publish_github_release == true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
