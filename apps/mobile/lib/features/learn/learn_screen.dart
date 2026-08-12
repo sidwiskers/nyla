@@ -295,13 +295,14 @@ class _QuickCard extends StatelessWidget {
             ),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final compact = constraints.maxHeight < 450;
+                final compact = constraints.maxHeight < 470;
+                final horizontal = compact ? 18.0 : 23.0;
                 return Padding(
                   padding: EdgeInsets.fromLTRB(
-                    compact ? 20 : 24,
-                    compact ? 19 : 23,
-                    compact ? 20 : 24,
-                    compact ? 18 : 22,
+                    horizontal,
+                    compact ? 17 : 22,
+                    horizontal,
+                    compact ? 16 : 21,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -311,88 +312,94 @@ class _QuickCard extends StatelessWidget {
                           _CategoryBadge(category: tip.category, palette: palette),
                           const Spacer(),
                           Container(
-                            width: compact ? 39 : 44,
-                            height: compact ? 39 : 44,
+                            width: compact ? 36 : 42,
+                            height: compact ? 36 : 42,
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.58),
-                              borderRadius: BorderRadius.circular(15),
+                              borderRadius: BorderRadius.circular(14),
                             ),
                             alignment: Alignment.center,
                             child: Icon(
                               _categoryIcon(tip.category),
                               color: palette.ink,
-                              size: compact ? 19 : 21,
+                              size: compact ? 18 : 20,
                             ),
                           ),
                         ],
                       ),
-                      SizedBox(height: compact ? 16 : 23),
-                      Text(
-                        tip.title,
-                        maxLines: compact ? 3 : 4,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                              color: palette.ink,
-                              fontSize: compact ? 27 : 31,
-                              height: 1.05,
-                            ),
-                      ),
-                      SizedBox(height: compact ? 14 : 19),
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.fromLTRB(
-                          compact ? 14 : 16,
-                          compact ? 13 : 15,
-                          compact ? 14 : 16,
-                          compact ? 14 : 16,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.64),
-                          borderRadius: BorderRadius.circular(21),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'THE TAKEAWAY',
-                              style: TextStyle(
-                                color: palette.ink.withValues(alpha: 0.64),
-                                fontSize: 9.2,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.9,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              tip.flash,
-                              maxLines: compact ? 4 : 5,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                    color: palette.ink,
-                                    fontWeight: FontWeight.w600,
-                                    height: 1.4,
+                      SizedBox(height: compact ? 12 : 19),
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, bodyConstraints) => FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.topLeft,
+                            child: SizedBox(
+                              width: bodyConstraints.maxWidth,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    tip.title,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                                          color: palette.ink,
+                                          fontSize: compact ? 25 : 30,
+                                          height: 1.04,
+                                        ),
                                   ),
+                                  SizedBox(height: compact ? 12 : 17),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: EdgeInsets.fromLTRB(
+                                      compact ? 13 : 15,
+                                      compact ? 12 : 14,
+                                      compact ? 13 : 15,
+                                      compact ? 13 : 15,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.64),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'THE TAKEAWAY',
+                                          style: TextStyle(
+                                            color: palette.ink.withValues(alpha: 0.64),
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: 0.85,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 5),
+                                        Text(
+                                          tip.flash,
+                                          maxLines: 4,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                                color: palette.ink,
+                                                fontWeight: FontWeight.w600,
+                                                height: 1.36,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ],
+                          ),
                         ),
                       ),
-                      if (!compact && tip.details.isNotEmpty) ...[
-                        const SizedBox(height: 15),
-                        Text(
-                          tip.details.first,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: palette.ink.withValues(alpha: 0.74),
-                              ),
-                        ),
-                      ],
-                      const Spacer(),
+                      SizedBox(height: compact ? 9 : 13),
                       Row(
                         children: [
                           Container(
-                            width: 36,
-                            height: 36,
+                            width: 34,
+                            height: 34,
                             decoration: BoxDecoration(
                               color: palette.ink.withValues(alpha: 0.1),
                               shape: BoxShape.circle,
@@ -401,10 +408,10 @@ class _QuickCard extends StatelessWidget {
                             child: Icon(
                               Icons.menu_book_rounded,
                               color: palette.ink,
-                              size: 17,
+                              size: 16,
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 9),
                           Expanded(
                             child: Text(
                               'Read the full card',
