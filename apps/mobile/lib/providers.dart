@@ -55,7 +55,9 @@ final symptomPatternsProvider = Provider<AsyncValue<List<SymptomPattern>>>((ref)
     'cramps',
     'headache',
     'bloating',
-    'skin',
+    'nausea',
+    'dizziness',
+    'back_pain',
     'breast_tenderness',
   };
   final observations = <BinaryObservation>[];

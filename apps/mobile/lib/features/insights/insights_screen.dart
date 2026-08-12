@@ -256,7 +256,9 @@ class _PatternCard extends StatelessWidget {
         'cramps' => 'cramps',
         'headache' => 'headaches',
         'bloating' => 'bloating',
-        'skin' => 'skin changes',
+        'nausea' => 'nausea',
+        'dizziness' => 'dizziness',
+        'back_pain' => 'back pain',
         'breast_tenderness' => 'breast tenderness',
         _ => key.replaceAll('_', ' '),
       };

@@ -51,11 +51,13 @@ class TodayScreen extends ConsumerWidget {
     final cramps = byKey['cramps'];
     if ((cramps?.severity ?? 0) > 0) return _tip('why-cramps-happen');
     final discharge = byKey['discharge'];
-    if (discharge != null && discharge.value != 'None') return _tip('normal-discharge');
+    if (discharge != null && discharge.value != 'none') return _tip('normal-discharge');
     final sleep = byKey['sleep'];
-    if ((sleep?.severity ?? 0) > 0) return _tip('sleep-and-discomfort');
+    if (sleep != null && (sleep.value == 'poor' || sleep.value == 'very_poor')) {
+      return _tip('sleep-and-discomfort');
+    }
     final flow = byKey['flow'];
-    if (flow != null && flow.value != 'None') return _tip('hands-before-after-products');
+    if (flow != null && flow.value != 'none') return _tip('hands-before-after-products');
 
     final safeGeneral = healthTips
         .where((tip) => tip.category != TipCategory.seekCare && tip.id != 'tampon-metals-2026')
