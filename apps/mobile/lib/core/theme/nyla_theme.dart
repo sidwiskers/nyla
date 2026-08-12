@@ -57,7 +57,7 @@ abstract final class NylaTheme {
         ),
         bodyLarge: TextStyle(color: NylaColors.ink, fontSize: 16, height: 1.45),
         bodyMedium: TextStyle(color: NylaColors.mutedInk, fontSize: 14, height: 1.45),
-        labelLarge: TextStyle(color: NylaColors.ink, fontSize: 14, fontWeight: FontWeight.w650),
+        labelLarge: TextStyle(color: NylaColors.ink, fontSize: 14, fontWeight: FontWeight.w600),
       ),
       cardTheme: const CardThemeData(
         color: NylaColors.surface,

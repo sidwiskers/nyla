@@ -55,6 +55,40 @@ class DayLogRepository {
     });
   }
 
+  Future<void> setNote({required int epochDay, required String note}) async {
+    if (note.length > 4000) throw ArgumentError('A daily note can contain at most 4000 characters.');
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final hlc = '$now:0:$deviceId';
+    final entityId = 'day:$epochDay';
+    await database.transaction(() async {
+      if (note.trim().isEmpty) {
+        await (database.delete(database.dayNotes)..where((row) => row.day.equals(epochDay))).go();
+      } else {
+        await database.into(database.dayNotes).insertOnConflictUpdate(
+              DayNotesCompanion.insert(day: epochDay, note: note.trim(), updatedHlc: hlc, updatedMs: now),
+            );
+      }
+      await database.into(database.localMutations).insert(
+            LocalMutationsCompanion.insert(
+              opId: _id(),
+              entityId: entityId,
+              entityType: 'day',
+              field: 'note',
+              kind: note.trim().isEmpty ? 'unset' : 'set',
+              valueJson: Value(note.trim().isEmpty ? null : jsonEncode(note.trim())),
+              hlc: hlc,
+              createdMs: now,
+            ),
+          );
+      await database.into(database.fieldClocks).insertOnConflictUpdate(
+            FieldClocksCompanion.insert(entityId: entityId, field: 'note', hlc: hlc),
+          );
+    });
+  }
+
+  Future<String?> noteForDay(int epochDay) async =>
+      (await (database.select(database.dayNotes)..where((row) => row.day.equals(epochDay))).getSingleOrNull())?.note;
+
   Future<void> clearValue({required int epochDay, required String key}) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final hlc = '$now:0:$deviceId';
