@@ -22,6 +22,9 @@ class NylaBootstrap extends StatefulWidget {
 class _NylaBootstrapState extends State<NylaBootstrap> {
   final SecureVault _vault = const SecureVault();
   Future<_BootstrapResult>? _bootstrap;
+  AppDatabase? _activeDatabase;
+  bool _resetting = false;
+  int _generation = 0;
 
   @override
   void initState() {
@@ -48,7 +51,41 @@ class _NylaBootstrapState extends State<NylaBootstrap> {
     final databaseKey = await _vault.databaseKeyHex();
     final deviceId = await _vault.deviceId();
     final database = await AppDatabase.open(databaseKey);
+    _activeDatabase = database;
     return _BootstrapResult.ready(database, deviceId);
+  }
+
+  Future<void> _resetLocalData() async {
+    if (_resetting) return;
+    setState(() => _resetting = true);
+
+    // The state change above removes ProviderScope. Wait one frame so active
+    // repository streams are disposed before their database is closed.
+    await WidgetsBinding.instance.endOfFrame;
+    final database = _activeDatabase;
+    _activeDatabase = null;
+    try {
+      if (database != null) await database.close();
+
+      // Destroy the encryption key first. Even if filesystem cleanup is
+      // interrupted, remaining SQLCipher pages are cryptographically useless.
+      await _vault.clearAll();
+      await AppDatabase.deleteLocalFiles();
+    } catch (error, stackTrace) {
+      if (!mounted) rethrow;
+      setState(() {
+        _resetting = false;
+        _bootstrap = Future<_BootstrapResult>.error(error, stackTrace);
+      });
+      rethrow;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _generation += 1;
+      _resetting = false;
+      _bootstrap = _open();
+    });
   }
 
   void _retry() {
@@ -57,16 +94,19 @@ class _NylaBootstrapState extends State<NylaBootstrap> {
 
   @override
   Widget build(BuildContext context) {
+    if (_resetting) return const _SplashApp();
     return FutureBuilder<_BootstrapResult>(
       future: _bootstrap,
       builder: (context, snapshot) {
         final result = snapshot.data;
         if (result?.database != null) {
           return ProviderScope(
+            key: ValueKey(_generation),
             overrides: [
               databaseProvider.overrideWithValue(result!.database!),
               deviceIdProvider.overrideWithValue(result.deviceId!),
               secureVaultProvider.overrideWithValue(_vault),
+              resetLocalDataProvider.overrideWithValue(_resetLocalData),
             ],
             child: const NylaApp(),
           );

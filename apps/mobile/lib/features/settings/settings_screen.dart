@@ -157,6 +157,8 @@ class SettingsScreen extends ConsumerWidget {
                   title: Text('Medical content'),
                   subtitle: Text('Source-backed, versioned and reviewed'),
                 ),
+                const Divider(height: 1, indent: 18, endIndent: 18),
+                const _EraseDataTile(),
               ],
             ),
           ),
@@ -254,6 +256,135 @@ class _AppLockTileState extends ConsumerState<_AppLockTile> {
         subtitle: const Text('Require your device authentication when Nyla opens'),
         value: enabled ?? false,
         onChanged: enabled == null ? null : _change,
+      );
+}
+
+enum _EraseScope { local, cloudAndLocal }
+
+class _EraseDataTile extends ConsumerStatefulWidget {
+  const _EraseDataTile();
+
+  @override
+  ConsumerState<_EraseDataTile> createState() => _EraseDataTileState();
+}
+
+class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
+  bool _busy = false;
+
+  Future<void> _begin() async {
+    if (_busy) return;
+    final sync = ref.read(syncServiceProvider);
+    final hasSync = await sync.identity() != null;
+    if (!mounted) return;
+
+    final scope = await showDialog<_EraseScope>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Erase Nyla data'),
+        content: Text(
+          hasSync
+              ? 'Choose what to erase. Other devices keep health data already stored locally on them; Nyla cannot remotely wipe an offline device.'
+              : 'This permanently removes Nyla’s encrypted health database and private keys from this device.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, _EraseScope.local),
+            child: const Text('This device only'),
+          ),
+          if (hasSync)
+            FilledButton(
+              onPressed: () => Navigator.pop(context, _EraseScope.cloudAndLocal),
+              child: const Text('Cloud vault + this device'),
+            ),
+        ],
+      ),
+    );
+    if (scope == null || !mounted) return;
+
+    final confirmed = await _confirm(scope);
+    if (!confirmed || !mounted) return;
+    setState(() => _busy = true);
+
+    try {
+      if (scope == _EraseScope.cloudAndLocal) {
+        // Cloud deletion must succeed before local erasure. If it cannot be
+        // authenticated, the local copy remains intact so the user can retry
+        // or deliberately choose "this device only" instead.
+        await sync.deleteRemoteVault();
+      }
+      try {
+        final notifications = await ref.read(notificationServiceProvider.future);
+        await notifications.cancelAll();
+      } catch (_) {
+        // A notification plugin failure must never hold health data hostage.
+      }
+      await ref.read(resetLocalDataProvider)();
+    } on Exception catch (error) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      final message = error.toString().contains('device_not_authorized')
+          ? 'This device is no longer authorized to delete the shared vault. You can still erase this device only.'
+          : 'Nyla could not complete that erasure safely. Local data was kept.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
+  Future<bool> _confirm(_EraseScope scope) async {
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: Text(scope == _EraseScope.cloudAndLocal ? 'Delete the sync vault too?' : 'Erase this device?'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  scope == _EraseScope.cloudAndLocal
+                      ? 'This destroys the encrypted Cloudflare vault, its recovery state and this device’s local copy. Devices that already hold local copies are not remotely erased, but they will no longer sync through this vault.'
+                      : 'This destroys this installation’s SQLCipher key, local health database, sync identity and recovery state. A shared cloud vault and other devices are left untouched.',
+                ),
+                const SizedBox(height: 16),
+                const Text('Type ERASE to confirm.'),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(hintText: 'ERASE'),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, controller.text.trim() == 'ERASE'),
+                style: FilledButton.styleFrom(backgroundColor: NylaColors.warning),
+                child: const Text('Erase permanently'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    controller.dispose();
+    return confirmed;
+  }
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+        leading: const _IconBox(icon: Icons.delete_outline_rounded, tint: NylaColors.peach),
+        title: const Text('Erase data'),
+        subtitle: const Text('Permanently remove local data or the encrypted sync vault'),
+        trailing: _busy
+            ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.chevron_right_rounded),
+        textColor: NylaColors.warning,
+        iconColor: NylaColors.warning,
+        onTap: _busy ? null : _begin,
       );
 }
 
