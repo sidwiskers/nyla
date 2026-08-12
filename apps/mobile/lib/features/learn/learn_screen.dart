@@ -291,6 +291,7 @@ class _EmptySearch extends StatelessWidget {
 
 String _categoryName(TipCategory category) => switch (category) {
       TipCategory.cycle => 'Cycle',
+      TipCategory.understanding => 'Understanding',
       TipCategory.body => 'Body',
       TipCategory.care => 'Care',
       TipCategory.products => 'Products',
@@ -301,6 +302,7 @@ String _categoryName(TipCategory category) => switch (category) {
 
 Color _categoryTint(TipCategory category, int index) => switch (category) {
       TipCategory.cycle => NylaColors.lavender,
+      TipCategory.understanding => NylaColors.sage,
       TipCategory.body => NylaColors.sage,
       TipCategory.care => index.isEven ? NylaColors.sage : NylaColors.peach,
       TipCategory.products => NylaColors.roseSoft,
