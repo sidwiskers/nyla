@@ -1,56 +1,268 @@
-# This config was automatically generated from your source code
-# Stacks detected: cicd:github-actions:.github/workflows,deps:node:services/sync
 version: 2.1
-orbs:
-  node: circleci/node@5
+
+parameters:
+  build_apk:
+    type: boolean
+    default: false
+  release_version:
+    type: string
+    default: "1.0.0"
+  deploy_sync:
+    type: boolean
+    default: false
+
 jobs:
-  test-node:
-    # Install node dependencies and run tests
-    executor: node/default
-    working_directory: ~/project/services/sync
-    steps:
-      - checkout:
-          path: ~/project
-      - node/install-packages:
-          cache-path: ~/project/node_modules
-          override-ci-command: npm install
-      - run:
-          name: Run tests
-          command: npm test --passWithNoTests
-  deploy:
-    # This is an example deploy job, not actually used by the workflow
+  release-apk:
     docker:
-      - image: cimg/base:stable
+      - image: cimg/android:2026.07-node
+    resource_class: large
+    environment:
+      FLUTTER_VERSION: "3.44.9"
     steps:
+      - checkout
+
       - run:
-          name: Plan deployment
-          command: |-
-            circleci run release plan deploy \
-              --environment-name="default" \
-              --component-name="deploy" \
-              --target-version="1.0.${CIRCLE_BUILD_NUM}-${CIRCLE_SHA1:0:7}"
-      # Replace this with steps to deploy to users
+          name: Validate release configuration
+          command: |
+            set -euo pipefail
+            missing=()
+            for name in \
+              CLOUDFLARE_API_TOKEN \
+              CLOUDFLARE_ACCOUNT_ID \
+              ANDROID_KEYSTORE_BASE64 \
+              ANDROID_KEYSTORE_PASSWORD \
+              ANDROID_KEY_ALIAS \
+              ANDROID_KEY_PASSWORD; do
+              if [[ -z "${!name:-}" ]]; then
+                missing+=("$name")
+              fi
+            done
+            if (( ${#missing[@]} > 0 )); then
+              printf 'Missing required CircleCI environment variables: %s\n' "${missing[*]}"
+              exit 1
+            fi
+
+            version="<< pipeline.parameters.release_version >>"
+            if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+              echo "Invalid release_version: $version"
+              exit 1
+            fi
+            echo "export NYLA_RELEASE_VERSION='$version'" >> "$BASH_ENV"
+
+      - restore_cache:
+          keys:
+            - nyla-flutter-sdk-v1-3.44.9
+
       - run:
-          name: deploy
-          command: '#e.g. ./deploy.sh'
+          name: Install pinned Flutter
+          command: |
+            set -euo pipefail
+            flutter_dir="$HOME/flutter"
+            if [[ ! -x "$flutter_dir/bin/flutter" ]]; then
+              rm -rf "$flutter_dir"
+              git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$flutter_dir"
+            fi
+            echo "export PATH='$HOME/flutter/bin:$PATH'" >> "$BASH_ENV"
+            export PATH="$HOME/flutter/bin:$PATH"
+            flutter config --no-analytics
+            flutter --version
+            flutter precache --android
+
+      - save_cache:
+          key: nyla-flutter-sdk-v1-3.44.9
+          paths:
+            - /home/circleci/flutter
+
+      - restore_cache:
+          keys:
+            - nyla-deps-v2-{{ checksum "apps/mobile/pubspec.lock" }}
+            - nyla-deps-v2-
+
       - run:
-          name: found github actions config
-          command: ':'
+          name: Resolve Cloudflare sync address
+          command: |
+            set -euo pipefail
+            worker_name="$(python3 - <<'PY'
+            import re
+            from pathlib import Path
+            text = Path('services/sync/wrangler.jsonc').read_text()
+            match = re.search(r'"name"\s*:\s*"([^"]+)"', text)
+            if match is None:
+                raise SystemExit('services/sync/wrangler.jsonc must define a Worker name')
+            print(match.group(1))
+            PY
+            )"
+
+            api="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"
+            response="$(curl --silent --show-error --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$api")"
+            subdomain="$(printf '%s' "$response" | python3 -c '
+            import json, sys
+            payload = json.load(sys.stdin)
+            result = payload.get("result") or {}
+            value = result.get("subdomain")
+            print(value if payload.get("success") is True and isinstance(value, str) else "")
+            ')"
+
+            if [[ -z "$subdomain" ]]; then
+              desired="nyla-${CLOUDFLARE_ACCOUNT_ID:0:12}"
+              response="$(curl --silent --show-error --request PUT --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" --header 'Content-Type: application/json' --data "{\"subdomain\":\"$desired\"}" "$api")"
+              subdomain="$(printf '%s' "$response" | python3 -c '
+            import json, sys
+            payload = json.load(sys.stdin)
+            if payload.get("success") is not True:
+                errors = payload.get("errors") or []
+                detail = "; ".join(str(item.get("message", "unknown Cloudflare error")) for item in errors)
+                raise SystemExit("Cloudflare could not create a workers.dev subdomain: " + (detail or "unknown error"))
+            value = (payload.get("result") or {}).get("subdomain")
+            if not isinstance(value, str) or not value:
+                raise SystemExit("Cloudflare did not return a workers.dev subdomain")
+            print(value)
+            ')"
+            fi
+
+            base_url="https://${worker_name}.${subdomain}.workers.dev"
+            echo "export NYLA_SYNC_BASE_URL='$base_url'" >> "$BASH_ENV"
+            echo "Resolved Nyla sync address: $base_url"
+
       - run:
-          name: Update deployment status to running
-          command: circleci run release update deploy --status=RUNNING
+          name: Generate native Android project
+          command: |
+            set -euo pipefail
+            source "$BASH_ENV"
+            rm -rf /tmp/nyla-platform apps/mobile/android apps/mobile/ios
+            flutter create --org app.nyla --project-name nyla --platforms=android,ios /tmp/nyla-platform
+            cp -R /tmp/nyla-platform/android apps/mobile/
+            cp -R /tmp/nyla-platform/ios apps/mobile/
+            cp /tmp/nyla-platform/.metadata apps/mobile/.metadata
+            python3 apps/mobile/tool/configure_platforms.py
+
       - run:
-          name: Update deployment status to success
-          command: circleci run release update deploy --status=SUCCESS
-          when: on_success
+          name: Render Nyla launcher artwork
+          command: |
+            set -euo pipefail
+            if ! command -v rsvg-convert >/dev/null 2>&1; then
+              sudo apt-get update -qq
+              sudo apt-get install -y --no-install-recommends librsvg2-bin
+            fi
+            cd apps/mobile
+            rsvg-convert -w 1024 -h 1024 assets/branding/nyla_app_icon.svg -o assets/branding/nyla_app_icon.png
+            rsvg-convert -w 1024 -h 1024 assets/branding/nyla_app_icon_foreground.svg -o assets/branding/nyla_app_icon_foreground.png
+
       - run:
-          name: Update deployment status to failed
-          command: circleci run release update deploy --status=FAILED
-          when: on_fail
+          name: Restore Android signing key
+          command: |
+            set -euo pipefail
+            keystore="/tmp/nyla-release.jks"
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+            test -s "$keystore"
+            chmod 600 "$keystore"
+            echo "export ANDROID_KEYSTORE_PATH='$keystore'" >> "$BASH_ENV"
+
+      - run:
+          name: Resolve Flutter dependencies and launcher icons
+          command: |
+            set -euo pipefail
+            source "$BASH_ENV"
+            cd apps/mobile
+            flutter pub get
+            dart run flutter_launcher_icons
+
+      - save_cache:
+          key: nyla-deps-v2-{{ checksum "apps/mobile/pubspec.lock" }}
+          paths:
+            - /home/circleci/.pub-cache
+            - /home/circleci/.gradle/caches
+            - /home/circleci/.gradle/wrapper
+
+      - run:
+          name: Generate Drift code
+          command: |
+            set -euo pipefail
+            source "$BASH_ENV"
+            cd apps/mobile
+            dart run build_runner build --delete-conflicting-outputs
+
+      - run:
+          name: Validate mobile app and engines
+          command: |
+            set -euo pipefail
+            source "$BASH_ENV"
+            (cd apps/mobile && flutter analyze --fatal-infos && flutter test)
+            (cd packages/cycle_engine && dart test)
+            (cd packages/sync_core && dart test)
+            (cd content/tips && dart test)
+
+      - run:
+          name: Validate encrypted sync relay
+          command: |
+            set -euo pipefail
+            cd services/sync
+            npm install --no-audit --no-fund
+            npm run typecheck
+            npm test
+
+      - run:
+          name: Build signed release APK
+          no_output_timeout: 65m
+          command: |
+            set -euo pipefail
+            source "$BASH_ENV"
+            cd apps/mobile
+            timeout --signal=TERM --kill-after=30s 60m \
+              flutter build apk \
+                --release \
+                --no-pub \
+                --build-name="$NYLA_RELEASE_VERSION" \
+                --build-number="<< pipeline.number >>" \
+                --dart-define="NYLA_SYNC_BASE_URL=$NYLA_SYNC_BASE_URL"
+
+      - run:
+          name: Verify APK and checksum
+          command: |
+            set -euo pipefail
+            source "$BASH_ENV"
+            source_apk="apps/mobile/build/app/outputs/flutter-apk/app-release.apk"
+            mkdir -p dist
+            final_apk="dist/Nyla-${NYLA_RELEASE_VERSION}.apk"
+            test -s "$source_apk"
+            cp "$source_apk" "$final_apk"
+            apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+            if [[ -z "$apksigner" ]]; then
+              echo "Android apksigner was not found."
+              exit 1
+            fi
+            "$apksigner" verify --verbose --print-certs "$final_apk"
+            (cd dist && sha256sum "Nyla-${NYLA_RELEASE_VERSION}.apk" > "Nyla-${NYLA_RELEASE_VERSION}.apk.sha256")
+
+      - run:
+          name: Deploy sync relay when requested
+          command: |
+            set -euo pipefail
+            source "$BASH_ENV"
+            if [[ "<< pipeline.parameters.deploy_sync >>" != "true" ]]; then
+              echo "deploy_sync=false; leaving the current Cloudflare deployment untouched."
+              exit 0
+            fi
+            cd services/sync
+            npm run deploy
+            endpoint="${NYLA_SYNC_BASE_URL%/}/health"
+            for _ in {1..12}; do
+              body="$(curl --fail --silent --show-error --max-time 10 "$endpoint" 2>/dev/null || true)"
+              if [[ "$body" == "ok" ]]; then
+                echo "Verified $endpoint"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "The deployed Nyla sync endpoint did not become healthy."
+            exit 1
+
+      - store_artifacts:
+          path: dist
+          destination: nyla-apk
+
 workflows:
-  build-and-test:
+  manual-apk:
+    when: << pipeline.parameters.build_apk >>
     jobs:
-      - test-node
-    # - deploy:
-    #     requires:
-    #       - test-node
+      - release-apk
