@@ -205,6 +205,8 @@ class _CalendarBoard extends StatelessWidget {
                 recorded: recorded,
                 expected: expected,
                 today: day == today,
+                semanticsLabel:
+                    '${friendlyDay(day)}${recorded ? ', recorded period' : ''}${expected ? ', expected range' : ''}${day == today ? ', today' : ''}',
                 onTap: () {
                   NylaHaptics.select();
                   context.go('/log?day=${day.toIsoString()}');
@@ -238,6 +240,7 @@ class _DayCell extends StatelessWidget {
     required this.recorded,
     required this.expected,
     required this.today,
+    required this.semanticsLabel,
     required this.onTap,
   });
 
@@ -245,54 +248,59 @@ class _DayCell extends StatelessWidget {
   final bool recorded;
   final bool expected;
   final bool today;
+  final String semanticsLabel;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(99),
-        child: Center(
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                width: 31,
-                height: 31,
-                decoration: BoxDecoration(
-                  color: recorded
-                      ? NylaColors.roseSoft
-                      : expected
-                          ? NylaColors.sageSoft
-                          : Colors.transparent,
-                  shape: BoxShape.circle,
-                  border: today
-                      ? Border.all(color: NylaColors.violet, width: 1.4)
-                      : expected
-                          ? Border.all(color: NylaColors.sage, width: 1)
-                          : null,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  '$number',
-                  style: TextStyle(
-                    color: recorded ? NylaColors.wine : NylaColors.ink,
-                    fontSize: 11.5,
-                    fontWeight: recorded || today ? FontWeight.w700 : FontWeight.w500,
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: semanticsLabel,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(99),
+          child: Center(
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 31,
+                  height: 31,
+                  decoration: BoxDecoration(
+                    color: recorded
+                        ? NylaColors.roseSoft
+                        : expected
+                            ? NylaColors.sageSoft
+                            : Colors.transparent,
+                    shape: BoxShape.circle,
+                    border: today
+                        ? Border.all(color: NylaColors.violet, width: 1.4)
+                        : expected
+                            ? Border.all(color: NylaColors.sage, width: 1)
+                            : null,
                   ),
-                ),
-              ),
-              if (today && !recorded && !expected)
-                const Positioned(
-                  bottom: 1,
-                  child: SizedBox.square(
-                    dimension: 3,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(color: NylaColors.violet, shape: BoxShape.circle),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '$number',
+                    style: TextStyle(
+                      color: recorded ? NylaColors.wine : NylaColors.ink,
+                      fontSize: 11.5,
+                      fontWeight: recorded || today ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
                 ),
-            ],
+                if (today && !recorded && !expected)
+                  const Positioned(
+                    bottom: 1,
+                    child: SizedBox.square(
+                      dimension: 3,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(color: NylaColors.violet, shape: BoxShape.circle),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       );
@@ -431,8 +439,6 @@ class _SummaryRow extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
             ),
-            const SizedBox(width: 5),
-            const Icon(Icons.chevron_right_rounded, size: 18, color: NylaColors.faintInk),
           ],
         ),
       );
