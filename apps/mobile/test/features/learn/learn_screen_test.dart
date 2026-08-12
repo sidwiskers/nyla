@@ -56,7 +56,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('the deck remains usable on a compact-height phone', (tester) async {
+  testWidgets('the deck remains readable and reachable on a compact-height phone', (tester) async {
     tester.view.physicalSize = const Size(360, 640);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -68,6 +68,12 @@ void main() {
         home: const Scaffold(body: LearnScreen()),
       ),
     );
+    await tester.pumpAndSettle();
+
+    expect(find.text('THE TAKEAWAY').hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -220));
     await tester.pumpAndSettle();
 
     expect(find.text('Read the full card').hitTestable(), findsOneWidget);
