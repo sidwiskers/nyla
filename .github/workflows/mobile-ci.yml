@@ -87,6 +87,7 @@ jobs:
         run: dart test
 
       - name: Build Android debug APK
+        if: github.event_name == 'workflow_dispatch'
         working-directory: apps/mobile
         run: flutter build apk --debug
 
