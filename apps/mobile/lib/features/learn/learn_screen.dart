@@ -35,37 +35,27 @@ class _LearnScreenState extends State<LearnScreen> {
         .where((tip) => tip.matches(query))
         .toList(growable: false);
     final index = cards.isEmpty ? 0 : currentIndex.clamp(0, cards.length - 1);
-    final deckHeight =
-        (MediaQuery.sizeOf(context).height * 0.63).clamp(480.0, 650.0).toDouble();
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final deckHeight = (screenHeight * 0.54).clamp(360.0, 540.0).toDouble();
 
     return NylaPage(
       title: 'Learn',
-      subtitle: 'Useful enough to remember. Calm enough to revisit.',
+      subtitle: 'A small deck of things worth knowing.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextField(
-            onChanged: (value) {
-              setState(() {
-                query = value;
-                currentIndex = 0;
-              });
-              _resetDeck();
-            },
-            textInputAction: TextInputAction.search,
-            decoration: const InputDecoration(
-              hintText: 'Find cramps, flow, products…',
-              prefixIcon: Icon(Icons.search_rounded, color: NylaColors.violet),
-            ),
+          _BrowseBar(
+            category: selected,
+            query: query,
+            total: cards.length,
+            onTap: _openBrowse,
           ),
-          const SizedBox(height: 12),
-          _CategoryStrip(selected: selected, onSelected: _chooseCategory),
-          const SizedBox(height: 24),
+          const SizedBox(height: 14),
           if (cards.isEmpty)
-            const _EmptyDeck()
+            _EmptyDeck(onReset: _resetBrowse)
           else ...[
             _DeckHeader(index: index, total: cards.length),
-            const SizedBox(height: 11),
+            const SizedBox(height: 9),
             SizedBox(
               height: deckHeight,
               child: Stack(
@@ -104,22 +94,21 @@ class _LearnScreenState extends State<LearnScreen> {
                       child: _KnowledgeCard(
                         key: ValueKey(cards[cardIndex].id),
                         tip: cards[cardIndex],
-                        index: cardIndex,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 7),
             _DeckProgress(index: index, total: cards.length),
           ],
-          const SizedBox(height: 30),
+          const SizedBox(height: 24),
           const NylaInlineNote(
             icon: Icons.verified_rounded,
-            title: 'Written to be useful first',
+            title: 'Reviewed, then rewritten for real life',
             body:
-                'Each card is reviewed against trusted medical sources. References stay available without taking over the reading experience.',
+                'The guidance stays on the card. References are there when you want to verify it, not as homework.',
             accent: Color(0xFF4C7565),
           ),
           const SizedBox(height: 92),
@@ -128,10 +117,32 @@ class _LearnScreenState extends State<LearnScreen> {
     );
   }
 
-  void _chooseCategory(TipCategory? category) {
+  Future<void> _openBrowse() async {
+    await NylaHaptics.select();
+    if (!mounted) return;
+    final result = await showModalBottomSheet<_BrowseSelection>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => _BrowseSheet(
+        initialCategory: selected,
+        initialQuery: query,
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      selected = result.category;
+      query = result.query;
+      currentIndex = 0;
+    });
+    _resetDeck();
+  }
+
+  void _resetBrowse() {
     NylaHaptics.select();
     setState(() {
-      selected = category;
+      selected = null;
+      query = '';
       currentIndex = 0;
     });
     _resetDeck();
@@ -144,35 +155,205 @@ class _LearnScreenState extends State<LearnScreen> {
   }
 }
 
-class _CategoryStrip extends StatelessWidget {
-  const _CategoryStrip({required this.selected, required this.onSelected});
+class _BrowseSelection {
+  const _BrowseSelection({required this.category, required this.query});
 
-  final TipCategory? selected;
-  final ValueChanged<TipCategory?> onSelected;
+  final TipCategory? category;
+  final String query;
+}
+
+class _BrowseBar extends StatelessWidget {
+  const _BrowseBar({
+    required this.category,
+    required this.query,
+    required this.total,
+    required this.onTap,
+  });
+
+  final TipCategory? category;
+  final String query;
+  final int total;
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        child: Row(
-          children: [
-            ChoiceChip(
-              label: const Text('All'),
-              selected: selected == null,
-              onSelected: (_) => onSelected(null),
-            ),
-            const SizedBox(width: 7),
-            for (final category in TipCategory.values) ...[
-              ChoiceChip(
-                label: Text(_categoryName(category)),
-                selected: selected == category,
-                onSelected: (_) => onSelected(category),
-              ),
-              const SizedBox(width: 7),
-            ],
+  Widget build(BuildContext context) {
+    final hasQuery = query.trim().isNotEmpty;
+    final title = hasQuery
+        ? '“${query.trim()}”'
+        : category == null
+            ? 'Browse the deck'
+            : _categoryName(category!);
+    final subtitle = category == null
+        ? '$total card${total == 1 ? '' : 's'} · all topics'
+        : '$total card${total == 1 ? '' : 's'} · ${_categoryName(category!).toLowerCase()}';
+
+    return NylaPressable(
+      onTap: onTap,
+      semanticsLabel: 'Browse and search learning cards',
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 58),
+        padding: const EdgeInsets.fromLTRB(15, 11, 13, 11),
+        decoration: BoxDecoration(
+          color: NylaColors.paper,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: NylaColors.outline),
+          boxShadow: const [
+            BoxShadow(color: Color(0x0C2A111E), blurRadius: 22, offset: Offset(0, 9)),
           ],
         ),
-      );
+        child: Row(
+          children: [
+            const NylaIconToken(
+              icon: Icons.search_rounded,
+              size: 38,
+              background: NylaColors.lavenderSoft,
+              foreground: NylaColors.wine,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.tune_rounded, color: NylaColors.violet, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BrowseSheet extends StatefulWidget {
+  const _BrowseSheet({required this.initialCategory, required this.initialQuery});
+
+  final TipCategory? initialCategory;
+  final String initialQuery;
+
+  @override
+  State<_BrowseSheet> createState() => _BrowseSheetState();
+}
+
+class _BrowseSheetState extends State<_BrowseSheet> {
+  late TipCategory? category = widget.initialCategory;
+  late final TextEditingController controller = TextEditingController(text: widget.initialQuery);
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(22, 6, 22, 26),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const NylaOverline('Browse the deck'),
+            const SizedBox(height: 10),
+            Text(
+              'Find what you need',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 27),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              'Search by a word, or narrow the deck to one topic.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              controller: controller,
+              autofocus: false,
+              textInputAction: TextInputAction.search,
+              decoration: const InputDecoration(
+                hintText: 'Cramps, flow, products…',
+                prefixIcon: Icon(Icons.search_rounded, color: NylaColors.violet),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('All'),
+                  selected: category == null,
+                  onSelected: (_) {
+                    NylaHaptics.select();
+                    setState(() => category = null);
+                  },
+                ),
+                for (final value in TipCategory.values)
+                  ChoiceChip(
+                    label: Text(_categoryName(value)),
+                    selected: category == value,
+                    onSelected: (_) {
+                      NylaHaptics.select();
+                      setState(() => category = value);
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () {
+                      controller.clear();
+                      setState(() => category = null);
+                    },
+                    child: const Text('Clear'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton(
+                    onPressed: () {
+                      NylaHaptics.confirm();
+                      Navigator.pop(
+                        context,
+                        _BrowseSelection(
+                          category: category,
+                          query: controller.text.trim(),
+                        ),
+                      );
+                    },
+                    child: const Text('Show cards'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _DeckHeader extends StatelessWidget {
@@ -188,18 +369,15 @@ class _DeckHeader extends StatelessWidget {
           children: [
             Text(
               '${index + 1}',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(color: NylaColors.wine),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(color: NylaColors.wine),
             ),
             Text(' / $total', style: Theme.of(context).textTheme.bodyMedium),
             const Spacer(),
             const Icon(Icons.swipe_rounded, size: 17, color: NylaColors.violet),
             const SizedBox(width: 6),
             Text(
-              'Swipe the deck',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
+              'Swipe',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.8),
             ),
           ],
         ),
@@ -218,12 +396,7 @@ class _BackCard extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: color,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(34),
-              topRight: Radius.circular(34),
-              bottomLeft: Radius.circular(26),
-              bottomRight: Radius.circular(18),
-            ),
+            borderRadius: _cardRadius,
             border: Border.all(color: Colors.white.withValues(alpha: 0.75)),
           ),
         ),
@@ -231,10 +404,9 @@ class _BackCard extends StatelessWidget {
 }
 
 class _KnowledgeCard extends StatefulWidget {
-  const _KnowledgeCard({required this.tip, required this.index, super.key});
+  const _KnowledgeCard({required this.tip, super.key});
 
   final HealthTip tip;
-  final int index;
 
   @override
   State<_KnowledgeCard> createState() => _KnowledgeCardState();
@@ -261,9 +433,7 @@ class _KnowledgeCardState extends State<_KnowledgeCard> {
           transform: matrix,
           child: Transform(
             alignment: Alignment.center,
-            transform: showBack
-                ? (Matrix4.identity()..rotateY(math.pi))
-                : Matrix4.identity(),
+            transform: showBack ? (Matrix4.identity()..rotateY(math.pi)) : Matrix4.identity(),
             child: showBack
                 ? _DetailedCard(
                     tip: widget.tip,
@@ -290,8 +460,8 @@ class _KnowledgeCardState extends State<_KnowledgeCard> {
 const _cardRadius = BorderRadius.only(
   topLeft: Radius.circular(34),
   topRight: Radius.circular(34),
-  bottomLeft: Radius.circular(26),
-  bottomRight: Radius.circular(18),
+  bottomLeft: Radius.circular(27),
+  bottomRight: Radius.circular(19),
 );
 
 class _QuickCard extends StatelessWidget {
@@ -304,9 +474,21 @@ class _QuickCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => NylaPressable(
         onTap: onOpen,
+        semanticsLabel: '${tip.title}. Turn card for full details.',
         borderRadius: _cardRadius,
         child: Container(
-          decoration: _cardDecoration(),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF765166), Color(0xFF4D2C3D), Color(0xFF351727)],
+              stops: [0, 0.55, 1],
+            ),
+            borderRadius: _cardRadius,
+            boxShadow: [
+              BoxShadow(color: Color(0x3A351727), blurRadius: 36, offset: Offset(0, 17)),
+            ],
+          ),
           clipBehavior: Clip.antiAlias,
           child: Stack(
             children: [
@@ -319,36 +501,40 @@ class _QuickCard extends StatelessWidget {
               ),
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final compact = constraints.maxHeight < 470;
-                  final horizontal = compact ? 21.0 : 25.0;
+                  final compact = constraints.maxHeight < 405;
+                  final horizontal = compact ? 20.0 : 24.0;
                   return Padding(
                     padding: EdgeInsets.fromLTRB(
                       horizontal,
-                      compact ? 20 : 24,
+                      compact ? 18 : 22,
                       horizontal,
-                      compact ? 18 : 23,
+                      compact ? 17 : 21,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Flexible(
-                              child: _CategoryBadge(
-                                category: tip.category,
-                                palette: palette,
-                              ),
-                            ),
+                            _FrontCategoryBadge(category: tip.category),
                             const Spacer(),
-                            NylaIconToken(
-                              icon: _categoryIcon(tip.category),
-                              size: compact ? 38 : 44,
-                              background: palette.soft,
-                              foreground: palette.accent,
+                            Container(
+                              width: compact ? 36 : 42,
+                              height: compact ? 36 : 42,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                              ),
+                              alignment: Alignment.center,
+                              child: Icon(
+                                _categoryIcon(tip.category),
+                                color: Colors.white,
+                                size: compact ? 18 : 21,
+                              ),
                             ),
                           ],
                         ),
-                        SizedBox(height: compact ? 14 : 21),
+                        SizedBox(height: compact ? 13 : 18),
                         Expanded(
                           child: SingleChildScrollView(
                             physics: const BouncingScrollPhysics(),
@@ -357,28 +543,24 @@ class _QuickCard extends StatelessWidget {
                               children: [
                                 Text(
                                   tip.title,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .displaySmall
-                                      ?.copyWith(
-                                        fontSize: compact ? 28 : 33,
+                                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                                        color: Colors.white,
+                                        fontSize: compact ? 27 : 32,
                                         height: 1.04,
+                                        letterSpacing: -0.7,
                                       ),
                                 ),
-                                SizedBox(height: compact ? 14 : 19),
-                                _Takeaway(text: tip.flash, accent: palette.accent),
-                                if (tip.details.isNotEmpty) ...[
-                                  SizedBox(height: compact ? 13 : 17),
+                                SizedBox(height: compact ? 13 : 17),
+                                _FrontTakeaway(text: tip.flash),
+                                if (!compact && tip.details.isNotEmpty) ...[
+                                  const SizedBox(height: 14),
                                   Text(
                                     tip.details.first,
-                                    maxLines: compact ? 2 : 3,
+                                    maxLines: 3,
                                     overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: NylaColors.mutedInk,
-                                          height: 1.46,
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          color: Colors.white.withValues(alpha: 0.76),
+                                          height: 1.45,
                                         ),
                                   ),
                                 ],
@@ -387,39 +569,40 @@ class _QuickCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        SizedBox(height: compact ? 11 : 15),
-                        Row(
-                          children: [
-                            Container(
-                              width: compact ? 36 : 40,
-                              height: compact ? 36 : 40,
-                              decoration: BoxDecoration(
-                                color: palette.accent,
-                                shape: BoxShape.circle,
+                        SizedBox(height: compact ? 9 : 12),
+                        Container(
+                          height: compact ? 42 : 46,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(99),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  color: palette.accent,
+                                  shape: BoxShape.circle,
+                                ),
+                                alignment: Alignment.center,
+                                child: const Icon(Icons.flip_rounded, color: Colors.white, size: 15),
                               ),
-                              alignment: Alignment.center,
-                              child: const Icon(
-                                Icons.flip_rounded,
-                                color: Colors.white,
-                                size: 19,
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Turn card',
+                                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                      ),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 11),
-                            Expanded(
-                              child: Text(
-                                'Turn card',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelLarge
-                                    ?.copyWith(color: NylaColors.wine),
-                              ),
-                            ),
-                            const Icon(
-                              Icons.arrow_forward_rounded,
-                              color: NylaColors.wine,
-                              size: 19,
-                            ),
-                          ],
+                              const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -428,6 +611,70 @@ class _QuickCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      );
+}
+
+class _FrontCategoryBadge extends StatelessWidget {
+  const _FrontCategoryBadge({required this.category});
+
+  final TipCategory category;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(99),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Text(
+          _categoryName(category).toUpperCase(),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 9.4,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.9,
+          ),
+        ),
+      );
+}
+
+class _FrontTakeaway extends StatelessWidget {
+  const _FrontTakeaway({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(15, 13, 15, 14),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'THE TAKEAWAY',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.68),
+                fontSize: 9.2,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.05,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              text,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    height: 1.4,
+                  ),
+            ),
+          ],
         ),
       );
 }
@@ -445,9 +692,9 @@ class _DetailedCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: Column(
           children: [
-            Container(height: 8, color: palette.accent),
+            Container(height: 7, color: palette.accent),
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 13, 12, 4),
+              padding: const EdgeInsets.fromLTRB(22, 12, 12, 3),
               child: Row(
                 children: [
                   Expanded(
@@ -474,14 +721,11 @@ class _DetailedCard extends StatelessWidget {
                   children: [
                     Text(
                       tip.title,
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineMedium
-                          ?.copyWith(fontSize: 27),
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 27),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 15),
                     _Takeaway(text: tip.flash, accent: palette.accent),
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 20),
                     for (final paragraph in tip.details) ...[
                       Text(paragraph, style: Theme.of(context).textTheme.bodyLarge),
                       const SizedBox(height: 15),
@@ -643,10 +887,7 @@ class _GuidanceSection extends StatelessWidget {
                   Expanded(
                     child: Text(
                       item,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: NylaColors.ink),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: NylaColors.ink),
                     ),
                   ),
                 ],
@@ -718,10 +959,7 @@ class _SourcesSheet extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               'Reviewed sources',
-              style: Theme.of(context)
-                  .textTheme
-                  .headlineMedium
-                  ?.copyWith(fontSize: 27),
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 27),
             ),
             const SizedBox(height: 7),
             Text(
@@ -757,10 +995,7 @@ class _SourcesSheet extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              source.organization,
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
+                            Text(source.organization, style: Theme.of(context).textTheme.titleMedium),
                             const SizedBox(height: 3),
                             Text(source.title, style: Theme.of(context).textTheme.bodyMedium),
                           ],
@@ -849,14 +1084,19 @@ class _CardMotifPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final glow = Paint()
+      ..color = accent.withValues(alpha: 0.2)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 40);
+    canvas.drawCircle(Offset(size.width * 0.87, size.height * 0.2), size.width * 0.26, glow);
+
     final paint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 18
+      ..strokeWidth = 16
       ..strokeCap = StrokeCap.round
-      ..color = accent.withValues(alpha: 0.055);
+      ..color = Colors.white.withValues(alpha: 0.045);
     canvas.drawArc(
       Rect.fromCircle(
-        center: Offset(size.width * 0.88, size.height * 0.16),
+        center: Offset(size.width * 0.91, size.height * 0.17),
         radius: size.width * 0.28,
       ),
       -0.8,
@@ -865,11 +1105,11 @@ class _CardMotifPainter extends CustomPainter {
       paint,
     );
     paint
-      ..strokeWidth = 5
-      ..color = accent.withValues(alpha: 0.075);
+      ..strokeWidth = 4
+      ..color = Colors.white.withValues(alpha: 0.06);
     canvas.drawArc(
       Rect.fromCircle(
-        center: Offset(size.width * 0.94, size.height * 0.21),
+        center: Offset(size.width * 0.96, size.height * 0.22),
         radius: size.width * 0.18,
       ),
       1.0,
@@ -880,20 +1120,28 @@ class _CardMotifPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _CardMotifPainter oldDelegate) =>
-      oldDelegate.accent != accent;
+  bool shouldRepaint(covariant _CardMotifPainter oldDelegate) => oldDelegate.accent != accent;
 }
 
 class _EmptyDeck extends StatelessWidget {
-  const _EmptyDeck();
+  const _EmptyDeck({required this.onReset});
+
+  final VoidCallback onReset;
 
   @override
-  Widget build(BuildContext context) => const NylaPaperSurface(
-        child: NylaInlineNote(
-          icon: Icons.search_off_rounded,
-          title: 'Nothing matched that search',
-          body: 'Try a shorter phrase or switch back to All.',
-          accent: NylaColors.violet,
+  Widget build(BuildContext context) => NylaPaperSurface(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const NylaInlineNote(
+              icon: Icons.search_off_rounded,
+              title: 'Nothing matched that search',
+              body: 'Try a shorter phrase, or return to the full deck.',
+              accent: NylaColors.violet,
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton(onPressed: onReset, child: const Text('Show all cards')),
+          ],
         ),
       );
 }
