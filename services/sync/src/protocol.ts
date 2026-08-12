@@ -24,10 +24,10 @@ export function validBase64Url(value: unknown, maxLength = 131072): value is str
   );
 }
 
-export function decodeBase64Url(value: string): Uint8Array {
+export function decodeBase64Url(value: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (value.length % 4)) % 4);
   const binary = atob(value.replace(/-/g, '+').replace(/_/g, '/') + padding);
-  const bytes = new Uint8Array(binary.length);
+  const bytes = new Uint8Array(new ArrayBuffer(binary.length));
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
   return bytes;
 }
@@ -39,7 +39,7 @@ export function encodeBase64Url(bytes: ArrayBuffer | Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
-export async function sha256Base64Url(body: Uint8Array): Promise<string> {
+export async function sha256Base64Url(body: Uint8Array<ArrayBuffer>): Promise<string> {
   return encodeBase64Url(await crypto.subtle.digest('SHA-256', body));
 }
 
@@ -130,7 +130,7 @@ export function recoveryEnrollmentPayload(input: {
 export async function verifyEd25519(
   publicKeyBase64Url: string,
   signatureBase64Url: string,
-  payload: Uint8Array,
+  payload: Uint8Array<ArrayBuffer>,
 ): Promise<boolean> {
   try {
     const publicKey = decodeBase64Url(publicKeyBase64Url);
@@ -167,7 +167,7 @@ export function error(code: string, status: number, detail?: string): Response {
 }
 
 export async function readJson<T>(request: Request, maxBytes = 256 * 1024): Promise<{
-  bytes: Uint8Array;
+  bytes: Uint8Array<ArrayBuffer>;
   value: T;
 }> {
   const declared = Number(request.headers.get('content-length') ?? '0');

@@ -35,12 +35,13 @@ export default {
     headers.delete('cf-connecting-ip');
     headers.delete('x-forwarded-for');
 
-    return stub.fetch(
-      new Request(forwardedUrl, {
-        method: request.method,
-        headers,
-        body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request.body,
-      }),
-    );
+    const init: RequestInit = {
+      method: request.method,
+      headers,
+    };
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      init.body = request.body;
+    }
+    return stub.fetch(new Request(forwardedUrl, init));
   },
 } satisfies ExportedHandler<Env>;
