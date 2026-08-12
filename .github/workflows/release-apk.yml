@@ -35,7 +35,6 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          NYLA_SYNC_BASE_URL: ${{ secrets.NYLA_SYNC_BASE_URL }}
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -47,7 +46,6 @@ jobs:
           for name in \
             CLOUDFLARE_API_TOKEN \
             CLOUDFLARE_ACCOUNT_ID \
-            NYLA_SYNC_BASE_URL \
             ANDROID_KEYSTORE_BASE64 \
             ANDROID_KEYSTORE_PASSWORD \
             ANDROID_KEY_ALIAS \
@@ -62,21 +60,60 @@ jobs:
             exit 1
           fi
 
-          python3 - <<'PY'
-          import os
-          from urllib.parse import urlparse
+  resolve-sync-url:
+    name: Resolve Cloudflare sync URL
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      base_url: ${{ steps.resolve.outputs.base_url }}
+      worker_name: ${{ steps.resolve.outputs.worker_name }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v6
 
-          value = os.environ['NYLA_SYNC_BASE_URL'].rstrip('/')
-          parsed = urlparse(value)
-          if parsed.scheme != 'https' or not parsed.netloc or parsed.query or parsed.fragment:
-              raise SystemExit('NYLA_SYNC_BASE_URL must be a clean HTTPS base URL')
-          if parsed.path not in ('', '/'):
-              raise SystemExit('NYLA_SYNC_BASE_URL must not contain a path; use the Worker origin/base URL')
+      - name: Resolve workers.dev URL from Cloudflare
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          worker_name="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          config = json.loads(Path('services/sync/wrangler.jsonc').read_text())
+          name = config.get('name')
+          if not isinstance(name, str) or not name:
+              raise SystemExit('services/sync/wrangler.jsonc must define a Worker name')
+          print(name)
           PY
+          )"
+
+          response="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain")"
+
+          subdomain="$(printf '%s' "$response" | python3 -c '
+          import json, sys
+          payload = json.load(sys.stdin)
+          if payload.get("success") is not True:
+              raise SystemExit("Cloudflare did not return a Workers subdomain")
+          subdomain = (payload.get("result") or {}).get("subdomain")
+          if not isinstance(subdomain, str) or not subdomain:
+              raise SystemExit("Your Cloudflare account does not have a workers.dev subdomain configured")
+          print(subdomain)
+          ')"
+
+          base_url="https://${worker_name}.${subdomain}.workers.dev"
+          echo "worker_name=$worker_name" >> "$GITHUB_OUTPUT"
+          echo "base_url=$base_url" >> "$GITHUB_OUTPUT"
+          echo "Resolved Nyla sync endpoint: $base_url"
 
   build-release:
     name: Build and validate signed APK
-    needs: preflight
+    needs: [preflight, resolve-sync-url]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
@@ -85,7 +122,7 @@ jobs:
       artifact_name: ${{ steps.release.outputs.artifact_name }}
       apk_name: ${{ steps.release.outputs.apk_name }}
     env:
-      NYLA_SYNC_BASE_URL: ${{ secrets.NYLA_SYNC_BASE_URL }}
+      NYLA_SYNC_BASE_URL: ${{ needs.resolve-sync-url.outputs.base_url }}
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -185,7 +222,7 @@ jobs:
             --release \
             --build-name='${{ steps.release.outputs.version }}' \
             --build-number='${{ github.run_number }}' \
-            --dart-define="NYLA_SYNC_BASE_URL=${NYLA_SYNC_BASE_URL%/}"
+            --dart-define="NYLA_SYNC_BASE_URL=${NYLA_SYNC_BASE_URL}"
 
       - name: Verify signature and create checksum
         shell: bash
@@ -246,16 +283,18 @@ jobs:
 
   deploy-sync:
     name: Deploy encrypted sync relay
-    needs: [build-release, validate-sync]
+    needs: [build-release, validate-sync, resolve-sync-url]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      deployed_url: ${{ steps.deploy.outputs.deployed_url }}
     defaults:
       run:
         working-directory: services/sync
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      NYLA_SYNC_BASE_URL: ${{ secrets.NYLA_SYNC_BASE_URL }}
+      EXPECTED_SYNC_BASE_URL: ${{ needs.resolve-sync-url.outputs.base_url }}
     steps:
       - uses: actions/checkout@v6
 
@@ -266,23 +305,70 @@ jobs:
       - name: Install relay dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Deploy relay to Cloudflare
-        run: npm run deploy
+      - name: Deploy relay and capture Cloudflare target
+        id: deploy
+        shell: bash
+        env:
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
+        run: |
+          set -euo pipefail
+          npm run deploy
+
+          deployed_url="$(python3 - "$WRANGLER_OUTPUT_FILE_PATH" <<'PY'
+          import json, sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          if not path.is_file():
+              raise SystemExit('Wrangler did not create its machine-readable output file')
+
+          deploy = None
+          for line in path.read_text().splitlines():
+              if not line.strip():
+                  continue
+              event = json.loads(line)
+              if event.get('type') == 'deploy':
+                  deploy = event
+          if deploy is None:
+              raise SystemExit('Wrangler output did not contain a successful deploy event')
+
+          targets = deploy.get('targets') or []
+          workers_dev = [
+              target for target in targets
+              if isinstance(target, str) and target.startswith('https://') and '.workers.dev' in target
+          ]
+          if len(workers_dev) != 1:
+              raise SystemExit(f'Expected exactly one workers.dev deployment target, got: {targets!r}')
+          print(workers_dev[0].rstrip('/'))
+          PY
+          )"
+
+          expected="${EXPECTED_SYNC_BASE_URL%/}"
+          if [[ "$deployed_url" != "$expected" ]]; then
+            echo "::error::Cloudflare deployed '$deployed_url' but release build expects '$expected'."
+            exit 1
+          fi
+
+          echo "deployed_url=$deployed_url" >> "$GITHUB_OUTPUT"
+          echo "Cloudflare deployed: $deployed_url"
 
       - name: Verify deployed relay endpoint
         shell: bash
         working-directory: .
+        env:
+          DEPLOYED_URL: ${{ steps.deploy.outputs.deployed_url }}
         run: |
           set -euo pipefail
-          endpoint="${NYLA_SYNC_BASE_URL%/}/health"
+          endpoint="${DEPLOYED_URL%/}/health"
           for _ in {1..10}; do
             body="$(curl --fail --silent --show-error --max-time 10 "$endpoint" 2>/dev/null || true)"
             if [[ "$body" == 'ok' ]]; then
+              echo "Verified $endpoint"
               exit 0
             fi
             sleep 2
           done
-          echo '::error::The configured NYLA_SYNC_BASE_URL did not expose Nyla /health after deployment.'
+          echo "::error::Deployed Nyla relay did not return 'ok' from $endpoint."
           exit 1
 
   publish-release:
