@@ -14,14 +14,14 @@ class LearnScreen extends StatefulWidget {
 }
 
 class _LearnScreenState extends State<LearnScreen> {
-  final PageController _deckController = PageController(viewportFraction: 0.93);
+  final PageController _controller = PageController(viewportFraction: 0.92);
   TipCategory? selected;
   String query = '';
   int currentIndex = 0;
 
   @override
   void dispose() {
-    _deckController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -31,16 +31,17 @@ class _LearnScreenState extends State<LearnScreen> {
         .where((tip) => selected == null || tip.category == selected)
         .where((tip) => tip.matches(query))
         .toList(growable: false);
-    final safeIndex = cards.isEmpty ? 0 : currentIndex.clamp(0, cards.length - 1);
-    final deckHeight = (MediaQuery.sizeOf(context).height * 0.53).clamp(390.0, 500.0);
+    final index = cards.isEmpty ? 0 : currentIndex.clamp(0, cards.length - 1);
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final deckHeight = (screenHeight * 0.64).clamp(520.0, 680.0).toDouble();
 
     return NylaPage(
       title: 'Learn',
-      subtitle: 'Small cards worth remembering. Swipe, reveal, move on.',
+      subtitle: 'One useful thing at a time.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextField(
+          _SearchField(
             onChanged: (value) {
               setState(() {
                 query = value;
@@ -48,108 +49,64 @@ class _LearnScreenState extends State<LearnScreen> {
               });
               _resetDeck();
             },
-            textInputAction: TextInputAction.search,
-            decoration: const InputDecoration(
-              hintText: 'Find cramps, flow, products…',
-              prefixIcon: Icon(Icons.search_rounded),
-            ),
           ),
           const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: Row(
-              children: [
-                ChoiceChip(
-                  label: const Text('All'),
-                  selected: selected == null,
-                  onSelected: (_) => _chooseCategory(null),
-                ),
-                const SizedBox(width: 7),
-                for (final category in TipCategory.values) ...[
-                  ChoiceChip(
-                    label: Text(_categoryName(category)),
-                    selected: selected == category,
-                    onSelected: (_) => _chooseCategory(category),
-                  ),
-                  const SizedBox(width: 7),
-                ],
-              ],
-            ),
-          ),
+          _CategoryStrip(selected: selected, onSelected: _chooseCategory),
           const SizedBox(height: 20),
           if (cards.isEmpty)
-            const _EmptySearch()
+            const _EmptyDeck()
           else ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 3),
-              child: Row(
-                children: [
-                  Text(
-                    '${safeIndex + 1} / ${cards.length}',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const Spacer(),
-                  Row(
-                    children: [
-                      const Icon(Icons.swipe_rounded, size: 17, color: NylaColors.mutedInk),
-                      const SizedBox(width: 6),
-                      Text('Swipe the deck', style: Theme.of(context).textTheme.bodyMedium),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
+            _DeckHeader(index: index, total: cards.length),
+            const SizedBox(height: 11),
             SizedBox(
               height: deckHeight,
               child: Stack(
-                alignment: Alignment.center,
+                alignment: Alignment.topCenter,
                 children: [
                   Positioned(
-                    top: 18,
-                    left: 26,
-                    right: 26,
-                    bottom: 0,
+                    left: 32,
+                    right: 32,
+                    top: 20,
+                    bottom: 3,
                     child: Transform.rotate(
-                      angle: -0.018,
+                      angle: -0.014,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: NylaColors.lavenderSoft,
-                          borderRadius: BorderRadius.circular(34),
+                          color: NylaColors.lavender.withValues(alpha: 0.56),
+                          borderRadius: BorderRadius.circular(38),
                         ),
                       ),
                     ),
                   ),
                   Positioned(
-                    top: 10,
-                    left: 23,
-                    right: 23,
-                    bottom: 8,
+                    left: 26,
+                    right: 26,
+                    top: 11,
+                    bottom: 11,
                     child: Transform.rotate(
-                      angle: 0.012,
+                      angle: 0.011,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           color: NylaColors.peachSoft,
-                          borderRadius: BorderRadius.circular(34),
+                          borderRadius: BorderRadius.circular(38),
                         ),
                       ),
                     ),
                   ),
                   PageView.builder(
-                    controller: _deckController,
+                    controller: _controller,
                     physics: const BouncingScrollPhysics(),
                     itemCount: cards.length,
                     onPageChanged: (value) {
                       NylaHaptics.select();
                       setState(() => currentIndex = value);
                     },
-                    itemBuilder: (context, index) => Padding(
-                      padding: const EdgeInsets.fromLTRB(5, 0, 5, 16),
-                      child: _FlashCard(
-                        key: ValueKey(cards[index].id),
-                        tip: cards[index],
-                        index: index,
+                    itemBuilder: (context, cardIndex) => Padding(
+                      padding: const EdgeInsets.fromLTRB(5, 0, 5, 18),
+                      child: _KnowledgeCard(
+                        key: ValueKey(cards[cardIndex].id),
+                        tip: cards[cardIndex],
+                        index: cardIndex,
                       ),
                     ),
                   ),
@@ -157,39 +114,20 @@ class _LearnScreenState extends State<LearnScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            _DeckProgress(value: (safeIndex + 1) / cards.length),
+            _DeckProgress(index: index, total: cards.length),
           ],
-          const SizedBox(height: 22),
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: NylaColors.sageSoft,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.verified_rounded, size: 20, color: NylaColors.wine),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: Text(
-                    'Every card is reviewed and sourced. Sources stay inside the full guide so the deck itself stays calm and readable.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: NylaColors.ink),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 82),
+          const SizedBox(height: 26),
+          _EditorialNote(),
+          const SizedBox(height: 88),
         ],
       ),
     );
   }
 
-  void _chooseCategory(TipCategory? value) {
+  void _chooseCategory(TipCategory? category) {
     NylaHaptics.select();
     setState(() {
-      selected = value;
+      selected = category;
       currentIndex = 0;
     });
     _resetDeck();
@@ -197,336 +135,468 @@ class _LearnScreenState extends State<LearnScreen> {
 
   void _resetDeck() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_deckController.hasClients) _deckController.jumpToPage(0);
+      if (_controller.hasClients) _controller.jumpToPage(0);
     });
   }
 }
 
-class _FlashCard extends StatefulWidget {
-  const _FlashCard({required this.tip, required this.index, super.key});
+class _SearchField extends StatelessWidget {
+  const _SearchField({required this.onChanged});
+
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) => TextField(
+        onChanged: onChanged,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: 'Find cramps, flow, products…',
+          prefixIcon: const Icon(Icons.search_rounded, color: NylaColors.violet),
+          suffixIcon: Container(
+            margin: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: NylaColors.lavenderSoft,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: const Icon(Icons.auto_awesome_rounded, size: 17, color: NylaColors.wine),
+          ),
+        ),
+      );
+}
+
+class _CategoryStrip extends StatelessWidget {
+  const _CategoryStrip({required this.selected, required this.onSelected});
+
+  final TipCategory? selected;
+  final ValueChanged<TipCategory?> onSelected;
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          children: [
+            ChoiceChip(
+              label: const Text('All'),
+              selected: selected == null,
+              onSelected: (_) => onSelected(null),
+            ),
+            const SizedBox(width: 7),
+            for (final category in TipCategory.values) ...[
+              ChoiceChip(
+                label: Text(_categoryName(category)),
+                selected: selected == category,
+                onSelected: (_) => onSelected(category),
+              ),
+              const SizedBox(width: 7),
+            ],
+          ],
+        ),
+      );
+}
+
+class _DeckHeader extends StatelessWidget {
+  const _DeckHeader({required this.index, required this.total});
+
+  final int index;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          children: [
+            Text(
+              'Card ${index + 1}',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(color: NylaColors.wine),
+            ),
+            Text(
+              '  of $total',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const Spacer(),
+            const Icon(Icons.swipe_rounded, size: 18, color: NylaColors.violet),
+            const SizedBox(width: 6),
+            Text('Swipe', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+          ],
+        ),
+      );
+}
+
+class _KnowledgeCard extends StatefulWidget {
+  const _KnowledgeCard({required this.tip, required this.index, super.key});
 
   final HealthTip tip;
   final int index;
 
   @override
-  State<_FlashCard> createState() => _FlashCardState();
+  State<_KnowledgeCard> createState() => _KnowledgeCardState();
 }
 
-class _FlashCardState extends State<_FlashCard> {
-  bool revealed = false;
+class _KnowledgeCardState extends State<_KnowledgeCard> {
+  bool detailed = false;
 
   @override
   Widget build(BuildContext context) {
-    final palette = _categoryPalette(widget.tip.category, widget.index);
-    return Material(
-      color: Colors.transparent,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 260),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) => FadeTransition(
-          opacity: animation,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.965, end: 1).animate(animation),
-            child: child,
-          ),
+    final palette = _paletteFor(widget.tip.category, widget.index);
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 280),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.975, end: 1).animate(animation),
+          child: child,
         ),
-        child: revealed
-            ? _CardBack(
-                key: const ValueKey('back'),
-                tip: widget.tip,
-                palette: palette,
-                onHide: _toggle,
-                onOpen: () => _openGuide(context),
-              )
-            : _CardFront(
-                key: const ValueKey('front'),
-                tip: widget.tip,
-                palette: palette,
-                onReveal: _toggle,
-              ),
       ),
+      child: detailed
+          ? _DetailedCard(
+              key: const ValueKey('detail'),
+              tip: widget.tip,
+              palette: palette,
+              onClose: _toggle,
+            )
+          : _QuickCard(
+              key: const ValueKey('quick'),
+              tip: widget.tip,
+              palette: palette,
+              onOpen: _toggle,
+            ),
     );
   }
 
   void _toggle() {
     NylaHaptics.select();
-    setState(() => revealed = !revealed);
-  }
-
-  void _openGuide(BuildContext context) {
-    NylaHaptics.confirm();
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) => _TipSheet(tip: widget.tip),
-    );
+    setState(() => detailed = !detailed);
   }
 }
 
-class _CardFront extends StatelessWidget {
-  const _CardFront({required this.tip, required this.palette, required this.onReveal, super.key});
+class _QuickCard extends StatelessWidget {
+  const _QuickCard({required this.tip, required this.palette, required this.onOpen, super.key});
 
   final HealthTip tip;
   final _CardPalette palette;
-  final VoidCallback onReveal;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onReveal,
-      borderRadius: BorderRadius.circular(34),
-      child: Ink(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [palette.start, palette.end],
-          ),
-          borderRadius: BorderRadius.circular(34),
-          boxShadow: const [
-            BoxShadow(color: Color(0x18542B3C), blurRadius: 28, offset: Offset(0, 13)),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(26, 25, 26, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  _CategoryPill(category: tip.category, dark: palette.dark),
-                  const Spacer(),
-                  Icon(_categoryIcon(tip.category), color: palette.ink.withValues(alpha: 0.78), size: 25),
-                ],
-              ),
-              const Spacer(),
-              Text(
-                tip.title,
-                style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      color: palette.ink,
-                      fontSize: 35,
-                      height: 1.04,
-                    ),
-              ),
-              const SizedBox(height: 18),
-              Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: palette.ink.withValues(alpha: 0.55),
-                  borderRadius: BorderRadius.circular(99),
-                ),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Icon(Icons.touch_app_rounded, size: 18, color: palette.ink.withValues(alpha: 0.72)),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Tap to reveal',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(color: palette.ink),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CardBack extends StatelessWidget {
-  const _CardBack({
-    required this.tip,
-    required this.palette,
-    required this.onHide,
-    required this.onOpen,
-    super.key,
-  });
-
-  final HealthTip tip;
-  final _CardPalette palette;
-  final VoidCallback onHide;
   final VoidCallback onOpen;
 
   @override
-  Widget build(BuildContext context) {
-    final detail = tip.details.isEmpty ? null : tip.details.first;
-    return Container(
-      decoration: BoxDecoration(
-        color: NylaColors.cream,
-        borderRadius: BorderRadius.circular(34),
-        boxShadow: const [
-          BoxShadow(color: Color(0x18542B3C), blurRadius: 28, offset: Offset(0, 13)),
-        ],
-      ),
-      padding: const EdgeInsets.fromLTRB(26, 25, 26, 22),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              _CategoryPill(category: tip.category),
-              const Spacer(),
-              IconButton(
-                tooltip: 'Show front',
-                onPressed: onHide,
-                icon: const Icon(Icons.flip_rounded),
-                color: NylaColors.wine,
+  Widget build(BuildContext context) => Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onOpen,
+          borderRadius: BorderRadius.circular(38),
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [palette.start, palette.end],
               ),
-            ],
-          ),
-          const Spacer(),
-          Text(
-            tip.flash,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontSize: 27,
-                  height: 1.14,
-                ),
-          ),
-          if (detail != null) ...[
-            const SizedBox(height: 17),
-            Text(
-              detail,
-              maxLines: 5,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: NylaColors.mutedInk),
+              borderRadius: BorderRadius.circular(38),
+              boxShadow: const [
+                BoxShadow(color: Color(0x2A33203E), blurRadius: 34, offset: Offset(0, 16)),
+              ],
             ),
-          ],
-          const Spacer(),
-          FilledButton.icon(
-            onPressed: onOpen,
-            icon: const Icon(Icons.menu_book_rounded, size: 18),
-            label: const Text('Open full guide'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TipSheet extends StatelessWidget {
-  const _TipSheet({required this.tip});
-
-  final HealthTip tip;
-
-  @override
-  Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.84,
-      minChildSize: 0.58,
-      maxChildSize: 0.96,
-      builder: (context, controller) => ListView(
-        controller: controller,
-        padding: const EdgeInsets.fromLTRB(24, 4, 24, 34),
-        children: [
-          _CategoryPill(category: tip.category),
-          const SizedBox(height: 16),
-          Text(tip.title, style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 10),
-          Text(
-            tip.flash,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: NylaColors.wine,
-                ),
-          ),
-          const SizedBox(height: 22),
-          for (final paragraph in tip.details) ...[
-            Text(paragraph, style: Theme.of(context).textTheme.bodyLarge),
-            const SizedBox(height: 14),
-          ],
-          if (tip.practical.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            _GuideSection(
-              icon: Icons.favorite_rounded,
-              title: 'What can help',
-              tint: NylaColors.sageSoft,
-              items: tip.practical,
-            ),
-          ],
-          if (tip.seekCare.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            _GuideSection(
-              icon: Icons.health_and_safety_rounded,
-              title: 'When to seek care',
-              tint: NylaColors.peachSoft,
-              items: tip.seekCare,
-            ),
-          ],
-          const SizedBox(height: 18),
-          Theme(
-            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-            child: ExpansionTile(
-              tilePadding: const EdgeInsets.symmetric(horizontal: 2),
-              childrenPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.verified_rounded, color: NylaColors.rose),
-              title: const Text('Sources & review', style: TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: Text(
-                'Content v${tip.version} · reviewed ${_reviewDate(tip.lastReviewed)}',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
-              ),
+            child: Stack(
               children: [
-                for (final source in tip.sources)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 8),
+                Positioned(
+                  right: -48,
+                  top: -34,
+                  child: Container(
+                    width: 156,
+                    height: 156,
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: ListTile(
-                      title: Text(source.organization, style: const TextStyle(fontWeight: FontWeight.w700)),
-                      subtitle: Text(source.title),
-                      trailing: const Icon(Icons.open_in_new_rounded, size: 18),
-                      onTap: () => launchUrl(Uri.parse(source.url), mode: LaunchMode.externalApplication),
+                      color: palette.ink.withValues(alpha: 0.065),
+                      shape: BoxShape.circle,
                     ),
                   ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(27, 27, 27, 25),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          _CategoryBadge(category: tip.category, palette: palette),
+                          const Spacer(),
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: palette.ink.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Icon(_categoryIcon(tip.category), color: palette.ink, size: 23),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      Text(
+                        tip.title,
+                        style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                              color: palette.ink,
+                              fontSize: 34,
+                              height: 1.04,
+                            ),
+                      ),
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(17, 15, 17, 16),
+                        decoration: BoxDecoration(
+                          color: palette.panel,
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'THE TAKEAWAY',
+                              style: TextStyle(
+                                color: palette.ink.withValues(alpha: 0.62),
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.05,
+                              ),
+                            ),
+                            const SizedBox(height: 7),
+                            Text(
+                              tip.flash,
+                              maxLines: 5,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: palette.ink,
+                                    fontSize: 16.5,
+                                    height: 1.42,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      Row(
+                        children: [
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: palette.ink,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.menu_book_rounded, color: palette.start, size: 18),
+                          ),
+                          const SizedBox(width: 11),
+                          Expanded(
+                            child: Text(
+                              'Read the full card',
+                              style: Theme.of(context).textTheme.labelLarge?.copyWith(color: palette.ink),
+                            ),
+                          ),
+                          Icon(Icons.arrow_forward_rounded, color: palette.ink, size: 20),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      );
 }
 
-class _GuideSection extends StatelessWidget {
-  const _GuideSection({required this.icon, required this.title, required this.tint, required this.items});
+class _DetailedCard extends StatelessWidget {
+  const _DetailedCard({required this.tip, required this.palette, required this.onClose, super.key});
+
+  final HealthTip tip;
+  final _CardPalette palette;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          color: NylaColors.cream,
+          borderRadius: BorderRadius.circular(38),
+          border: Border.all(color: Colors.white, width: 1.4),
+          boxShadow: const [
+            BoxShadow(color: Color(0x2433203E), blurRadius: 34, offset: Offset(0, 16)),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(23, 19, 17, 17),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [palette.start, palette.end]),
+              ),
+              child: Row(
+                children: [
+                  Expanded(child: _CategoryBadge(category: tip.category, palette: palette)),
+                  IconButton(
+                    tooltip: 'Back to takeaway',
+                    onPressed: onClose,
+                    icon: Icon(Icons.close_rounded, color: palette.ink),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(24, 23, 24, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(tip.title, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 28)),
+                    const SizedBox(height: 14),
+                    _LeadTakeaway(text: tip.flash),
+                    const SizedBox(height: 22),
+                    for (final paragraph in tip.details) ...[
+                      Text(paragraph, style: Theme.of(context).textTheme.bodyLarge),
+                      const SizedBox(height: 15),
+                    ],
+                    if (tip.practical.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      _GuidanceBlock(
+                        icon: Icons.favorite_rounded,
+                        eyebrow: 'PRACTICAL',
+                        title: 'What can help',
+                        tint: NylaColors.sageSoft,
+                        iconColor: NylaColors.violet,
+                        items: tip.practical,
+                      ),
+                    ],
+                    if (tip.seekCare.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      _GuidanceBlock(
+                        icon: Icons.health_and_safety_rounded,
+                        eyebrow: 'CARE NOTE',
+                        title: 'When it is worth checking in',
+                        tint: NylaColors.peachSoft,
+                        iconColor: NylaColors.warning,
+                        items: tip.seekCare,
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    _SourceFooter(tip: tip),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _LeadTakeaway extends StatelessWidget {
+  const _LeadTakeaway({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(18, 17, 18, 18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [NylaColors.lavenderSoft, NylaColors.roseWash],
+          ),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 1),
+              child: Icon(Icons.auto_awesome_rounded, color: NylaColors.violet, size: 21),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                text,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: NylaColors.wine,
+                    ),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _GuidanceBlock extends StatelessWidget {
+  const _GuidanceBlock({
+    required this.icon,
+    required this.eyebrow,
+    required this.title,
+    required this.tint,
+    required this.iconColor,
+    required this.items,
+  });
 
   final IconData icon;
+  final String eyebrow;
   final String title;
   final Color tint;
+  final Color iconColor;
   final List<String> items;
 
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(24)),
+        decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(25)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(icon, size: 19, color: NylaColors.wine),
-                const SizedBox(width: 9),
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.7), borderRadius: BorderRadius.circular(14)),
+                  child: Icon(icon, color: iconColor, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        eyebrow,
+                        style: TextStyle(
+                          color: iconColor,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.9,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(title, style: Theme.of(context).textTheme.titleMedium),
+                    ],
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             for (final item in items) ...[
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.only(top: 7),
-                    child: Icon(Icons.circle, size: 5, color: NylaColors.rose),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Container(
+                      width: 5,
+                      height: 5,
+                      decoration: BoxDecoration(color: iconColor, shape: BoxShape.circle),
+                    ),
                   ),
                   const SizedBox(width: 10),
-                  Expanded(child: Text(item)),
+                  Expanded(child: Text(item, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: NylaColors.ink))),
                 ],
               ),
               const SizedBox(height: 9),
@@ -536,63 +606,221 @@ class _GuideSection extends StatelessWidget {
       );
 }
 
-class _CategoryPill extends StatelessWidget {
-  const _CategoryPill({required this.category, this.dark = false});
+class _SourceFooter extends StatelessWidget {
+  const _SourceFooter({required this.tip});
+
+  final HealthTip tip;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            NylaHaptics.select();
+            showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              useSafeArea: true,
+              builder: (context) => _SourcesSheet(tip: tip),
+            );
+          },
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+            decoration: BoxDecoration(
+              color: NylaColors.lavenderMist,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.verified_rounded, color: NylaColors.violet, size: 19),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Reviewed ${_reviewDate(tip.lastReviewed)}',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(fontSize: 12.5),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${tip.sources.length} trusted source${tip.sources.length == 1 ? '' : 's'}',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: NylaColors.mutedInk),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
+class _SourcesSheet extends StatelessWidget {
+  const _SourcesSheet({required this.tip});
+
+  final HealthTip tip;
+
+  @override
+  Widget build(BuildContext context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.58,
+        minChildSize: 0.42,
+        maxChildSize: 0.88,
+        builder: (context, controller) => ListView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(22, 4, 22, 30),
+          children: [
+            Text('Reviewed sources', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 27)),
+            const SizedBox(height: 7),
+            Text(
+              'These support the card. You never need to open them to read the guidance.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 20),
+            for (final source in tip.sources) ...[
+              Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(22),
+                  onTap: () => launchUrl(Uri.parse(source.url), mode: LaunchMode.externalApplication),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 39,
+                          height: 39,
+                          decoration: BoxDecoration(color: NylaColors.lavenderSoft, borderRadius: BorderRadius.circular(13)),
+                          child: const Icon(Icons.open_in_new_rounded, color: NylaColors.violet, size: 18),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(source.organization, style: Theme.of(context).textTheme.titleMedium),
+                              const SizedBox(height: 3),
+                              Text(source.title, style: Theme.of(context).textTheme.bodyMedium),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              'Content v${tip.version}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
+            ),
+          ],
+        ),
+      );
+}
+
+class _CategoryBadge extends StatelessWidget {
+  const _CategoryBadge({required this.category, required this.palette});
 
   final TipCategory category;
-  final bool dark;
+  final _CardPalette palette;
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
         decoration: BoxDecoration(
-          color: dark ? Colors.white.withValues(alpha: 0.18) : NylaColors.roseWash,
+          color: palette.panel,
           borderRadius: BorderRadius.circular(99),
         ),
         child: Text(
           _categoryName(category).toUpperCase(),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color: dark ? Colors.white : NylaColors.rose,
-            fontSize: 10,
+            color: palette.ink,
+            fontSize: 9.5,
             fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
+            letterSpacing: 0.85,
           ),
         ),
       );
 }
 
 class _DeckProgress extends StatelessWidget {
-  const _DeckProgress({required this.value});
+  const _DeckProgress({required this.index, required this.total});
 
-  final double value;
+  final int index;
+  final int total;
 
   @override
-  Widget build(BuildContext context) => ClipRRect(
-        borderRadius: BorderRadius.circular(99),
-        child: LinearProgressIndicator(
-          value: value,
-          minHeight: 5,
-          color: NylaColors.rose,
-          backgroundColor: NylaColors.roseSoft.withValues(alpha: 0.5),
+  Widget build(BuildContext context) => Row(
+        children: [
+          for (var i = 0; i < total.clamp(1, 9); i++) ...[
+            Expanded(
+              flex: i == (index % total.clamp(1, 9)) ? 2 : 1,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                height: 5,
+                decoration: BoxDecoration(
+                  color: i == (index % total.clamp(1, 9)) ? NylaColors.violet : NylaColors.lavender.withValues(alpha: 0.48),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ),
+            if (i != total.clamp(1, 9) - 1) const SizedBox(width: 5),
+          ],
+        ],
+      );
+}
+
+class _EditorialNote extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(18, 17, 18, 18),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(25),
+          border: Border.all(color: Colors.white),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.bookmark_rounded, size: 20, color: NylaColors.violet),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Text(
+                'Nyla keeps the medical reading inside each card. Sources are there for trust and verification, not as homework.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: NylaColors.ink),
+              ),
+            ),
+          ],
         ),
       );
 }
 
-class _EmptySearch extends StatelessWidget {
-  const _EmptySearch();
+class _EmptyDeck extends StatelessWidget {
+  const _EmptyDeck();
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 46, horizontal: 24),
+        padding: const EdgeInsets.symmetric(vertical: 52, horizontal: 24),
         decoration: BoxDecoration(
-          color: NylaColors.lavenderSoft,
-          borderRadius: BorderRadius.circular(30),
+          gradient: const LinearGradient(colors: [NylaColors.lavenderSoft, NylaColors.roseWash]),
+          borderRadius: BorderRadius.circular(32),
         ),
         child: Column(
           children: [
-            const Icon(Icons.search_off_rounded, size: 34, color: NylaColors.wine),
+            const Icon(Icons.search_off_rounded, size: 35, color: NylaColors.violet),
             const SizedBox(height: 13),
-            Text('Nothing in this deck yet', style: Theme.of(context).textTheme.titleLarge),
+            Text('No card found', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 5),
             Text('Try another word or category.', style: Theme.of(context).textTheme.bodyMedium),
           ],
@@ -601,55 +829,62 @@ class _EmptySearch extends StatelessWidget {
 }
 
 class _CardPalette {
-  const _CardPalette({required this.start, required this.end, required this.ink, this.dark = false});
+  const _CardPalette({required this.start, required this.end, required this.ink, required this.panel});
 
   final Color start;
   final Color end;
   final Color ink;
-  final bool dark;
+  final Color panel;
 }
 
-_CardPalette _categoryPalette(TipCategory category, int index) => switch (category) {
+_CardPalette _paletteFor(TipCategory category, int index) => switch (category) {
       TipCategory.cycle => const _CardPalette(
-          start: NylaColors.wine,
-          end: NylaColors.rose,
+          start: NylaColors.night,
+          end: NylaColors.violet,
           ink: Colors.white,
-          dark: true,
+          panel: Color(0x28FFFFFF),
         ),
       TipCategory.understanding => const _CardPalette(
-          start: NylaColors.sage,
-          end: Color(0xFFE8E0B6),
+          start: Color(0xFFCBDBCA),
+          end: Color(0xFFE8D9B1),
           ink: NylaColors.ink,
+          panel: Color(0xAFFFFFFF),
         ),
       TipCategory.body => const _CardPalette(
           start: NylaColors.lavender,
-          end: NylaColors.peach,
+          end: Color(0xFFE7C3D5),
           ink: NylaColors.ink,
+          panel: Color(0xAFFFFFFF),
         ),
       TipCategory.care => _CardPalette(
           start: index.isEven ? NylaColors.peach : NylaColors.sage,
-          end: index.isEven ? NylaColors.roseSoft : NylaColors.peachSoft,
+          end: index.isEven ? NylaColors.roseSoft : NylaColors.lavender,
           ink: NylaColors.ink,
+          panel: const Color(0xAFFFFFFF),
         ),
       TipCategory.products => const _CardPalette(
-          start: NylaColors.roseSoft,
-          end: NylaColors.peachSoft,
+          start: Color(0xFFE6B6CE),
+          end: Color(0xFFF4D7C5),
           ink: NylaColors.ink,
+          panel: Color(0xAFFFFFFF),
         ),
       TipCategory.comfort => const _CardPalette(
           start: NylaColors.peach,
           end: NylaColors.butter,
           ink: NylaColors.ink,
+          panel: Color(0xAFFFFFFF),
         ),
       TipCategory.symptoms => const _CardPalette(
-          start: NylaColors.lavender,
-          end: NylaColors.roseSoft,
+          start: Color(0xFFBDA9DE),
+          end: Color(0xFFE6B9C9),
           ink: NylaColors.ink,
+          panel: Color(0xAFFFFFFF),
         ),
       TipCategory.seekCare => const _CardPalette(
-          start: Color(0xFFFFC1B4),
-          end: NylaColors.peach,
+          start: Color(0xFFF0B19F),
+          end: Color(0xFFEEC89F),
           ink: NylaColors.ink,
+          panel: Color(0xAFFFFFFF),
         ),
     };
 
@@ -672,7 +907,7 @@ String _categoryName(TipCategory category) => switch (category) {
       TipCategory.products => 'Products',
       TipCategory.comfort => 'Comfort',
       TipCategory.symptoms => 'Symptoms',
-      TipCategory.seekCare => 'Seek care',
+      TipCategory.seekCare => 'Care guidance',
     };
 
 String _reviewDate(DateTime value) {

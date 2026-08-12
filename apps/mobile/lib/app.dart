@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 
+import 'core/haptics/nyla_haptics.dart';
 import 'core/theme/nyla_theme.dart';
 import 'navigation/router.dart';
 import 'providers.dart';
@@ -111,37 +113,175 @@ class _PrivacyGateState extends ConsumerState<_PrivacyGate> with WidgetsBindingO
     setState(() {
       _authenticating = false;
       _concealed = !unlocked;
-      _message = unlocked ? null : 'Nyla is locked.';
+      _message = unlocked ? null : 'Still locked';
     });
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_concealed) return widget.child;
-    return ColoredBox(
-      color: NylaColors.canvas,
-      child: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.lock_rounded, size: 34),
-                const SizedBox(height: 16),
-                Text(
-                  _authenticating ? 'Unlocking Nyla…' : (_message ?? 'Nyla is private while you are away.'),
-                  textAlign: TextAlign.center,
+    return const _PrivacyBackdrop().withContent(
+      childBuilder: _buildPrivacyContent,
+    );
+  }
+
+  Widget _buildPrivacyContent(BuildContext context) {
+    return Semantics(
+      label: 'Nyla is locked',
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 30),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const _BloomMark(size: 112),
+              const SizedBox(height: 24),
+              Text(
+                'Nyla',
+                style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                      color: Colors.white,
+                      fontSize: 36,
+                      letterSpacing: -0.8,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: Text(
+                  _authenticating ? 'Unlocking…' : (_message ?? 'Locked'),
+                  key: ValueKey((_authenticating, _message)),
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: const Color(0xFFE6D9ED),
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
-                if (!_authenticating) ...[
-                  const SizedBox(height: 22),
-                  FilledButton(onPressed: _unlock, child: const Text('Unlock')),
-                ],
-              ],
-            ),
+              ),
+              const SizedBox(height: 26),
+              if (_authenticating)
+                const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: Colors.white,
+                    backgroundColor: Color(0x33FFFFFF),
+                  ),
+                )
+              else
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: NylaColors.wine,
+                    minimumSize: const Size(190, 54),
+                  ),
+                  onPressed: () async {
+                    await NylaHaptics.select();
+                    await _unlock();
+                  },
+                  icon: const Icon(Icons.lock_open_rounded, size: 19),
+                  label: const Text('Unlock'),
+                ),
+            ],
           ),
         ),
       ),
     );
   }
+}
+
+class _PrivacyBackdrop extends StatelessWidget {
+  const _PrivacyBackdrop();
+
+  Widget withContent({required Widget Function(BuildContext context) childBuilder}) {
+    return Builder(
+      builder: (context) => DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [NylaColors.night, Color(0xFF33203E), NylaColors.wine],
+            stops: [0, 0.58, 1],
+          ),
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const Positioned(
+              right: -120,
+              top: -90,
+              child: _AmbientOrb(size: 310, color: Color(0x187F62B0)),
+            ),
+            const Positioned(
+              left: -110,
+              bottom: -130,
+              child: _AmbientOrb(size: 330, color: Color(0x16D66A91)),
+            ),
+            SafeArea(child: Center(child: childBuilder(context))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+class _AmbientOrb extends StatelessWidget {
+  const _AmbientOrb({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      );
+}
+
+class _BloomMark extends StatelessWidget {
+  const _BloomMark({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+        dimension: size,
+        child: CustomPaint(painter: _BloomPainter()),
+      );
+}
+
+class _BloomPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final halo = Paint()..color = const Color(0x1FFFFFFF);
+    canvas.drawCircle(center, size.width * 0.48, halo);
+
+    for (var i = 0; i < 6; i++) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate((math.pi * 2 / 6) * i);
+      final petal = Paint()
+        ..color = i.isEven ? const Color(0xFFE0D3F2) : const Color(0xFFC9B3E8);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(0, -size.height * 0.22),
+          width: size.width * 0.23,
+          height: size.height * 0.38,
+        ),
+        petal,
+      );
+      canvas.restore();
+    }
+
+    canvas.drawCircle(center, size.width * 0.105, Paint()..color = const Color(0xFFF5D9B6));
+    canvas.drawCircle(center, size.width * 0.045, Paint()..color = NylaColors.wine);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
