@@ -72,6 +72,10 @@ jobs:
         working-directory: packages/cycle_engine
         run: dart test
 
+      - name: Test sync core
+        working-directory: packages/sync_core
+        run: dart test
+
   sync-typecheck:
     runs-on: ubuntu-latest
     timeout-minutes: 10

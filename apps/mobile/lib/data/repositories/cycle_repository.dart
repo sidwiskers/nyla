@@ -4,13 +4,14 @@ import 'dart:math';
 import 'package:cycle_engine/cycle_engine.dart';
 import 'package:drift/drift.dart';
 
+import '../../core/sync/hlc_service.dart';
 import '../database/app_database.dart';
 
 class CycleRepository {
-  CycleRepository(this.database, this.deviceId);
+  CycleRepository(this.database, this.hlc);
 
   final AppDatabase database;
-  final String deviceId;
+  final HlcService hlc;
 
   Stream<List<PeriodEntry>> watchPeriods() => database.watchPeriodHistory();
 
@@ -33,36 +34,36 @@ class CycleRepository {
     }
     final now = DateTime.now().millisecondsSinceEpoch;
     final entityId = id ?? _id();
-    final hlc = '$now:0:$deviceId';
 
     await database.transaction(() async {
+      final clock = await hlc.next(nowMillis: now);
       await database.into(database.periods).insertOnConflictUpdate(
             PeriodsCompanion.insert(
               id: entityId,
               startDay: start.epochDay,
               endDay: Value(end?.epochDay),
-              updatedHlc: hlc,
+              updatedHlc: clock,
               createdMs: now,
               updatedMs: now,
             ),
           );
-      await _mutation(entityId, 'period', 'start_day', 'set', start.epochDay, hlc, now);
-      if (end != null) await _mutation(entityId, 'period', 'end_day', 'set', end.epochDay, hlc, now);
+      await _mutation(entityId, 'period', 'start_day', 'set', start.epochDay, clock, now);
+      if (end != null) await _mutation(entityId, 'period', 'end_day', 'set', end.epochDay, clock, now);
     });
   }
 
   Future<void> setPredictionExcluded(String id, bool excluded) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    final hlc = '$now:0:$deviceId';
     await database.transaction(() async {
+      final clock = await hlc.next(nowMillis: now);
       await (database.update(database.periods)..where((row) => row.id.equals(id))).write(
         PeriodsCompanion(
           excludeFromPrediction: Value(excluded),
-          updatedHlc: Value(hlc),
+          updatedHlc: Value(clock),
           updatedMs: Value(now),
         ),
       );
-      await _mutation(id, 'period', 'exclude_from_prediction', 'set', excluded, hlc, now);
+      await _mutation(id, 'period', 'exclude_from_prediction', 'set', excluded, clock, now);
     });
   }
 
@@ -72,7 +73,7 @@ class CycleRepository {
     String field,
     String kind,
     Object? value,
-    String hlc,
+    String clock,
     int now,
   ) async {
     await database.into(database.localMutations).insert(
@@ -83,12 +84,12 @@ class CycleRepository {
             field: field,
             kind: kind,
             valueJson: Value(value == null ? null : jsonEncode(value)),
-            hlc: hlc,
+            hlc: clock,
             createdMs: now,
           ),
         );
     await database.into(database.fieldClocks).insertOnConflictUpdate(
-          FieldClocksCompanion.insert(entityId: entityId, field: field, hlc: hlc),
+          FieldClocksCompanion.insert(entityId: entityId, field: field, hlc: clock),
         );
   }
 

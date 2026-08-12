@@ -12,6 +12,8 @@ dependencies:
     sdk: flutter
   cycle_engine:
     path: ../../packages/cycle_engine
+  sync_core:
+    path: ../../packages/sync_core
   cryptography: ^2.9.0
   cryptography_flutter: ^2.3.4
   drift: ^2.34.3

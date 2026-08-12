@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/notifications/notification_config.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/storage/secure_vault.dart';
+import 'core/sync/hlc_service.dart';
 import 'data/database/app_database.dart';
 import 'data/repositories/cycle_repository.dart';
 import 'data/repositories/day_log_repository.dart';
@@ -13,11 +14,14 @@ final databaseProvider = Provider<AppDatabase>((ref) => throw StateError('Databa
 final deviceIdProvider = Provider<String>((ref) => throw StateError('Device identity has not been bootstrapped.'));
 final secureVaultProvider = Provider<SecureVault>((ref) => const SecureVault());
 
+final hlcServiceProvider = Provider<HlcService>(
+  (ref) => HlcService(ref.watch(databaseProvider), ref.watch(deviceIdProvider)),
+);
 final cycleRepositoryProvider = Provider<CycleRepository>(
-  (ref) => CycleRepository(ref.watch(databaseProvider), ref.watch(deviceIdProvider)),
+  (ref) => CycleRepository(ref.watch(databaseProvider), ref.watch(hlcServiceProvider)),
 );
 final dayLogRepositoryProvider = Provider<DayLogRepository>(
-  (ref) => DayLogRepository(ref.watch(databaseProvider), ref.watch(deviceIdProvider)),
+  (ref) => DayLogRepository(ref.watch(databaseProvider), ref.watch(hlcServiceProvider)),
 );
 final preferencesRepositoryProvider = Provider<PreferencesRepository>(
   (ref) => PreferencesRepository(ref.watch(databaseProvider)),
