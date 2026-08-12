@@ -29,6 +29,8 @@ interface DeviceRow {
   device_id: string;
   signing_public_key: string;
   exchange_public_key: string;
+  activated_ms: number | null;
+  pending_pairing_id: string | null;
   revoked_ms: number | null;
 }
 
@@ -77,6 +79,8 @@ export class Vault extends DurableObject<Env> {
         signing_public_key TEXT NOT NULL,
         exchange_public_key TEXT NOT NULL,
         added_ms INTEGER NOT NULL,
+        activated_ms INTEGER,
+        pending_pairing_id TEXT,
         revoked_ms INTEGER
       );
       CREATE TABLE IF NOT EXISTS operations (
@@ -135,6 +139,7 @@ export class Vault extends DurableObject<Env> {
       return await this.route(request);
     } catch (cause) {
       if (cause instanceof PayloadTooLargeError) return error('payload_too_large', 413);
+      if (cause instanceof RecoveryRateLimitError) return error('recovery_rate_limited', 429);
       if (cause instanceof SyntaxError || cause instanceof TypeError) return error('invalid_request', 400);
       console.error('nyla_sync_internal_error');
       return error('internal_error', 500);
@@ -252,10 +257,12 @@ export class Vault extends DurableObject<Env> {
       if (this.hasVault()) throw new Error('vault_race');
       this.sql.exec("INSERT INTO meta(key, value) VALUES ('epoch', '1'), ('created_ms', ?)", String(now));
       this.sql.exec(
-        'INSERT INTO devices(device_id, signing_public_key, exchange_public_key, added_ms) VALUES (?, ?, ?, ?)',
+        `INSERT INTO devices(device_id, signing_public_key, exchange_public_key, added_ms, activated_ms)
+         VALUES (?, ?, ?, ?, ?)`,
         device_id,
         signing_public_key,
         exchange_public_key,
+        now,
         now,
       );
     });
@@ -282,6 +289,10 @@ export class Vault extends DurableObject<Env> {
 
     const device = this.device(deviceId);
     if (!device || device.revoked_ms !== null) return error('device_not_authorized', 401);
+    const isPairingActivation = canonicalPath.endsWith('/pairings/consume');
+    if (device.activated_ms === null && !isPairingActivation) {
+      return error('device_pending_activation', 401);
+    }
 
     const body = new Uint8Array(await request.arrayBuffer());
     if (body.byteLength > 512 * 1024) return error('payload_too_large', 413);
@@ -449,11 +460,14 @@ export class Vault extends DurableObject<Env> {
           now + PAIRING_TTL_MS,
         );
         this.sql.exec(
-          'INSERT INTO devices(device_id, signing_public_key, exchange_public_key, added_ms) VALUES (?, ?, ?, ?)',
+          `INSERT INTO devices(
+             device_id, signing_public_key, exchange_public_key, added_ms, activated_ms, pending_pairing_id
+           ) VALUES (?, ?, ?, ?, NULL, ?)`,
           targetDeviceId,
           signingPublicKey,
           exchangePublicKey,
           now,
+          pairingId,
         );
       });
     } catch {
@@ -490,8 +504,17 @@ export class Vault extends DurableObject<Env> {
     ) {
       return error('pairing_not_found', 404);
     }
-    this.sql.exec('UPDATE pairings SET consumed_ms = ? WHERE pairing_id = ?', Date.now(), body.pairing_id);
-    return json({ consumed: true });
+    const now = Date.now();
+    this.ctx.storage.transactionSync(() => {
+      this.sql.exec('UPDATE pairings SET consumed_ms = ? WHERE pairing_id = ?', now, body.pairing_id);
+      this.sql.exec(
+        'UPDATE devices SET activated_ms = ?, pending_pairing_id = NULL WHERE device_id = ? AND pending_pairing_id = ?',
+        now,
+        auth.device.device_id,
+        body.pairing_id,
+      );
+    });
+    return json({ consumed: true, activated: true });
   }
 
   private setRecovery(auth: AuthContext): Response {
@@ -581,15 +604,25 @@ export class Vault extends DurableObject<Env> {
     );
     if (!verified) return error('invalid_recovery_signature', 401);
 
+    if (
+      decodeBase64Url(signing_public_key).byteLength !== 32 ||
+      decodeBase64Url(exchange_public_key).byteLength !== 32
+    ) {
+      return error('invalid_recovery_device_keys', 400);
+    }
+
     const now = Date.now();
     this.sql.exec(
-      `INSERT INTO devices(device_id, signing_public_key, exchange_public_key, added_ms, revoked_ms)
-       VALUES (?, ?, ?, ?, NULL)
+      `INSERT INTO devices(
+         device_id, signing_public_key, exchange_public_key, added_ms, activated_ms, pending_pairing_id, revoked_ms
+       ) VALUES (?, ?, ?, ?, ?, NULL, NULL)
        ON CONFLICT(device_id) DO UPDATE SET signing_public_key = excluded.signing_public_key,
-         exchange_public_key = excluded.exchange_public_key, added_ms = excluded.added_ms, revoked_ms = NULL`,
+         exchange_public_key = excluded.exchange_public_key, added_ms = excluded.added_ms,
+         activated_ms = excluded.activated_ms, pending_pairing_id = NULL, revoked_ms = NULL`,
       device_id,
       signing_public_key,
       exchange_public_key,
+      now,
       now,
     );
     return json({ enrolled: true, epoch: this.currentEpoch() }, 201);
@@ -683,7 +716,10 @@ export class Vault extends DurableObject<Env> {
 
   private listDevices(): Response {
     const rows = this.sql
-      .exec('SELECT device_id, exchange_public_key, added_ms, revoked_ms FROM devices ORDER BY added_ms ASC')
+      .exec(
+        `SELECT device_id, exchange_public_key, added_ms, activated_ms, revoked_ms
+         FROM devices WHERE activated_ms IS NOT NULL ORDER BY added_ms ASC`,
+      )
       .toArray();
     return json({ devices: rows, epoch: this.currentEpoch() });
   }
@@ -700,7 +736,8 @@ export class Vault extends DurableObject<Env> {
   private device(deviceId: string): DeviceRow | undefined {
     return this.sql
       .exec(
-        'SELECT device_id, signing_public_key, exchange_public_key, revoked_ms FROM devices WHERE device_id = ?',
+        `SELECT device_id, signing_public_key, exchange_public_key, activated_ms, pending_pairing_id, revoked_ms
+         FROM devices WHERE device_id = ?`,
         deviceId,
       )
       .toArray()[0] as DeviceRow | undefined;
@@ -708,14 +745,25 @@ export class Vault extends DurableObject<Env> {
 
   private activeDeviceIds(): string[] {
     return (
-      this.sql.exec('SELECT device_id FROM devices WHERE revoked_ms IS NULL').toArray() as Array<{ device_id: string }>
+      this.sql
+        .exec('SELECT device_id FROM devices WHERE revoked_ms IS NULL AND activated_ms IS NOT NULL')
+        .toArray() as Array<{ device_id: string }>
     ).map((row) => row.device_id);
   }
 
   private cleanup(now: number): void {
-    this.sql.exec('DELETE FROM auth_nonces WHERE expires_ms < ?', now);
-    this.sql.exec('DELETE FROM pairings WHERE expires_ms < ?', now);
-    this.sql.exec('DELETE FROM recovery_attempts WHERE attempted_ms < ?', now - 60 * 60 * 1000);
+    this.ctx.storage.transactionSync(() => {
+      this.sql.exec('DELETE FROM auth_nonces WHERE expires_ms < ?', now);
+      this.sql.exec(
+        `DELETE FROM devices
+         WHERE activated_ms IS NULL AND pending_pairing_id IN (
+           SELECT pairing_id FROM pairings WHERE expires_ms < ? AND consumed_ms IS NULL
+         )`,
+        now,
+      );
+      this.sql.exec('DELETE FROM pairings WHERE expires_ms < ?', now);
+      this.sql.exec('DELETE FROM recovery_attempts WHERE attempted_ms < ?', now - 60 * 60 * 1000);
+    });
   }
 
   private limitRecoveryAttempts(): void {
