@@ -92,9 +92,6 @@ jobs:
 
           api="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"
 
-          # A brand-new Workers account can legitimately return HTTP 404 here
-          # because no workers.dev subdomain exists yet. Do not use curl --fail
-          # for this first lookup: inspect Cloudflare's JSON and bootstrap it.
           response="$(curl --silent --show-error \
             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "$api")"
@@ -147,7 +144,9 @@ jobs:
     name: Build and validate signed APK
     needs: resolve-sync-url
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # The first encrypted Android build gets enough room to populate caches.
+    # The Flutter compile itself has a separate 60-minute watchdog below.
+    timeout-minutes: 80
     outputs:
       version: ${{ steps.release.outputs.version }}
       tag: ${{ steps.release.outputs.tag }}
@@ -187,6 +186,7 @@ jobs:
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/flutter/bin/flutter" config --no-analytics
           "$RUNNER_TEMP/flutter/bin/flutter" --version
+          "$RUNNER_TEMP/flutter/bin/flutter" precache --android
 
       - name: Generate pinned native scaffolds
         shell: bash
@@ -201,6 +201,26 @@ jobs:
           cp -R "$RUNNER_TEMP/nyla-platform/ios" apps/mobile/
           cp "$RUNNER_TEMP/nyla-platform/.metadata" apps/mobile/.metadata
           python3 apps/mobile/tool/configure_platforms.py
+
+      - name: Set up Java and Gradle cache
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: |
+            apps/mobile/android/**/*.gradle*
+            apps/mobile/android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Restore Dart and native-asset cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.pub-cache
+            apps/mobile/.dart_tool
+          key: nyla-flutter-${{ runner.os }}-${{ env.FLUTTER_VERSION }}-${{ hashFiles('apps/mobile/pubspec.yaml', 'apps/mobile/pubspec.lock', 'packages/**/pubspec.yaml', 'content/**/pubspec.yaml') }}
+          restore-keys: |
+            nyla-flutter-${{ runner.os }}-${{ env.FLUTTER_VERSION }}-
 
       - name: Render Nyla icon artwork
         shell: bash
@@ -264,11 +284,37 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          flutter build apk \
-            --release \
-            --build-name='${{ steps.release.outputs.version }}' \
-            --build-number='${{ github.run_number }}' \
-            --dart-define="NYLA_SYNC_BASE_URL=${NYLA_SYNC_BASE_URL}"
+          build_log="$RUNNER_TEMP/flutter-release-build.log"
+
+          # Keep the exact Gradle/native-assets output if the build fails, and
+          # stop the compile itself before the surrounding job timeout.
+          set +e
+          timeout --signal=TERM --kill-after=30s 60m \
+            flutter build apk \
+              --release \
+              --no-pub \
+              --verbose \
+              --build-name='${{ steps.release.outputs.version }}' \
+              --build-number='${{ github.run_number }}' \
+              --dart-define="NYLA_SYNC_BASE_URL=${NYLA_SYNC_BASE_URL}" \
+            2>&1 | tee "$build_log"
+          build_status=${PIPESTATUS[0]}
+          set -e
+
+          if [[ "$build_status" -eq 124 ]]; then
+            echo '::error::Flutter release compilation exceeded 60 minutes and was stopped.'
+            exit 124
+          fi
+          exit "$build_status"
+
+      - name: Upload failed-build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nyla-build-diagnostics-${{ github.run_id }}
+          path: ${{ runner.temp }}/flutter-release-build.log
+          if-no-files-found: warn
+          retention-days: 3
 
       - name: Verify signature and create checksum
         shell: bash
