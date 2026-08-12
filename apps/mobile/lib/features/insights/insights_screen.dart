@@ -229,6 +229,7 @@ class _TopSymptoms extends StatelessWidget {
     }
     final visible = [...items]
       ..sort((a, b) => b.occurrenceRate.compareTo(a.occurrenceRate));
+    final top = visible.take(4).toList(growable: false);
     return NylaPaperSurface(
       padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
       shadow: false,
@@ -237,9 +238,12 @@ class _TopSymptoms extends StatelessWidget {
         children: [
           Text('Top Symptoms', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 13),
-          for (final item in visible.take(4)) ...[
-            _SymptomBar(label: _symptomLabel(item.key), value: item.occurrenceRate.clamp(0, 1).toDouble()),
-            if (item != visible.take(4).last) const SizedBox(height: 11),
+          for (var i = 0; i < top.length; i++) ...[
+            _SymptomBar(
+              label: _symptomLabel(top[i].key),
+              value: top[i].occurrenceRate.clamp(0, 1).toDouble(),
+            ),
+            if (i != top.length - 1) const SizedBox(height: 11),
           ],
         ],
       ),

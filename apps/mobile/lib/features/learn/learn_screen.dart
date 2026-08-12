@@ -23,7 +23,9 @@ class _LearnScreenState extends State<LearnScreen> {
     return NylaPage(
       title: 'Tips',
       trailing: NylaPressable(
-        onTap: () => Navigator.maybePop(context),
+        onTap: () {
+          Navigator.maybePop(context);
+        },
         semanticsLabel: 'Close tips',
         borderRadius: BorderRadius.circular(99),
         child: Container(

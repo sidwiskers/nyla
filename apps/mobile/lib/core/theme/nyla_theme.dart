@@ -106,7 +106,7 @@ abstract final class NylaTheme {
         ),
         titleMedium: text(
           size: 15.5,
-          weight: FontWeight.w650,
+          weight: FontWeight.w600,
           color: NylaColors.ink,
           height: 1.25,
         ),
