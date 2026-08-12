@@ -67,11 +67,10 @@ class _LogScreenState extends ConsumerState<LogScreen> {
             ),
             itemBuilder: (context, index) {
               final definition = builtInLogs[index];
-              final current = values[definition.key];
               return _LogTile(
                 definition: definition,
-                current: current,
-                onTap: () => _edit(definition, current),
+                summary: _summary(definition, values),
+                onTap: () => _edit(definition, values),
               );
             },
           ),
@@ -109,6 +108,24 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     );
   }
 
+  String? _summary(LogDefinition definition, Map<String, DayValueEntry> values) {
+    if (definition.kind == LogKind.multiChoice) {
+      final selected = definition.choices
+          .where((choice) => values.containsKey('${definition.key}.${choice.id}'))
+          .map((choice) => choice.label)
+          .toList(growable: false);
+      if (selected.isEmpty) return null;
+      if (selected.length <= 2) return selected.join(', ');
+      return '${selected.take(2).join(', ')} +${selected.length - 2}';
+    }
+    final current = values[definition.key];
+    if (current == null) return null;
+    if (definition.kind == LogKind.choice) return definition.choiceLabel(current.value);
+    final severity = current.severity;
+    if (severity == null || severity < 0 || severity >= severityChoices.length) return current.value;
+    return severityChoices[severity].label;
+  }
+
   void _changeDay(LocalDay next) {
     final today = LocalDay.fromDateTime(DateTime.now());
     if (next.epochDay > today.epochDay) return;
@@ -134,17 +151,35 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Period start recorded')));
   }
 
-  Future<void> _edit(LogDefinition definition, DayValueEntry? current) async {
+  Future<void> _edit(LogDefinition definition, Map<String, DayValueEntry> values) async {
     if (definition.kind == LogKind.choice) {
+      final current = values[definition.key]?.value;
       final chosen = await showModalBottomSheet<String>(
         context: context,
         showDragHandle: true,
-        builder: (context) => _ChoiceSheet(definition: definition, selected: current?.value),
+        builder: (context) => _ChoiceSheet(definition: definition, selected: current),
       );
       if (chosen != null) await _setChoice(definition, chosen);
       return;
     }
 
+    if (definition.kind == LogKind.multiChoice) {
+      final selected = <String>{
+        for (final choice in definition.choices)
+          if (values.containsKey('${definition.key}.${choice.id}')) choice.id,
+      };
+      final chosen = await showModalBottomSheet<Set<String>>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (context) => _MultiChoiceSheet(definition: definition, initial: selected),
+      );
+      if (chosen == null) return;
+      await _applyMultiChoice(definition, selected, chosen);
+      return;
+    }
+
+    final current = values[definition.key];
     final severity = await showModalBottomSheet<int>(
       context: context,
       showDragHandle: true,
@@ -154,9 +189,25 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     await ref.read(dayLogRepositoryProvider).setValue(
           epochDay: day.epochDay,
           key: definition.key,
-          value: severityLabels[severity],
+          value: severityChoices[severity].id,
           severity: severity,
         );
+  }
+
+  Future<void> _applyMultiChoice(
+    LogDefinition definition,
+    Set<String> before,
+    Set<String> after,
+  ) async {
+    final repository = ref.read(dayLogRepositoryProvider);
+    for (final choice in definition.choices) {
+      final key = '${definition.key}.${choice.id}';
+      if (after.contains(choice.id) && !before.contains(choice.id)) {
+        await repository.setValue(epochDay: day.epochDay, key: key, value: choice.id);
+      } else if (!after.contains(choice.id) && before.contains(choice.id)) {
+        await repository.clearValue(epochDay: day.epochDay, key: key);
+      }
+    }
   }
 }
 
@@ -221,15 +272,15 @@ class _FlowCard extends StatelessWidget {
               spacing: 7,
               runSpacing: 7,
               children: [
-                for (final value in flowDefinition.choices)
+                for (final choice in flowDefinition.choices)
                   ChoiceChip(
-                    label: Text(value),
-                    selected: selected == value,
-                    onSelected: (_) => onChanged(value),
+                    label: Text(choice.label),
+                    selected: selected == choice.id,
+                    onSelected: (_) => onChanged(choice.id),
                   ),
               ],
             ),
-            if (selected != null && selected != 'None' && selected != 'Spotting') ...[
+            if (selected != null && selected != 'none' && selected != 'spotting') ...[
               const SizedBox(height: 10),
               TextButton.icon(
                 onPressed: onMarkPeriod,
@@ -245,10 +296,10 @@ class _FlowCard extends StatelessWidget {
 }
 
 class _LogTile extends StatelessWidget {
-  const _LogTile({required this.definition, required this.current, required this.onTap});
+  const _LogTile({required this.definition, required this.summary, required this.onTap});
 
   final LogDefinition definition;
-  final DayValueEntry? current;
+  final String? summary;
   final VoidCallback onTap;
 
   @override
@@ -274,9 +325,9 @@ class _LogTile extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(definition.label, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    if (current != null)
+                    if (summary != null)
                       Text(
-                        current!.value,
+                        summary!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11),
@@ -311,11 +362,11 @@ class _SeveritySheet extends StatelessWidget {
             const SizedBox(height: 6),
             Text('Choose what fits. You can change it anytime.', style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: 18),
-            for (var index = 0; index < severityLabels.length; index++)
+            for (var index = 0; index < severityChoices.length; index++)
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(severityLabels[index]),
-                subtitle: index == 0 ? const Text('Explicitly record that you did not have this symptom') : null,
+                title: Text(severityChoices[index].label),
+                subtitle: index == 0 ? const Text('Records an explicit “none” rather than leaving the day unknown') : null,
                 trailing: selected == index ? const Icon(Icons.check_circle_rounded, color: NylaColors.rose) : null,
                 onTap: () => Navigator.pop(context, index),
               ),
@@ -346,10 +397,68 @@ class _ChoiceSheet extends StatelessWidget {
             for (final choice in definition.choices)
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(choice),
-                trailing: selected == choice ? const Icon(Icons.check_circle_rounded, color: NylaColors.rose) : null,
-                onTap: () => Navigator.pop(context, choice),
+                title: Text(choice.label),
+                trailing: selected == choice.id ? const Icon(Icons.check_circle_rounded, color: NylaColors.rose) : null,
+                onTap: () => Navigator.pop(context, choice.id),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MultiChoiceSheet extends StatefulWidget {
+  const _MultiChoiceSheet({required this.definition, required this.initial});
+
+  final LogDefinition definition;
+  final Set<String> initial;
+
+  @override
+  State<_MultiChoiceSheet> createState() => _MultiChoiceSheetState();
+}
+
+class _MultiChoiceSheetState extends State<_MultiChoiceSheet> {
+  late final Set<String> selected = {...widget.initial};
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(widget.definition.label, style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: 6),
+            Text('Choose as many as fit.', style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final choice in widget.definition.choices)
+                  FilterChip(
+                    label: Text(choice.label),
+                    selected: selected.contains(choice.id),
+                    onSelected: (enabled) {
+                      setState(() {
+                        if (enabled) {
+                          selected.add(choice.id);
+                        } else {
+                          selected.remove(choice.id);
+                        }
+                      });
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, Set<String>.unmodifiable(selected)),
+              child: const Text('Done'),
+            ),
           ],
         ),
       ),
