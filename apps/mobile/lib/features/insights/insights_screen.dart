@@ -4,6 +4,7 @@ import 'package:cycle_engine/cycle_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/model/date_text.dart';
 import '../../core/theme/nyla_theme.dart';
 import '../../data/database/app_database.dart';
 import '../../providers.dart';
@@ -351,8 +352,9 @@ class _Cycles extends StatelessWidget {
             }
             return NylaInlineNote(
               icon: Icons.calendar_month_outlined,
-              title: 'Your next period has a range',
-              body: 'Nyla keeps the estimate flexible when your recent cycles move around.',
+              title: 'Expected ${rangeText(value.earliestStart, value.latestStart)}',
+              body:
+                  'Based on ${value.completedCyclesUsed} recent completed cycle${value.completedCyclesUsed == 1 ? '' : 's'}. Recent variation is about ${value.variabilityDays.toStringAsFixed(1)} days, so Nyla keeps this as a range rather than one exact date.',
               accent: NylaColors.violet,
             );
           },
@@ -435,6 +437,10 @@ class _PatternRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percent = (pattern.occurrenceRate * 100).round();
+    final timing = switch (pattern.window) {
+      CycleWindow.beforePeriod => 'before your period',
+      CycleWindow.periodStart => 'at the start of your period',
+    };
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 11),
       child: Row(
@@ -448,7 +454,7 @@ class _PatternRow extends StatelessWidget {
                 Text(_symptomLabel(pattern.key), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 13.5)),
                 const SizedBox(height: 2),
                 Text(
-                  'Appears in $percent% of the cycles where you logged enough to compare.',
+                  '${pattern.cyclesPresent} of ${pattern.cyclesObserved} well-observed cycles · $timing · at least ${pattern.coverageRequiredPerCycle} logged days each.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 10.8),
                 ),
               ],
