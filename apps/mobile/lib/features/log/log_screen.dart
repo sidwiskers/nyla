@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/haptics/nyla_haptics.dart';
 import '../../core/model/date_text.dart';
 import '../../core/model/log_catalog.dart';
 import '../../core/theme/nyla_theme.dart';
@@ -53,12 +54,18 @@ class _LogScreenState extends ConsumerState<LogScreen> {
           const SizedBox(height: 14),
           _FlowCard(
             selected: values['flow']?.value,
-            onChanged: (value) => _setChoice(flowDefinition, value),
+            onChanged: (value) async {
+              await NylaHaptics.select();
+              await _setChoice(flowDefinition, value);
+            },
             onMarkPeriod: _markPeriod,
           ),
-          const SizedBox(height: 14),
-          Text('How did your body feel?', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 10),
+          const SizedBox(height: 22),
+          _SectionHeading(
+            title: 'How did your body feel?',
+            subtitle: values.isEmpty ? 'Pick only what matters today.' : '${values.length} things are already in today’s log.',
+          ),
+          const SizedBox(height: 11),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -67,7 +74,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
               crossAxisCount: 2,
               crossAxisSpacing: 10,
               mainAxisSpacing: 10,
-              childAspectRatio: 2.05,
+              childAspectRatio: 1.72,
             ),
             itemBuilder: (context, index) {
               final definition = builtInLogs[index];
@@ -78,22 +85,31 @@ class _LogScreenState extends ConsumerState<LogScreen> {
               );
             },
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 22),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               if (customLogs.isNotEmpty)
-                Expanded(child: Text('Your logs', style: Theme.of(context).textTheme.titleLarge))
+                const Expanded(
+                  child: _SectionHeading(title: 'Your logs', subtitle: 'The things you chose to track.'),
+                )
               else
-                const Spacer(),
+                const Expanded(
+                  child: _SectionHeading(title: 'Make it yours', subtitle: 'Add a log that Nyla does not include yet.'),
+                ),
+              const SizedBox(width: 8),
               TextButton.icon(
-                onPressed: () => context.push('/settings/logs'),
+                onPressed: () {
+                  NylaHaptics.select();
+                  context.push('/settings/logs');
+                },
                 icon: Icon(customLogs.isEmpty ? Icons.add_rounded : Icons.tune_rounded, size: 18),
-                label: Text(customLogs.isEmpty ? 'Add your own log' : 'Manage'),
+                label: Text(customLogs.isEmpty ? 'Add' : 'Manage'),
               ),
             ],
           ),
           if (customLogs.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 10),
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -102,7 +118,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
                 crossAxisCount: 2,
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
-                childAspectRatio: 2.05,
+                childAspectRatio: 1.72,
               ),
               itemBuilder: (context, index) {
                 final custom = customLogs[index];
@@ -110,7 +126,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
                   key: custom.key,
                   label: custom.label,
                   icon: Icons.favorite_outline_rounded,
-                  tint: NylaColors.lavender,
+                  tint: index.isEven ? NylaColors.lavender : NylaColors.sage,
                 );
                 return _LogTile(
                   definition: definition,
@@ -120,35 +136,52 @@ class _LogScreenState extends ConsumerState<LogScreen> {
               },
             ),
           ],
-          const SizedBox(height: 20),
-          Text('A note, if you want', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 9),
-          TextField(
-            controller: _noteController,
-            minLines: 3,
-            maxLines: 7,
-            maxLength: 4000,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              hintText: 'Anything worth remembering…',
-              counterText: '',
+          const SizedBox(height: 22),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [NylaColors.peachSoft, NylaColors.lavenderSoft]),
+              borderRadius: BorderRadius.circular(29),
             ),
-            onTapOutside: (_) => FocusScope.of(context).unfocus(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('A note, if you want', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 5),
+                Text('Private, searchable context for future you.', style: Theme.of(context).textTheme.bodyMedium),
+                const SizedBox(height: 13),
+                TextField(
+                  controller: _noteController,
+                  minLines: 3,
+                  maxLines: 7,
+                  maxLength: 4000,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    hintText: 'Anything worth remembering…',
+                    counterText: '',
+                  ),
+                  onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                ),
+                const SizedBox(height: 11),
+                FilledButton.icon(
+                  onPressed: () async {
+                    await NylaHaptics.confirm();
+                    await ref.read(dayLogRepositoryProvider).setNote(epochDay: day.epochDay, note: _noteController.text);
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Note saved')));
+                  },
+                  icon: const Icon(Icons.check_rounded, size: 18),
+                  label: const Text('Save note'),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 10),
-          FilledButton(
-            onPressed: () async {
-              await ref.read(dayLogRepositoryProvider).setNote(epochDay: day.epochDay, note: _noteController.text);
-              if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved')));
-            },
-            child: const Text('Save note'),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Text(
             'Nothing here is required. Log only what is useful to you.',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12.5),
           ),
+          const SizedBox(height: 82),
         ],
       ),
     );
@@ -175,6 +208,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
   void _changeDay(LocalDay next) {
     final today = LocalDay.fromDateTime(DateTime.now());
     if (next.epochDay > today.epochDay) return;
+    NylaHaptics.select();
     setState(() {
       day = next;
       _noteLoaded = false;
@@ -193,16 +227,17 @@ class _LogScreenState extends ConsumerState<LogScreen> {
       ref.read(dayLogRepositoryProvider).setValue(epochDay: day.epochDay, key: definition.key, value: value);
 
   Future<void> _markPeriod() async {
+    await NylaHaptics.confirm();
     await ref.read(cycleRepositoryProvider).recordPeriod(start: day);
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Period start recorded')));
   }
 
   Future<void> _edit(LogDefinition definition, Map<String, DayValueEntry> values) async {
+    await NylaHaptics.select();
     if (definition.kind == LogKind.choice) {
       final current = values[definition.key]?.value;
       final chosen = await showModalBottomSheet<String>(
         context: context,
-        showDragHandle: true,
         builder: (context) => _ChoiceSheet(definition: definition, selected: current),
       );
       if (chosen != null) await _setChoice(definition, chosen);
@@ -217,7 +252,6 @@ class _LogScreenState extends ConsumerState<LogScreen> {
       final chosen = await showModalBottomSheet<Set<String>>(
         context: context,
         isScrollControlled: true,
-        showDragHandle: true,
         builder: (context) => _MultiChoiceSheet(definition: definition, initial: selected),
       );
       if (chosen == null) return;
@@ -228,7 +262,6 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     final current = values[definition.key];
     final severity = await showModalBottomSheet<int>(
       context: context,
-      showDragHandle: true,
       builder: (context) => _SeveritySheet(definition: definition, selected: current?.severity),
     );
     if (severity == null) return;
@@ -257,6 +290,23 @@ class _LogScreenState extends ConsumerState<LogScreen> {
   }
 }
 
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 3),
+          Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12.5)),
+        ],
+      );
+}
+
 class _DayPicker extends StatelessWidget {
   const _DayPicker({required this.day, required this.onPrevious, required this.onNext});
 
@@ -267,23 +317,54 @@ class _DayPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final today = LocalDay.fromDateTime(DateTime.now());
-    return Row(
-      children: [
-        IconButton(onPressed: onPrevious, icon: const Icon(Icons.chevron_left_rounded)),
-        Expanded(
-          child: Text(
-            day == today ? 'Today' : friendlyDay(day),
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleLarge,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.76),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        children: [
+          _DayButton(onPressed: onPrevious, icon: Icons.chevron_left_rounded),
+          Expanded(
+            child: Column(
+              children: [
+                Text(
+                  day == today ? 'Today' : friendlyDay(day),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                if (day != today)
+                  Text('Past log', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 10.5)),
+              ],
+            ),
           ),
-        ),
-        IconButton(
-          onPressed: day.epochDay < today.epochDay ? onNext : null,
-          icon: const Icon(Icons.chevron_right_rounded),
-        ),
-      ],
+          _DayButton(
+            onPressed: day.epochDay < today.epochDay ? onNext : null,
+            icon: Icons.chevron_right_rounded,
+          ),
+        ],
+      ),
     );
   }
+}
+
+class _DayButton extends StatelessWidget {
+  const _DayButton({required this.onPressed, required this.icon});
+
+  final VoidCallback? onPressed;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: onPressed == null ? NylaColors.roseWash.withValues(alpha: 0.45) : NylaColors.roseWash,
+        shape: const CircleBorder(),
+        child: IconButton(
+          onPressed: onPressed,
+          icon: Icon(icon),
+          color: onPressed == null ? NylaColors.faintInk : NylaColors.wine,
+        ),
+      );
 }
 
 class _FlowCard extends StatelessWidget {
@@ -295,47 +376,72 @@ class _FlowCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(color: NylaColors.roseSoft, borderRadius: BorderRadius.circular(14)),
-                  child: const Icon(Icons.water_drop_rounded, color: NylaColors.rose),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [NylaColors.roseSoft, NylaColors.peachSoft]),
+        borderRadius: BorderRadius.circular(29),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(color: NylaColors.wine, borderRadius: BorderRadius.circular(16)),
+                child: const Icon(Icons.water_drop_rounded, color: Colors.white, size: 21),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Bleeding', style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 2),
+                    Text('What best matches today?', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12.5)),
+                  ],
                 ),
-                const SizedBox(width: 11),
-                Text('Bleeding', style: Theme.of(context).textTheme.titleLarge),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: [
-                for (final choice in flowDefinition.choices)
-                  ChoiceChip(
-                    label: Text(choice.label),
-                    selected: selected == choice.id,
-                    onSelected: (_) => onChanged(choice.id),
-                  ),
-              ],
-            ),
-            if (selected != null && selected != 'none' && selected != 'spotting') ...[
-              const SizedBox(height: 10),
-              TextButton.icon(
-                onPressed: onMarkPeriod,
-                icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
-                label: const Text('Mark this as a period start'),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              for (final choice in flowDefinition.choices)
+                ChoiceChip(
+                  label: Text(choice.label),
+                  selected: selected == choice.id,
+                  onSelected: (_) => onChanged(choice.id),
+                ),
+            ],
+          ),
+          if (selected != null && selected != 'none' && selected != 'spotting') ...[
+            const SizedBox(height: 12),
+            Material(
+              color: Colors.white.withValues(alpha: 0.54),
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: onMarkPeriod,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add_circle_outline_rounded, size: 18, color: NylaColors.wine),
+                      SizedBox(width: 7),
+                      Text('Mark as period start', style: TextStyle(color: NylaColors.wine, fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -350,36 +456,57 @@ class _LogTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    final active = summary != null;
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(26),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-          child: Row(
+        borderRadius: BorderRadius.circular(24),
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: definition.tint.withValues(alpha: active ? 0.9 : 0.58),
+            borderRadius: BorderRadius.circular(24),
+            border: active ? Border.all(color: NylaColors.wine.withValues(alpha: 0.16)) : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(color: definition.tint, borderRadius: BorderRadius.circular(13)),
-                child: Icon(definition.icon, size: 19),
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Icon(definition.icon, size: 19, color: NylaColors.wine),
+                  ),
+                  const Spacer(),
+                  if (active)
+                    const Icon(Icons.check_circle_rounded, color: NylaColors.wine, size: 18)
+                  else
+                    const Icon(Icons.add_rounded, color: NylaColors.mutedInk, size: 18),
+                ],
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(definition.label, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    if (summary != null)
-                      Text(
-                        summary!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11),
-                      ),
-                  ],
-                ),
+              const Spacer(),
+              Text(
+                definition.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: NylaColors.ink, fontWeight: FontWeight.w700, fontSize: 14.5),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                summary ?? 'Not logged',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontSize: 10.8,
+                      color: active ? NylaColors.wine : NylaColors.mutedInk,
+                      fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                    ),
               ),
             ],
           ),
@@ -414,7 +541,10 @@ class _SeveritySheet extends StatelessWidget {
                 title: Text(severityChoices[index].label),
                 subtitle: index == 0 ? const Text('Records an explicit “none” rather than leaving the day unknown') : null,
                 trailing: selected == index ? const Icon(Icons.check_circle_rounded, color: NylaColors.rose) : null,
-                onTap: () => Navigator.pop(context, index),
+                onTap: () {
+                  NylaHaptics.select();
+                  Navigator.pop(context, index);
+                },
               ),
           ],
         ),
@@ -445,7 +575,10 @@ class _ChoiceSheet extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
                 title: Text(choice.label),
                 trailing: selected == choice.id ? const Icon(Icons.check_circle_rounded, color: NylaColors.rose) : null,
-                onTap: () => Navigator.pop(context, choice.id),
+                onTap: () {
+                  NylaHaptics.select();
+                  Navigator.pop(context, choice.id);
+                },
               ),
           ],
         ),
@@ -489,6 +622,7 @@ class _MultiChoiceSheetState extends State<_MultiChoiceSheet> {
                     label: Text(choice.label),
                     selected: selected.contains(choice.id),
                     onSelected: (enabled) {
+                      NylaHaptics.select();
                       setState(() {
                         if (enabled) {
                           selected.add(choice.id);
@@ -502,7 +636,10 @@ class _MultiChoiceSheetState extends State<_MultiChoiceSheet> {
             ),
             const SizedBox(height: 22),
             FilledButton(
-              onPressed: () => Navigator.pop(context, Set<String>.unmodifiable(selected)),
+              onPressed: () {
+                NylaHaptics.confirm();
+                Navigator.pop(context, Set<String>.unmodifiable(selected));
+              },
               child: const Text('Done'),
             ),
           ],
