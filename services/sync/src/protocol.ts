@@ -50,17 +50,19 @@ export function bootstrapPayload(input: {
   exchangePublicKey: string;
   timestamp: string;
   nonce: string;
-}): Uint8Array {
-  return encoder.encode(
-    [
-      'nyla-bootstrap-v1',
+}): Uint8Array<ArrayBuffer> {
+  return new Uint8Array(
+    encoder.encode(
+      [
+        'nyla-bootstrap-v1',
       input.vault,
       input.device,
       input.signingPublicKey,
       input.exchangePublicKey,
       input.timestamp,
       input.nonce,
-    ].join('\n'),
+      ].join('\n'),
+    ),
   );
 }
 
@@ -70,16 +72,18 @@ export function httpAuthPayload(input: {
   timestamp: string;
   nonce: string;
   bodyHash: string;
-}): Uint8Array {
-  return encoder.encode(
-    [
-      'nyla-http-v1',
+}): Uint8Array<ArrayBuffer> {
+  return new Uint8Array(
+    encoder.encode(
+      [
+        'nyla-http-v1',
       input.method.toUpperCase(),
       input.path,
       input.timestamp,
       input.nonce,
       input.bodyHash,
-    ].join('\n'),
+      ].join('\n'),
+    ),
   );
 }
 
@@ -90,17 +94,19 @@ export function envelopePayload(input: {
   op: string;
   nonce: string;
   ciphertext: string;
-}): Uint8Array {
-  return encoder.encode(
-    [
-      'nyla-envelope-v1',
+}): Uint8Array<ArrayBuffer> {
+  return new Uint8Array(
+    encoder.encode(
+      [
+        'nyla-envelope-v1',
       input.vault,
       input.device,
       String(input.epoch),
       input.op,
       input.nonce,
       input.ciphertext,
-    ].join('\n'),
+      ].join('\n'),
+    ),
   );
 }
 
@@ -112,10 +118,11 @@ export function recoveryEnrollmentPayload(input: {
   exchangePublicKey: string;
   timestamp: string;
   nonce: string;
-}): Uint8Array {
-  return encoder.encode(
-    [
-      'nyla-recovery-enroll-v1',
+}): Uint8Array<ArrayBuffer> {
+  return new Uint8Array(
+    encoder.encode(
+      [
+        'nyla-recovery-enroll-v1',
       input.vault,
       input.recoveryId,
       input.device,
@@ -123,7 +130,8 @@ export function recoveryEnrollmentPayload(input: {
       input.exchangePublicKey,
       input.timestamp,
       input.nonce,
-    ].join('\n'),
+      ].join('\n'),
+    ),
   );
 }
 

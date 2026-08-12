@@ -60,7 +60,7 @@ interface OperationRow {
 
 interface AuthContext {
   device: DeviceRow;
-  body: Uint8Array;
+  body: Uint8Array<ArrayBuffer>;
 }
 
 export class Vault extends DurableObject<Env> {
