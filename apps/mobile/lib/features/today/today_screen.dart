@@ -2,6 +2,7 @@ import 'package:cycle_engine/cycle_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:health_content/health_content.dart';
 
 import '../../core/model/date_text.dart';
 import '../../core/theme/nyla_theme.dart';
@@ -30,6 +31,7 @@ class TodayScreen extends ConsumerWidget {
           _TodayLogCard(today: today, values: dayValues),
           const SizedBox(height: 14),
           _TipPreview(
+            tip: _recommendedTip(dayValues.value ?? const <DayValueEntry>[]),
             onTap: () => context.go('/learn'),
           ),
         ],
@@ -43,6 +45,26 @@ class TodayScreen extends ConsumerWidget {
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
   }
+
+  HealthTip _recommendedTip(List<DayValueEntry> values) {
+    final byKey = {for (final value in values) value.key: value};
+    final cramps = byKey['cramps'];
+    if ((cramps?.severity ?? 0) > 0) return _tip('why-cramps-happen');
+    final discharge = byKey['discharge'];
+    if (discharge != null && discharge.value != 'None') return _tip('normal-discharge');
+    final sleep = byKey['sleep'];
+    if ((sleep?.severity ?? 0) > 0) return _tip('sleep-and-discomfort');
+    final flow = byKey['flow'];
+    if (flow != null && flow.value != 'None') return _tip('hands-before-after-products');
+
+    final safeGeneral = healthTips
+        .where((tip) => tip.category != TipCategory.seekCare && tip.id != 'tampon-metals-2026')
+        .toList(growable: false);
+    final index = DateTime.now().difference(DateTime.utc(2026, 1, 1)).inDays.abs() % safeGeneral.length;
+    return safeGeneral[index];
+  }
+
+  HealthTip _tip(String id) => healthTips.firstWhere((tip) => tip.id == id);
 }
 
 class _CycleCard extends ConsumerWidget {
@@ -227,8 +249,9 @@ class _TodayLogCard extends StatelessWidget {
 }
 
 class _TipPreview extends StatelessWidget {
-  const _TipPreview({required this.onTap});
+  const _TipPreview({required this.tip, required this.onTap});
 
+  final HealthTip tip;
   final VoidCallback onTap;
 
   @override
@@ -254,12 +277,9 @@ class _TipPreview extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              Text('Your vagina cleans itself.', style: Theme.of(context).textTheme.titleLarge),
+              Text(tip.title, style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 6),
-              Text(
-                'Routine washing belongs on the vulva, not inside the vagina. Learn what gentle care actually means.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
+              Text(tip.flash, style: Theme.of(context).textTheme.bodyMedium),
             ],
           ),
         ),
