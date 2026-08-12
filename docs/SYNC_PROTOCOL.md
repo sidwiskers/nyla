@@ -1,144 +1,264 @@
 # Nyla Sync Protocol
 
-Protocol version: `1`
+## Purpose
 
-The protocol is designed so the cloud can coordinate devices without reading menstrual data.
+Nyla is local-first. The readable menstrual database on each device is authoritative for that device; Cloudflare is an encrypted coordination and delivery layer, never the health-data execution environment.
 
-## Identities
+The protocol is designed so that:
 
-### Vault
+- a menstrual log never waits for the network
+- the relay never receives a readable health value or vault key
+- devices may edit independently while offline
+- field-level conflicts resolve deterministically
+- retries are idempotent
+- a revoked device does not receive the next vault key
+- a retained device can survive a key rotation while offline
+- recovery and deletion have explicit, testable semantics
 
-`vault_id`: 128 random bits encoded base64url without padding.
+## Identifiers
 
-`vault_key`: 256 random bits. Exists only on authorized devices / inside the recovery envelope.
+Every sync vault has a random opaque `vault_id`. Every installation has a random `device_id` and permanent device signing/exchange key pairs. IDs are routing identifiers only; they contain no email address, name or menstrual information.
 
-### Device
+No user account is required by the sync protocol.
 
-`device_id`: 128 random bits.
+## Device keys and vault key
 
-Each device generates:
+Each device stores, in platform secure storage:
 
-- Ed25519 signing key pair
-- X25519 key-agreement key pair for enrollment/recovery flows
+- Ed25519 signing seed
+- X25519 exchange seed
+- current 256-bit vault key
+- current vault-key epoch
 
-Only public keys are uploaded.
+The vault key encrypts sync operations with XChaCha20-Poly1305. Device signing keys authenticate the transport envelopes and authenticated HTTP requests.
 
-## Operations
+The Cloudflare relay stores public keys only.
 
-Local state is synchronized as immutable field operations instead of database snapshots.
+## Local operation model
 
-A plaintext operation contains:
+A local edit becomes a field-scoped operation before upload. The encrypted plaintext contains:
 
-```json
-{
-  "v": 1,
-  "op": "random-id",
-  "entity": "random-id",
-  "entity_type": "day",
-  "field": "flow",
-  "hlc": "1786500000000:2:device-id",
-  "kind": "set",
-  "value": "medium"
-}
+```text
+version
+operation ID
+entity ID
+entity type
+field
+hybrid logical clock
+kind: set | unset | delete
+value
 ```
 
-Entity IDs, fields and values are encrypted; the relay does not index them.
+Examples:
 
-Supported `kind` values:
+- `day:21000 / cramps = { value: moderate, severity: 2 }`
+- `period-id / start_day = 21000`
+- `period-id / end_day = 21004`
+- `custom-id / archived = true`
 
-- `set` — assign a field
-- `unset` — remove a field
-- `delete` — tombstone an entity
-
-Every local edit writes the local materialized state and its immutable operation to the outbox in one database transaction.
-
-## Merge
-
-Each field is a last-writer-wins register ordered by a Hybrid Logical Clock (HLC). Ties are broken lexicographically by device ID.
-
-Entity deletion is also timestamped. A field operation older than the entity deletion is ignored. A later explicit field operation may recreate the entity, which makes restore behavior deterministic across devices.
-
-This gives us the important property that independent edits survive:
-
-- Device A edits `flow`.
-- Device B edits `cramps`.
-- Both merge because they are distinct field registers.
-
-If both edit `flow` offline, the HLC ordering picks one deterministic winner on every device.
+Changes to independent fields remain independent operations. Nyla does not upload or replace an entire local database to resolve a small edit.
 
 ## Envelope
 
-Canonical UTF-8 JSON plaintext is encrypted with XChaCha20-Poly1305 using the vault key and a fresh 24-byte nonce. Map keys are emitted in the protocol order shown above. The `ciphertext` envelope field is `cipherText || 16-byte Poly1305 MAC`, base64url encoded without padding; the nonce is carried separately.
+Before an operation leaves a device:
 
-AAD binds:
+1. canonical plaintext is encoded
+2. plaintext is encrypted with the current vault key using XChaCha20-Poly1305
+3. authenticated additional data binds the envelope to vault ID, device ID, epoch and operation ID
+4. the envelope is signed with the sender's Ed25519 key
+
+The relay stores:
 
 ```text
-nyla-sync-v1|vault_id|device_id|op_id
+server cursor
+vault ID (implicit Durable Object routing)
+device ID
+vault-key epoch
+operation ID
+nonce
+ciphertext + authentication tag
+Ed25519 signature
+accepted timestamp
 ```
 
-Upload envelope:
+It cannot inspect the operation's entity, field, value, note or symptom.
 
-```json
-{
-  "v": 1,
-  "vault": "...",
-  "device": "...",
-  "epoch": 1,
-  "op": "...",
-  "nonce": "base64url",
-  "ciphertext": "base64url",
-  "signature": "base64url"
-}
-```
+## Authenticated HTTP
 
-The Ed25519 signature covers the exact UTF-8 sequence `nyla-envelope-v1\\nvault_id\\ndevice_id\\nepoch\\nop_id\\nnonce\\nciphertext`. The relay verifies the signature using the registered public key before accepting the operation, and receiving clients verify it again before decryption.
+Except for bootstrap and the narrowly scoped pairing/recovery enrollment endpoints, vault requests require:
 
-## Server cursor
+- device ID
+- timestamp inside the accepted clock window
+- one-time request nonce
+- Ed25519 signature over method, canonical path, timestamp, nonce and body hash
 
-Each vault Durable Object serializes accepted uploads and assigns an increasing integer `cursor`. Clients pull `cursor > last_cursor` in bounded pages.
+Accepted request nonces are persisted long enough to reject replay. Revoked devices fail authentication.
 
-`op_id` is unique within a vault and has a uniqueness constraint, making upload retries idempotent.
+## Bootstrap
 
-Clients acknowledge only after decrypting, validating and applying all pulled operations transactionally.
+`POST /bootstrap` creates an empty vault and activates its first device. The request includes the device public keys and proof of possession of the submitted signing private key.
 
-## Pairing
+Bootstrap is accepted only when the Durable Object has no initialized vault.
 
-Preferred pairing is a single QR displayed by an already-authorized device:
+## Normal synchronization
 
-1. Existing device generates a random 256-bit pairing token and random pairing ID. It uploads only `SHA-256(token)` in an authenticated, ten-minute invitation.
-2. The QR contains `NYLAP1.<vault_id>.<pairing_id>.<token>`. The confidential token travels only through the local camera/QR channel; it is never sent to the relay.
-3. New device scans the QR, creates permanent Ed25519/X25519 device keys, and joins using the token hash plus proof of possession of its Ed25519 private key.
-4. Existing device observes the joined invitation. It derives a wrapping key from the QR token with HKDF-SHA256 and encrypts `{epoch, vault_key}` with XChaCha20-Poly1305.
-5. The relay stores only that opaque package. Knowledge of the token hash is insufficient to decrypt it.
-6. New device downloads and authenticates the package using the QR token, stores the recovered vault key locally, then signs an authenticated `consume` request. Only then does the relay activate the new device.
-7. Invitation, token-derived package and pending device state expire if the flow is not completed.
+A sync run is deliberately ordered:
 
-This design deliberately does not rely on a public key supplied solely by the relay to protect the vault-key transfer. A compromised relay may disrupt pairing, but it cannot substitute a key and decrypt the package without the out-of-band QR token.
+1. read local identity and cursor
+2. call `GET /state?known_epoch=…&cursor=…`
+3. apply any required key rotation/checkpoint first
+4. upload local pending operations in HLC causal order
+5. fetch the current device signing-key directory
+6. pull encrypted operations after the local cursor
+7. verify signature, decrypt and merge each operation locally
+8. advance the local cursor only after the page has been processed
+
+### Upload
+
+`POST /operations` accepts a bounded batch. Operation IDs are unique, so retries return accepted/duplicate IDs without duplicating logical changes.
+
+The relay re-checks the vault epoch immediately before the synchronous insertion transaction. An upload racing a key rotation therefore cannot be silently accepted into the wrong epoch.
+
+### Pull
+
+`GET /operations?since={cursor}&limit={n}` returns monotonically ordered relay cursors, opaque envelopes, the current epoch and whether another page remains.
+
+The client verifies the sender against the authenticated device directory before decrypting an operation.
+
+## Hybrid logical clocks and merge
+
+Every mutable field is an independent last-writer register ordered by a hybrid logical clock `(physical time, logical counter, node ID)`.
+
+The node ID supplies deterministic tie-breaking when two devices produce operations at the same physical/logical point.
+
+Entity deletion is represented by an HLC tombstone. A delete removes older field state, but an older delete is not allowed to erase a field already known to have a newer clock. A later field operation may deterministically restore an entity.
+
+Remote operations are merged through the same rules used by rotation checkpoints. Malformed or unauthenticated input fails closed; the client does not advance past data it could not safely process.
+
+## QR device pairing
+
+Pairing is intentionally accountless.
+
+1. an authorized device generates a high-entropy one-time `PairingCode`
+2. it creates `/pairing-invites/{pairing_id}` with only a hash of the invite secret
+3. the new device scans the QR, creates its permanent signing/exchange keys and proves possession of its signing key when joining
+4. the trusted device observes the join and encrypts the current vault key + epoch with a key derived from the one-time pairing secret
+5. the new device fetches and decrypts that opaque package
+6. it authenticates with its newly activated device identity and consumes the invite
+
+The pairing secret is never sent to the relay in plaintext. Pairing packages are short-lived and one-time.
+
+X25519 is not required for the QR handoff itself; the permanent X25519 device key becomes important for later vault-key rotations.
 
 ## Recovery
 
-On vault creation, the app creates a separate random 256-bit recovery secret and shows `NYLA1.<vault_id>.<secret>` with an explicit save/verify step. The vault ID is routing metadata; the secret is the confidential part.
+A recovery code contains a random recovery secret plus the opaque vault ID.
 
-HKDF-SHA256 derives independent recovery-signing and vault-wrapping keys using the vault ID as salt/context and domain-separated `info` labels. XChaCha20-Poly1305 wraps the vault key; Ed25519 proof derived from the recovery secret authorizes a recovered device. The relay stores only the wrapped vault key, nonce, recovery ID and recovery public signing key.
+From that secret, the client derives:
 
-Recovery is rate-limited. After successful local unwrap, a recovered device creates fresh permanent device keys, enrolls them, then immediately creates a new recovery secret and replaces the recovery envelope. The code that was just used therefore stops authorizing future recovery.
+- a recovery signing identity used to prove possession during enrollment
+- a wrapping key used to decrypt the current vault key
 
-## Compaction
+The relay stores only the recovery public key and wrapped vault key. It cannot reconstruct the recovery secret.
 
-Clients periodically upload a signed encrypted checkpoint containing their current materialized CRDT state and highest known cursor. Once all non-revoked devices have acknowledged beyond a safe cursor, the Durable Object may delete older operation ciphertext while retaining the latest checkpoint and recent tail.
+After successful recovery, Nyla immediately replaces the recovery code. A code that has been used should therefore be treated as retired.
 
-Compaction is an optimization only. Correctness does not depend on it.
+A new or recovered device starts with cursor `0`; `/state` supplies the current encrypted checkpoint when history has crossed a key-rotation boundary.
 
-## Revocation
+## Device removal and vault-key rotation
 
-Any authorized device may revoke another device. Revocation prevents future uploads/download authentication from that device but cannot make already-held vault keys disappear from a compromised device.
+Nyla deliberately has no unsafe "revoke now, rotate later" product path. Removing a device and advancing the vault key are one atomic protocol operation.
 
-For suspected compromise, Nyla performs **vault-key rotation**:
+Before rotation the initiating device completes a normal sync and obtains an exact relay cursor. It then:
 
-1. generate a new vault key
-2. create an encrypted checkpoint under the new key
-3. distribute the new key only to retained devices
-4. advance vault key epoch
-5. reject envelopes from old epochs
+1. generates a fresh 256-bit vault key and next epoch
+2. materializes a merge-safe local checkpoint for the exact current cursor
+3. encrypts that checkpoint with the new vault key
+4. creates a fresh recovery code and wraps the new vault key for it
+5. for every retained active device, creates a target-specific rotation package
+6. sends the revoked-device set, packages, checkpoint and new recovery envelope in one signed `/rotate` request
 
-This is explicitly different from ordinary device removal.
+### Target-specific rotation packages
+
+Each retained device package uses:
+
+- a fresh ephemeral X25519 key pair
+- the target device's permanent X25519 public key
+- HKDF-SHA256 domain separation
+- XChaCha20-Poly1305
+- AAD binding vault ID, source device, target device, epoch and ephemeral public key
+
+Knowing the old vault key does not allow a removed device to decrypt another device's rotation package.
+
+### Atomic relay commit
+
+The Durable Object verifies that:
+
+- `new_epoch == current_epoch + 1`
+- the checkpoint cursor exactly matches the highest accepted operation cursor
+- every retained active device has exactly one package
+- no revoked device receives a package
+- the replacement recovery envelope is structurally valid
+
+Then, inside one synchronous storage transaction, it revokes devices, stores packages, stores the encrypted checkpoint, replaces recovery state and advances the epoch.
+
+## Rotation checkpoint
+
+The checkpoint contains materialized synchronized state represented as ordinary merge operations, including:
+
+- period fields
+- day values and notes
+- custom-log definitions
+- field clocks
+- entity tombstones
+
+It excludes local device credentials, recovery secrets, preferences that are intentionally local, and pending outbox metadata.
+
+The checkpoint is compressed, size-bounded, then encrypted with the new vault key. Applying it uses the normal HLC merge engine, so a newer offline edit on the receiving device survives an older checkpoint value.
+
+After applying the checkpoint, the receiver sets its cursor to the checkpoint's `base_cursor` and pulls only later operations.
+
+## Crash and retry semantics
+
+Rotation has a random `rotation_id`. The relay persists that ID with the checkpoint, making an identical committed rotation recognizable if the HTTP response was lost.
+
+Before sending rotation, the client securely records pending rotation/recovery state. On the next sync it reconciles that state against the relay's current `rotation_id` and epoch. This prevents a lost response from causing Nyla to discard a recovery code that actually became authoritative.
+
+Checkpoint application is idempotent. The new device key is persisted before merge/cursor advancement, so a process death can safely replay the same checkpoint on the next launch.
+
+## Vault deletion
+
+`DELETE /vault` is an authenticated destructive request. The Durable Object calls `deleteAll()` and recreates only an empty schema so the same opaque Durable Object can later accept a genuinely fresh bootstrap.
+
+Deleting the cloud vault cannot erase copies already stored on offline phones. The UI states this explicitly.
+
+Local erasure is separate: the app first destroys secure-storage key material, then removes the SQLCipher database and SQLite WAL/SHM/journal sidecars.
+
+## HTTP surface
+
+All vault routes are beneath `/v1/vaults/{vault_id}`.
+
+Primary routes:
+
+- `POST /bootstrap`
+- `GET /state`
+- `POST /operations`
+- `GET /operations`
+- `POST /pairing-invites`
+- `GET /pairing-invites/{id}`
+- `POST /pairing-invites/{id}/join`
+- `POST /pairing-invites/{id}/authorize`
+- `POST /pairing-invites/{id}/consume`
+- `PUT /recovery`
+- `GET /recovery/{recovery_id}`
+- `POST /recovery/{recovery_id}/enroll`
+- `GET /devices`
+- `POST /rotate`
+- `GET /rotations/{epoch}`
+- `DELETE /vault`
+
+A minimal `GET /health` route exists outside vault routing and returns no vault information.
+
+## Relay limits
+
+The relay bounds request bodies, operation sizes, operation batches, pull page sizes, rotation body size and checkpoint size. It performs no health analytics, predictions, content personalization or advertising profiling.

@@ -27,7 +27,7 @@ Included:
 - local notifications
 - menstrual-health education
 - encrypted multi-device sync
-- encrypted export / user-controlled plaintext export
+- user-controlled readable data export with sync/device credentials excluded
 - app lock and notification privacy
 
 Excluded by product policy:
@@ -141,6 +141,6 @@ Predictions are recalculated locally whenever relevant history changes.
 - Notification permission denied: tracking remains complete; UI explains the disabled reminder state.
 - Keychain/Keystore unavailable: fail closed for encrypted data rather than create an unencrypted database.
 - Sync conflict: deterministic field-level merge; never overwrite a whole database.
-- Corrupt remote operation: quarantine it; do not poison local state.
+- Corrupt or unauthenticated remote operation: fail closed and do not advance the sync cursor.
 - Lost recovery key and all authorized devices: encrypted cloud data is intentionally unrecoverable.
 - Prediction has too little history: show uncertainty plainly rather than manufacture precision.

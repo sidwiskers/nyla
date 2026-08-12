@@ -1,96 +1,155 @@
 # Security and Privacy Model
 
-Nyla handles intimate health information and treats privacy as a system property.
+Nyla handles menstrual-health data as sensitive private data. Privacy is therefore an architectural property, not a toggle layered on top of an analytics product.
+
+## Security goals
+
+Nyla is designed so that:
+
+- readable health history stays on trusted devices
+- local storage is encrypted at rest
+- cloud sync is end-to-end encrypted
+- Cloudflare cannot decrypt menstrual records or notes
+- devices authenticate cryptographically rather than through reusable account passwords
+- loss/removal of a device can rotate the shared vault key without stranding retained offline devices
+- notifications can avoid revealing menstrual context on a lock screen
+- users can export and permanently erase their data
+- health data is not routed through advertising or behavioral analytics SDKs
 
 ## Threat model
 
-We design against:
+The design specifically considers:
 
-- accidental cloud disclosure
-- compromised sync storage
-- network interception
-- unauthorized device enrollment
-- replayed or modified sync operations
-- another person casually opening an unlocked phone
+- loss or theft of a phone
+- an attacker obtaining a copy of the local database file
+- a passive or malicious network intermediary
+- compromise or misconfiguration of the sync relay
+- replayed requests
+- forged remote operations
+- concurrent/offline edits on multiple devices
+- a device that was trusted and later must be removed
+- a crash or lost HTTP response during key rotation
+- accidental OS backup or device-transfer leakage
 - lock-screen notification disclosure
-- backups copying readable health data
-- logs/crash reports containing menstrual records or encryption material
+- accidental destructive actions
 
-No mobile application can promise secrecy against a fully compromised/rooted device while the user is actively using decrypted data. Nyla minimizes exposure and uses platform key protection rather than pretending that risk does not exist.
+No mobile application can protect readable data from a fully compromised operating system while the user has unlocked the application. Nyla does not claim otherwise.
 
-## Local data at rest
+## Local database
 
-The SQLite database is encrypted using SQLCipher supplied through `package:sqlite3` native hooks.
+The Drift database runs on SQLCipher. Its random 256-bit database key lives in platform secure storage rather than in SQLite, preferences or source code.
 
-A random database key is generated on first launch. It is never hard-coded and never written to ordinary preferences. The key is wrapped/stored through the platform secure-storage implementation backed by Android Keystore / Apple Keychain. App-lock policy can require device authentication before key access.
+The app fails closed if it cannot safely open the encrypted database.
 
-Sensitive exports are created only after explicit user action. Temporary plaintext export files must be deleted after share/export completion where the platform permits it.
+### Platform backup policy
+
+Android native configuration disables application backup and explicitly excludes files, databases, shared preferences, root storage and external storage from cloud backup/device transfer. Nyla uses its own E2E sync instead.
+
+iOS secure material is stored through Keychain-backed secure storage with the required Keychain entitlement. The health database itself remains application-local.
+
+## App lock and background privacy
+
+The optional app lock uses device authentication through the platform local-authentication API. When the application becomes inactive, hidden or paused, Nyla conceals its content. If app lock is enabled, returning to the app requires successful device authentication before health UI is shown again.
+
+This also prevents the application-switcher snapshot from casually displaying the previous menstrual screen while Nyla is backgrounded.
+
+## Notification privacy
+
+Reminders are local notifications. Users can choose private wording that does not put menstrual details on the lock screen.
+
+Notification payload navigation is allowlisted to Nyla-owned routes; arbitrary payload strings cannot become navigation/deep links.
+
+## Local erasure
+
+"Erase this device" is intentionally destructive and requires a second confirmation with the literal word `ERASE`.
+
+The reset sequence:
+
+1. removes the active provider scope so repository streams stop
+2. closes the SQLCipher database
+3. deletes secure-storage material first, cryptographically destroying the database key, sync identity and pending recovery/rotation secrets
+4. deletes the database plus WAL, SHM and journal sidecars
+5. starts a fresh installation identity
+
+Destroying key material before filesystem cleanup means a crash during physical deletion does not leave a usable encrypted database key behind.
 
 ## Sync encryption
 
-Each sync vault has an independent random 256-bit vault key generated on-device.
+Each vault has a random 256-bit vault key known only to authorized devices/recovery material. Health operations are encrypted with XChaCha20-Poly1305 before upload.
 
-Health operations are serialized canonically and encrypted with XChaCha20-Poly1305 using a fresh 192-bit random nonce per operation. Additional authenticated data binds the ciphertext to protocol version, vault ID, operation ID and device ID.
+AAD binds ciphertext to its vault, sender, epoch and operation ID. The sender also signs the envelope with Ed25519.
 
-Each device has an Ed25519 signing key pair. The service stores only the public key. Every upload is signed, allowing the relay to reject forged or modified envelopes without learning their plaintext.
+The relay sees ciphertext plus minimal routing/authentication metadata; entity types, fields, values and private notes remain encrypted.
 
-Cloudflare never receives the vault encryption key.
+## HTTP authentication and replay defense
 
-## Device enrollment
+Authenticated requests are signed by the device's Ed25519 key and include a bounded timestamp, random nonce and body hash. Accepted request nonces are persisted across the replay window.
 
-Enrollment is explicit. Existing-device pairing uses ephemeral X25519 key agreement so the vault key can be transferred encrypted to the new device. The existing authorized device signs the enrollment.
+The relay stores only device public keys. A device marked revoked is rejected by authentication.
 
-A separate high-entropy recovery code can restore access when no existing device is available. Losing every device and the recovery code means the cloud copy cannot be decrypted. This is a privacy property, not a support defect.
+## QR pairing
 
-## Metadata minimization
+The QR contains a high-entropy one-time pairing secret and opaque identifiers. The relay receives only a hash of that secret.
 
-The server may know:
+The joining device creates its permanent signing/exchange keys and proves signing-key possession. The trusted device then wraps the vault key + epoch using key material derived from the one-time pairing secret. The package is opaque to Cloudflare and is consumed after activation.
 
-- random vault ID
-- random device IDs
-- device public signing keys
-- operation IDs
-- ciphertext byte lengths
-- monotonic sync cursors
-- coarse server receive timestamps needed for abuse control / expiry
+QR pairing itself does not depend on a server-readable account password or email address.
 
-It does not need:
+## Recovery
 
-- period dates
-- symptoms
-- notes
-- prediction results
-- content viewed
-- user name
-- email address
-- phone number
+Recovery is intentionally user-held. The recovery secret derives both a recovery signing identity and a vault-key wrapping key. Cloudflare stores the corresponding public key and a wrapped vault key, not the recovery secret.
 
-The initial design therefore has no conventional email/password account.
+A successful recovery immediately rotates the recovery code. If all authorized devices and the current recovery code are lost, the ciphertext is intentionally unrecoverable.
 
-## Network
+## Removing a device
 
-Only HTTPS/WSS endpoints are accepted in production. Requests are bounded in size and rate. The service validates content type, protocol version, signatures and IDs before storage.
+Revocation is inseparable from vault-key rotation in the client UX.
 
-## Logs and telemetry
+The next vault key is generated locally and wrapped separately for every retained device using ephemeral X25519, the target device's permanent X25519 public key, HKDF-SHA256 and XChaCha20-Poly1305. A removed device receives no package.
 
-Production logs must not include request bodies, ciphertext, recovery material, local database contents, user-entered notes, exact menstrual dates or device secrets.
+An encrypted, merge-safe checkpoint lets retained devices that were offline during the rotation establish the new epoch without decrypting old history using the new key. Recovery state is replaced in the same Durable Object transaction as revocation and epoch advancement.
 
-Nyla does not embed advertising SDKs. Product analytics are disabled by default; if privacy-preserving diagnostics are introduced, they must be opt-in and structurally unable to contain health values.
+Rotation IDs and pending secure client state make the operation recoverable when a server commit succeeds but its HTTP response is lost.
 
-## Notifications
+## Sync correctness is a security property
 
-Users control notification wording:
+Nyla uses field-level HLC merge rather than whole-record or whole-database replacement.
 
-- **Private**: "Nyla has a reminder for you."
-- **Normal**: context such as "Your period may start soon."
-- **Off**: no reminder category.
+Important invariants include:
 
-Notification previews never include symptom notes or detailed health history.
+- pending operations upload in HLC causal order
+- a stale remote field cannot overwrite a newer local field
+- a stale entity delete cannot erase a newer offline edit
+- tombstones prevent accidental resurrection by older state
+- a newer legitimate field can deterministically restore an entity
+- checkpoints are applied through the same merge engine
+- cursors advance only after safe processing
 
-## Secure deletion
+These rules protect availability/integrity of private health history, not only confidentiality.
 
-Deleting a local profile removes the encrypted database and local key material. Deleting a sync vault instructs its Durable Object to erase stored operations, devices, recovery envelope and pairing state. Tombstones are used for normal cross-device entity deletion before vault deletion.
+## Cloud vault erasure
 
-## Verification baseline
+An authenticated `DELETE /vault` destroys all Durable Object storage for the vault. The runtime recreates only empty tables so the opaque object can accept a future fresh bootstrap.
 
-Security reviews use OWASP MASVS controls covering storage, cryptography, authentication, network, platform interaction, code quality and privacy. Dependency updates and platform-security changes are treated as maintenance requirements, not optional enhancements.
+The Settings UI distinguishes:
+
+- **this device only** — cryptographically erase the current installation; shared cloud vault/other phones remain untouched
+- **cloud vault + this device** — authenticated cloud deletion must succeed before local erasure begins
+
+Cloud deletion cannot remotely wipe menstrual data already present on another offline device; Nyla states that limitation instead of implying otherwise.
+
+## Product privacy boundaries
+
+Nyla does not need readable cloud health data for predictions, insights or educational recommendations. Those functions run locally.
+
+The product deliberately excludes pregnancy/TTC/fertility-probability and masturbation/sexual-coaching modules. Medical education is source-backed and versioned, and a corpus test prevents excluded modules from silently entering published tip copy.
+
+## Logging and telemetry
+
+The sync relay does not log request bodies, ciphertext or health values. It performs no health analytics, ad targeting or cross-service user profiling.
+
+Any future observability must preserve that rule: operational metrics should describe service behavior, not menstrual behavior.
+
+## Standards posture
+
+Nyla's implementation is informed by OWASP MASVS storage, cryptography, authentication, network and privacy principles. That is an engineering target, not a certification claim.
