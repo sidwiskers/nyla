@@ -64,12 +64,12 @@ The examples below are deliberately fake.
 ```text
 CLOUDFLARE_API_TOKEN
 example: wP9_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-where: Cloudflare → My Profile → API Tokens
-note: use a token allowed to deploy/edit Workers; never use the Global API Key.
+where: Cloudflare dashboard → Account API tokens → Create Token → Custom → Edit Cloudflare Workers
+note: use a scoped Workers token; never use the Global API Key.
 
 CLOUDFLARE_ACCOUNT_ID
 example: 023e105f4ecef8ad9ca31a8372d0c353
-where: Cloudflare dashboard → Workers & Pages / account overview
+where: Cloudflare dashboard → Workers & Pages → Account details
 note: this is an ID, not a password.
 
 NYLA_SYNC_BASE_URL
