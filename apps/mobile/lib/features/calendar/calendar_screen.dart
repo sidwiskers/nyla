@@ -63,6 +63,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           ),
           const SizedBox(height: 14),
           const _Legend(),
+          const SizedBox(height: 18),
+          TextButton.icon(
+            onPressed: () => context.push('/periods'),
+            icon: const Icon(Icons.edit_calendar_rounded),
+            label: const Text('Manage period history'),
+          ),
         ],
       ),
     );

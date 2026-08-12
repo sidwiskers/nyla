@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/calendar/calendar_screen.dart';
+import '../features/calendar/period_history_screen.dart';
 import '../features/insights/insights_screen.dart';
 import '../features/learn/learn_screen.dart';
 import '../features/log/log_screen.dart';
@@ -39,6 +40,7 @@ final nylaRouter = GoRouter(
         GoRoute(path: '/learn', builder: (context, state) => const LearnScreen()),
       ],
     ),
+    GoRoute(path: '/periods', builder: (context, state) => const PeriodHistoryScreen()),
     GoRoute(
       path: '/settings',
       pageBuilder: (context, state) => MaterialPage<void>(
