@@ -96,7 +96,7 @@ void main() {
     await repository.updatePeriod(id: id, start: const LocalDay(21001), end: null);
     await repository.setPredictionExcluded(id, true);
 
-    var row = (await repository.watchPeriods().first).single;
+    final row = (await repository.watchPeriods().first).single;
     expect(row.startDay, 21001);
     expect(row.endDay, isNull);
     expect(row.excludeFromPrediction, isTrue);
