@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/haptics/nyla_haptics.dart';
 import '../../core/model/date_text.dart';
 import '../../core/theme/nyla_theme.dart';
 import '../../data/database/app_database.dart';
@@ -26,53 +27,136 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
     return NylaPage(
       title: 'Calendar',
-      subtitle: 'History first. Predictions stay visibly uncertain.',
+      subtitle: 'Your history is solid. Predictions stay visibly uncertain.',
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
-              child: Column(
-                children: [
-                  Row(
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: const [
+                BoxShadow(color: Color(0x12542B3C), blurRadius: 28, offset: Offset(0, 12)),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.fromLTRB(14, 16, 14, 15),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [NylaColors.lavenderSoft, NylaColors.roseWash],
+                    ),
+                  ),
+                  child: Row(
                     children: [
-                      IconButton(
+                      _MonthButton(
                         tooltip: 'Previous month',
-                        onPressed: () => setState(() => month = DateTime(month.year, month.month - 1)),
-                        icon: const Icon(Icons.chevron_left_rounded),
+                        icon: Icons.chevron_left_rounded,
+                        onPressed: () {
+                          NylaHaptics.select();
+                          setState(() => month = DateTime(month.year, month.month - 1));
+                        },
                       ),
                       Expanded(
-                        child: Text(
-                          monthYear(month),
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleLarge,
+                        child: Column(
+                          children: [
+                            Text(monthYear(month), style: Theme.of(context).textTheme.titleLarge),
+                            const SizedBox(height: 3),
+                            Text(
+                              _monthContext(month),
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
+                            ),
+                          ],
                         ),
                       ),
-                      IconButton(
+                      _MonthButton(
                         tooltip: 'Next month',
-                        onPressed: () => setState(() => month = DateTime(month.year, month.month + 1)),
-                        icon: const Icon(Icons.chevron_right_rounded),
+                        icon: Icons.chevron_right_rounded,
+                        onPressed: () {
+                          NylaHaptics.select();
+                          setState(() => month = DateTime(month.year, month.month + 1));
+                        },
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  _MonthGrid(month: month, periods: periods, prediction: prediction),
-                ],
-              ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 17, 14, 18),
+                  child: _MonthGrid(month: month, periods: periods, prediction: prediction),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 14),
           const _Legend(),
-          const SizedBox(height: 18),
-          TextButton.icon(
-            onPressed: () => context.push('/periods'),
-            icon: const Icon(Icons.edit_calendar_rounded),
-            label: const Text('Manage period history'),
+          if (prediction != null) ...[
+            const SizedBox(height: 14),
+            _PredictionNote(prediction: prediction),
+          ],
+          const SizedBox(height: 16),
+          Material(
+            color: NylaColors.wine,
+            borderRadius: BorderRadius.circular(22),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(22),
+              onTap: () {
+                NylaHaptics.select();
+                context.push('/periods');
+              },
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_calendar_rounded, color: Colors.white, size: 20),
+                    SizedBox(width: 11),
+                    Expanded(
+                      child: Text(
+                        'Manage period history',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
+                  ],
+                ),
+              ),
+            ),
           ),
+          const SizedBox(height: 82),
         ],
       ),
     );
   }
+
+  String _monthContext(DateTime value) {
+    final now = DateTime.now();
+    if (value.year == now.year && value.month == now.month) return 'This month';
+    if (value.isBefore(DateTime(now.year, now.month))) return 'Your recorded history';
+    return 'Looking ahead';
+  }
+}
+
+class _MonthButton extends StatelessWidget {
+  const _MonthButton({required this.tooltip, required this.icon, required this.onPressed});
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.white.withValues(alpha: 0.72),
+        shape: const CircleBorder(),
+        child: IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          icon: Icon(icon),
+          color: NylaColors.wine,
+        ),
+      );
 }
 
 class _MonthGrid extends StatelessWidget {
@@ -98,11 +182,15 @@ class _MonthGrid extends StatelessWidget {
             for (final label in weekday)
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.only(bottom: 9),
                   child: Text(
                     label,
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11, fontWeight: FontWeight.w700),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: NylaColors.faintInk,
+                        ),
                   ),
                 ),
               ),
@@ -125,29 +213,40 @@ class _MonthGrid extends StatelessWidget {
               label: '${friendlyDay(day)}${actual ? ', recorded period' : ''}${predicted ? ', predicted range' : ''}',
               child: InkWell(
                 borderRadius: BorderRadius.circular(18),
-                onTap: () => context.go('/log?day=${day.toIsoString()}'),
+                onTap: () {
+                  NylaHaptics.select();
+                  context.go('/log?day=${day.toIsoString()}');
+                },
                 child: Padding(
                   padding: const EdgeInsets.all(3),
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
                     decoration: BoxDecoration(
-                      color: actual ? NylaColors.roseSoft : Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
+                      gradient: actual
+                          ? const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [NylaColors.rose, NylaColors.coral],
+                            )
+                          : null,
+                      color: actual ? null : (predicted ? NylaColors.roseWash : Colors.transparent),
+                      borderRadius: BorderRadius.circular(15),
                       border: Border.all(
-                        color: predicted
-                            ? NylaColors.rose
-                            : isToday
-                                ? NylaColors.ink
+                        color: isToday
+                            ? NylaColors.wine
+                            : predicted
+                                ? NylaColors.rose
                                 : Colors.transparent,
-                        width: predicted || isToday ? 1.2 : 0,
+                        width: isToday ? 1.7 : (predicted ? 1.0 : 0),
                       ),
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       '$number',
                       style: TextStyle(
-                        color: actual ? NylaColors.ink : NylaColors.mutedInk,
-                        fontWeight: isToday || actual ? FontWeight.w800 : FontWeight.w500,
+                        color: actual ? Colors.white : (isToday ? NylaColors.wine : NylaColors.mutedInk),
+                        fontWeight: actual || isToday ? FontWeight.w800 : FontWeight.w600,
                       ),
                     ),
                   ),
@@ -180,13 +279,20 @@ class _Legend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: const [
-        _LegendItem(color: NylaColors.roseSoft, label: 'Recorded'),
-        SizedBox(width: 18),
-        _LegendItem(color: Colors.transparent, outline: NylaColors.rose, label: 'Expected range'),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.68),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _LegendItem(color: NylaColors.rose, label: 'Recorded'),
+          SizedBox(width: 20),
+          _LegendItem(color: NylaColors.roseWash, outline: NylaColors.rose, label: 'Expected range'),
+        ],
+      ),
     );
   }
 }
@@ -202,16 +308,44 @@ class _LegendItem extends StatelessWidget {
   Widget build(BuildContext context) => Row(
         children: [
           Container(
-            width: 15,
-            height: 15,
+            width: 16,
+            height: 16,
             decoration: BoxDecoration(
               color: color,
               borderRadius: BorderRadius.circular(6),
               border: outline == null ? null : Border.all(color: outline!),
             ),
           ),
-          const SizedBox(width: 6),
-          Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12)),
+          const SizedBox(width: 7),
+          Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12, fontWeight: FontWeight.w700)),
         ],
+      );
+}
+
+class _PredictionNote extends StatelessWidget {
+  const _PredictionNote({required this.prediction});
+
+  final CyclePrediction prediction;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(17),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [NylaColors.sageSoft, NylaColors.peachSoft]),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.blur_on_rounded, color: NylaColors.wine, size: 21),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Text(
+                'The outlined days are an uncertainty window, not a promise. Nyla widens it when your recent cycles vary more.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: NylaColors.ink),
+              ),
+            ),
+          ],
+        ),
       );
 }
