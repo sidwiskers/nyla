@@ -43,19 +43,20 @@ See `docs/ARCHITECTURE.md`, `docs/SECURITY.md` and `docs/SYNC_PROTOCOL.md`.
 
 `.github/workflows/release-apk.yml` is **manual only**. Normal pushes and tags do not build or publish a release APK.
 
-The workflow validates the release configuration, validates the Cloudflare relay, runs the Flutter/package/content gates, builds and verifies the signed APK, then deploys the relay and optionally publishes the APK plus SHA-256 checksum as a GitHub Release.
+The workflow validates the release configuration, automatically resolves the Cloudflare Worker URL, validates the relay, runs the Flutter/package/content gates, builds and verifies the signed APK with that URL embedded, then deploys the relay, verifies Cloudflare's actual deployment target and optionally publishes the APK plus SHA-256 checksum as a GitHub Release.
 
 Add these values under **Repository Settings → Secrets and variables → Actions → Repository secrets**:
 
 ```text
 CLOUDFLARE_API_TOKEN
 CLOUDFLARE_ACCOUNT_ID
-NYLA_SYNC_BASE_URL
 ANDROID_KEYSTORE_BASE64
 ANDROID_KEYSTORE_PASSWORD
 ANDROID_KEY_ALIAS
 ANDROID_KEY_PASSWORD
 ```
+
+`NYLA_SYNC_BASE_URL` is **not a secret and is not required**. The release workflow obtains it automatically from Cloudflare.
 
 ### Credential examples
 
@@ -71,11 +72,6 @@ CLOUDFLARE_ACCOUNT_ID
 example: 023e105f4ecef8ad9ca31a8372d0c353
 where: Cloudflare dashboard → Workers & Pages → Account details
 note: this is an ID, not a password.
-
-NYLA_SYNC_BASE_URL
-example: https://nyla-sync.example-subdomain.workers.dev
-where: the public URL shown for the nyla-sync Worker
-note: HTTPS origin only; no /health, query string or trailing path.
 
 ANDROID_KEYSTORE_BASE64
 example: MIIK...very-long-single-line-base64...AB
@@ -94,6 +90,20 @@ ANDROID_KEY_PASSWORD
 example: another-long-random-password
 note: password for the signing key itself. It may equal the keystore password, but separate strong values are cleaner.
 ```
+
+### Automatic Cloudflare URL flow
+
+No URL copying is required.
+
+1. The workflow reads the Worker name (`nyla-sync`) from `services/sync/wrangler.jsonc`.
+2. It calls Cloudflare's account Workers API using `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` and reads the account `workers.dev` subdomain.
+3. It derives the endpoint as `https://nyla-sync.<account-subdomain>.workers.dev`.
+4. That exact endpoint is passed to Flutter through `--dart-define=NYLA_SYNC_BASE_URL=...` while the signed APK is built.
+5. After the APK and relay validation pass, Wrangler deploys the Worker with machine-readable deployment output enabled.
+6. The workflow reads the real `workers.dev` target returned by Wrangler and refuses the release if it does not exactly match the URL embedded in the APK.
+7. Finally it calls `<deployed-url>/health` and requires `ok` before GitHub Release publication.
+
+The Worker configuration explicitly enables `workers_dev`, so this endpoint is deterministic.
 
 ### No-PC keystore setup
 
@@ -118,4 +128,4 @@ GitHub Actions reconstructs the keystore from `ANDROID_KEYSTORE_BASE64` only ins
 
 Open **Actions → Release APK → Run workflow**, choose the branch, enter a version such as `1.0.0`, keep **Publish GitHub Release** enabled if desired, then press **Run workflow**.
 
-That is the only way the production APK workflow starts.
+That is the only way the production APK workflow starts. You never need to manually create or maintain `NYLA_SYNC_BASE_URL`.
