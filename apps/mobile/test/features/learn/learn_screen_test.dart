@@ -49,15 +49,16 @@ void main() {
 
     final first = healthTips.first;
     expect(find.text(first.flash).hitTestable(), findsOneWidget);
+    expect(find.text(first.details.first).hitTestable(), findsOneWidget);
     for (final paragraph in first.details) {
       expect(find.text(paragraph), findsWidgets);
     }
     expect(find.byIcon(Icons.close_rounded).hitTestable(), findsOneWidget);
-    expect(find.textContaining('References · reviewed').hitTestable(), findsOneWidget);
+    expect(find.textContaining('References · reviewed'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('the physical deck remains readable on a compact-height phone', (tester) async {
+  testWidgets('the physical deck is immediately usable on a compact-height phone', (tester) async {
     tester.view.physicalSize = const Size(360, 640);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -72,12 +73,9 @@ void main() {
     await tester.pumpAndSettle();
 
     final first = healthTips.first;
+    expect(find.text(first.title).hitTestable(), findsOneWidget);
     expect(find.text(first.flash).hitTestable(), findsOneWidget);
-    expect(tester.takeException(), isNull);
-
-    await tester.drag(find.byType(CustomScrollView).first, const Offset(0, -220));
-    await tester.pumpAndSettle();
-
+    expect(find.text('THE TAKEAWAY').hitTestable(), findsOneWidget);
     expect(find.text('Turn card').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
