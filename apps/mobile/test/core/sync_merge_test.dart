@@ -135,6 +135,41 @@ void main() {
     expect(row.orderIndex, 3);
   });
 
+  test('an older entity delete cannot erase a newer offline field edit', () async {
+    expect(
+      await merge.apply(
+        dayValue(
+          opId: 'operation-newer-field-01',
+          hlc: '4000:0:remote-device-03',
+          value: 'strong',
+          severity: 3,
+        ),
+      ),
+      isTrue,
+    );
+
+    final staleDeletion = SyncPlainOperation(
+      opId: 'operation-stale-delete-01',
+      entityId: 'day:21000',
+      entityType: 'day',
+      field: '_entity',
+      hlc: '3000:0:remote-device-02',
+      kind: 'delete',
+      value: null,
+    );
+    expect(await merge.apply(staleDeletion), isFalse);
+
+    final values = await database.watchDay(21000).first;
+    expect(values, hasLength(1));
+    expect(values.single.value, 'strong');
+    expect(
+      await (database.select(database.entityTombstones)
+            ..where((row) => row.entityId.equals('day:21000')))
+          .getSingleOrNull(),
+      isNull,
+    );
+  });
+
   test('a field operation newer than a tombstone deterministically restores the entity', () async {
     final deletion = SyncPlainOperation(
       opId: 'operation-delete-02',

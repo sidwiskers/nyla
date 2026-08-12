@@ -25,6 +25,18 @@ final class SyncMergeEngine {
       }
 
       if (operation.kind == 'delete') {
+        // A device may have edited one field offline after another device
+        // deleted the entity. Entity deletion is still an HLC register: an
+        // older delete must not erase any field that is known to be newer.
+        final clocks = await (database.select(database.fieldClocks)
+              ..where((row) => row.entityId.equals(operation.entityId)))
+            .get();
+        for (final clock in clocks) {
+          if (HybridLogicalClock.parse(clock.hlc).compareTo(remoteClock) > 0) {
+            await hlc.observe(operation.hlc);
+            return false;
+          }
+        }
         await _deleteEntity(operation);
         await database.into(database.entityTombstones).insertOnConflictUpdate(
               EntityTombstonesCompanion.insert(entityId: operation.entityId, hlc: operation.hlc),
