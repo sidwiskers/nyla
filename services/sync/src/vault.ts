@@ -152,6 +152,7 @@ export class Vault extends DurableObject<Env> {
       );
       CREATE TABLE IF NOT EXISTS checkpoints (
         epoch INTEGER PRIMARY KEY,
+        rotation_id TEXT UNIQUE,
         base_cursor INTEGER NOT NULL,
         nonce TEXT NOT NULL,
         ciphertext TEXT NOT NULL,
@@ -160,6 +161,8 @@ export class Vault extends DurableObject<Env> {
     `);
     this.ensureColumn('rotations', 'source_device_id', 'TEXT');
     this.ensureColumn('rotations', 'ephemeral_public_key', 'TEXT');
+    this.ensureColumn('checkpoints', 'rotation_id', 'TEXT');
+    this.sql.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_checkpoints_rotation_id ON checkpoints(rotation_id)');
   }
 
   private ensureColumn(table: string, column: string, type: string): void {
@@ -873,6 +876,7 @@ export class Vault extends DurableObject<Env> {
 
   private rotateVault(auth: AuthContext): Response {
     const body = JSON.parse(new TextDecoder().decode(auth.body)) as {
+      rotation_id?: unknown;
       new_epoch?: unknown;
       base_cursor?: unknown;
       revoke_device_ids?: unknown;
@@ -880,6 +884,20 @@ export class Vault extends DurableObject<Env> {
       checkpoint?: unknown;
       recovery?: unknown;
     };
+    if (!validId(body.rotation_id)) return error('invalid_rotation', 400);
+    const prior = this.sql
+      .exec('SELECT epoch, base_cursor FROM checkpoints WHERE rotation_id = ?', body.rotation_id)
+      .toArray()[0] as { epoch: number; base_cursor: number } | undefined;
+    if (prior) {
+      return json({
+        rotated: true,
+        rotation_id: body.rotation_id,
+        epoch: prior.epoch,
+        base_cursor: prior.base_cursor,
+        idempotent: true,
+      });
+    }
+
     const current = this.currentEpoch();
     if (typeof body.new_epoch !== 'number' || body.new_epoch !== current + 1) {
       return error('invalid_epoch', 409);
@@ -1010,8 +1028,9 @@ export class Vault extends DurableObject<Env> {
         );
       }
       this.sql.exec(
-        'INSERT INTO checkpoints(epoch, base_cursor, nonce, ciphertext, created_ms) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO checkpoints(epoch, rotation_id, base_cursor, nonce, ciphertext, created_ms) VALUES (?, ?, ?, ?, ?, ?)',
         body.new_epoch as number,
+        body.rotation_id,
         body.base_cursor as number,
         checkpointNonce,
         checkpointCiphertext,
@@ -1034,7 +1053,13 @@ export class Vault extends DurableObject<Env> {
       this.sql.exec("UPDATE meta SET value = ? WHERE key = 'epoch'", String(body.new_epoch));
     });
 
-    return json({ rotated: true, epoch: body.new_epoch, base_cursor: body.base_cursor, revoked: [...revoked] });
+    return json({
+      rotated: true,
+      rotation_id: body.rotation_id,
+      epoch: body.new_epoch,
+      base_cursor: body.base_cursor,
+      revoked: [...revoked],
+    });
   }
 
   private getRotation(deviceId: string, epoch: number): Response {
@@ -1067,7 +1092,7 @@ export class Vault extends DurableObject<Env> {
     const epoch = this.currentEpoch();
     if (epoch < 2) return json({ epoch, checkpoint: null });
     const checkpoint = this.sql
-      .exec('SELECT epoch, base_cursor, nonce, ciphertext, created_ms FROM checkpoints WHERE epoch = ?', epoch)
+      .exec('SELECT epoch, rotation_id, base_cursor, nonce, ciphertext, created_ms FROM checkpoints WHERE epoch = ?', epoch)
       .toArray()[0] as Record<string, unknown> | undefined;
     if (!checkpoint) return error('rotation_checkpoint_missing', 500);
     const baseCursor = checkpoint['base_cursor'];
