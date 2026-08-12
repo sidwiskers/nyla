@@ -1090,15 +1090,17 @@ export class Vault extends DurableObject<Env> {
     }
 
     const epoch = this.currentEpoch();
-    if (epoch < 2) return json({ epoch, checkpoint: null });
+    if (epoch < 2) return json({ epoch, rotation_id: null, checkpoint: null });
     const checkpoint = this.sql
       .exec('SELECT epoch, rotation_id, base_cursor, nonce, ciphertext, created_ms FROM checkpoints WHERE epoch = ?', epoch)
       .toArray()[0] as Record<string, unknown> | undefined;
     if (!checkpoint) return error('rotation_checkpoint_missing', 500);
     const baseCursor = checkpoint['base_cursor'];
     if (typeof baseCursor !== 'number') return error('rotation_checkpoint_invalid', 500);
-    if (knownEpoch === epoch && cursor >= baseCursor) return json({ epoch, checkpoint: null });
-    return json({ epoch, checkpoint });
+    const rotationId = checkpoint['rotation_id'];
+    if (typeof rotationId !== 'string') return error('rotation_checkpoint_invalid', 500);
+    if (knownEpoch === epoch && cursor >= baseCursor) return json({ epoch, rotation_id: rotationId, checkpoint: null });
+    return json({ epoch, rotation_id: rotationId, checkpoint });
   }
 
   private listDevices(): Response {
