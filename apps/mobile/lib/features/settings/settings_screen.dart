@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:local_auth/local_auth.dart';
 
+import '../../core/haptics/nyla_haptics.dart';
 import '../../core/notifications/notification_config.dart';
 import '../../core/theme/nyla_theme.dart';
 import '../../providers.dart';
@@ -31,18 +32,20 @@ class SettingsScreen extends ConsumerWidget {
                   title: const Text('Notification wording'),
                   subtitle: Text(
                     config.privacy == NotificationPrivacy.private
-                        ? 'Hide period context on the lock screen'
-                        : 'Show useful reminder context',
+                        ? 'Keep period details off the lock screen'
+                        : 'Show helpful reminder details',
                   ),
                   trailing: DropdownButton<NotificationPrivacy>(
                     value: config.privacy,
                     underline: const SizedBox.shrink(),
                     items: const [
                       DropdownMenuItem(value: NotificationPrivacy.private, child: Text('Private')),
-                      DropdownMenuItem(value: NotificationPrivacy.contextual, child: Text('Context')),
+                      DropdownMenuItem(value: NotificationPrivacy.contextual, child: Text('Detailed')),
                     ],
-                    onChanged: (value) {
-                      if (value != null) _save(ref, config.copyWith(privacy: value));
+                    onChanged: (value) async {
+                      if (value == null) return;
+                      await NylaHaptics.select();
+                      await _save(ref, config.copyWith(privacy: value));
                     },
                   ),
                 ),
@@ -88,7 +91,7 @@ class SettingsScreen extends ConsumerWidget {
                 const Divider(height: 1, indent: 18, endIndent: 18),
                 SwitchListTile.adaptive(
                   title: const Text('Expected window starts'),
-                  subtitle: const Text('A reminder when the predicted range begins'),
+                  subtitle: const Text('A reminder when your predicted range begins'),
                   value: config.expectedWindowStarts,
                   onChanged: (enabled) => _toggleWithPermission(
                     context,
@@ -121,14 +124,17 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 22),
-          const _SectionTitle('Private sync'),
+          const _SectionTitle('Sync'),
           Card(
             child: ListTile(
               leading: const _IconBox(icon: Icons.cloud_outlined, tint: NylaColors.sage),
-              title: const Text('Encrypted multi-device sync'),
-              subtitle: const Text('Local data remains readable only on your devices.'),
+              title: const Text('Sync across devices'),
+              subtitle: const Text('Keep your Nyla history in step on your trusted devices'),
               trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => context.push('/settings/sync'),
+              onTap: () {
+                NylaHaptics.select();
+                context.push('/settings/sync');
+              },
             ),
           ),
           const SizedBox(height: 22),
@@ -141,21 +147,27 @@ class SettingsScreen extends ConsumerWidget {
                   title: const Text('Custom logs'),
                   subtitle: const Text('Add or archive things that matter to you'),
                   trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => context.push('/settings/logs'),
+                  onTap: () {
+                    NylaHaptics.select();
+                    context.push('/settings/logs');
+                  },
                 ),
                 const Divider(height: 1, indent: 18, endIndent: 18),
                 ListTile(
                   leading: const _IconBox(icon: Icons.ios_share_rounded, tint: NylaColors.peach),
                   title: const Text('Export'),
-                  subtitle: const Text('Create a user-controlled copy of your history'),
+                  subtitle: const Text('Make a copy of your history'),
                   trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => context.push('/settings/export'),
+                  onTap: () {
+                    NylaHaptics.select();
+                    context.push('/settings/export');
+                  },
                 ),
                 const Divider(height: 1, indent: 18, endIndent: 18),
                 const ListTile(
                   leading: _IconBox(icon: Icons.info_outline_rounded, tint: NylaColors.lavender),
-                  title: Text('Medical content'),
-                  subtitle: Text('Source-backed, versioned and reviewed'),
+                  title: Text('Health guidance'),
+                  subtitle: Text('Carefully reviewed with trusted medical sources'),
                 ),
                 const Divider(height: 1, indent: 18, endIndent: 18),
                 const _EraseDataTile(),
@@ -173,13 +185,14 @@ class SettingsScreen extends ConsumerWidget {
     bool enabled,
     NotificationConfig next,
   ) async {
+    await NylaHaptics.select();
     if (enabled) {
       final service = await ref.read(notificationServiceProvider.future);
       final granted = await service.requestPermission();
       if (!granted) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Notification permission was not granted.')),
+            const SnackBar(content: Text('Notifications are off for Nyla. You can allow them in your phone settings.')),
           );
         }
         return;
@@ -194,6 +207,7 @@ class SettingsScreen extends ConsumerWidget {
       initialTime: TimeOfDay(hour: config.dailyHour, minute: config.dailyMinute),
     );
     if (picked != null) {
+      await NylaHaptics.select();
       await _save(ref, config.copyWith(dailyHour: picked.hour, dailyMinute: picked.minute));
     }
   }
@@ -228,24 +242,26 @@ class _AppLockTileState extends ConsumerState<_AppLockTile> {
   }
 
   Future<void> _change(bool next) async {
+    await NylaHaptics.select();
     if (next) {
       final auth = LocalAuthentication();
       if (!await auth.isDeviceSupported()) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Set up a device screen lock before enabling Nyla lock.')),
+            const SnackBar(content: Text('Set up a screen lock on your phone before turning on Nyla lock.')),
           );
         }
         return;
       }
       try {
-        final verified = await auth.authenticate(localizedReason: 'Confirm device lock for Nyla');
+        final verified = await auth.authenticate(localizedReason: 'Unlock Nyla to confirm');
         if (!verified) return;
       } on LocalAuthException {
         return;
       }
     }
     await ref.read(secureVaultProvider).setAppLockEnabled(next);
+    await NylaHaptics.confirm();
     if (mounted) setState(() => enabled = next);
   }
 
@@ -253,7 +269,7 @@ class _AppLockTileState extends ConsumerState<_AppLockTile> {
   Widget build(BuildContext context) => SwitchListTile.adaptive(
         secondary: const _IconBox(icon: Icons.lock_outline_rounded, tint: NylaColors.roseSoft),
         title: const Text('App lock'),
-        subtitle: const Text('Require your device authentication when Nyla opens'),
+        subtitle: const Text('Use your phone lock whenever Nyla opens'),
         value: enabled ?? false,
         onChanged: enabled == null ? null : _change,
       );
@@ -273,6 +289,7 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
 
   Future<void> _begin() async {
     if (_busy) return;
+    await NylaHaptics.select();
     final sync = ref.read(syncServiceProvider);
     final hasSync = await sync.identity() != null;
     if (!mounted) return;
@@ -283,8 +300,8 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
         title: const Text('Erase Nyla data'),
         content: Text(
           hasSync
-              ? 'Choose what to erase. Other devices keep health data already stored locally on them; Nyla cannot remotely wipe an offline device.'
-              : 'This permanently removes Nyla’s encrypted health database and private keys from this device.',
+              ? 'Choose what to erase. Other devices keep anything already saved on them.'
+              : 'This permanently removes your Nyla history and private access information from this device.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
@@ -295,7 +312,7 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
           if (hasSync)
             FilledButton(
               onPressed: () => Navigator.pop(context, _EraseScope.cloudAndLocal),
-              child: const Text('Cloud vault + this device'),
+              child: const Text('Synced copy + this device'),
             ),
         ],
       ),
@@ -304,28 +321,26 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
 
     final confirmed = await _confirm(scope);
     if (!confirmed || !mounted) return;
+    await NylaHaptics.destructive();
     setState(() => _busy = true);
 
     try {
       if (scope == _EraseScope.cloudAndLocal) {
-        // Cloud deletion must succeed before local erasure. If it cannot be
-        // authenticated, the local copy remains intact so the user can retry
-        // or deliberately choose "this device only" instead.
         await sync.deleteRemoteVault();
       }
       try {
         final notifications = await ref.read(notificationServiceProvider.future);
         await notifications.cancelAll();
       } catch (_) {
-        // A notification plugin failure must never hold health data hostage.
+        // Notification cleanup must never prevent the user's data from being erased.
       }
       await ref.read(resetLocalDataProvider)();
     } on Exception catch (error) {
       if (!mounted) return;
       setState(() => _busy = false);
       final message = error.toString().contains('device_not_authorized')
-          ? 'This device is no longer authorized to delete the shared vault. You can still erase this device only.'
-          : 'Nyla could not complete that erasure safely. Local data was kept.';
+          ? 'This device can no longer remove the shared sync copy. You can still erase this device only.'
+          : 'Nyla could not finish that safely, so your local data was kept.';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     }
   }
@@ -336,15 +351,15 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            title: Text(scope == _EraseScope.cloudAndLocal ? 'Delete the sync vault too?' : 'Erase this device?'),
+            title: Text(scope == _EraseScope.cloudAndLocal ? 'Remove the synced copy too?' : 'Erase this device?'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   scope == _EraseScope.cloudAndLocal
-                      ? 'This destroys the encrypted Cloudflare vault, its recovery state and this device’s local copy. Devices that already hold local copies are not remotely erased, but they will no longer sync through this vault.'
-                      : 'This destroys this installation’s SQLCipher key, local health database, sync identity and recovery state. A shared cloud vault and other devices are left untouched.',
+                      ? 'This removes the shared sync copy and everything stored by Nyla on this device. Other devices keep anything already saved on them, but they will stop syncing with this copy.'
+                      : 'This removes everything stored by Nyla on this device. Your shared sync copy and other devices are left alone.',
                 ),
                 const SizedBox(height: 16),
                 const Text('Type ERASE to confirm.'),
@@ -378,7 +393,7 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
   Widget build(BuildContext context) => ListTile(
         leading: const _IconBox(icon: Icons.delete_outline_rounded, tint: NylaColors.peach),
         title: const Text('Erase data'),
-        subtitle: const Text('Permanently remove local data or the encrypted sync vault'),
+        subtitle: const Text('Permanently remove data from this device or your shared sync copy'),
         trailing: _busy
             ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
             : const Icon(Icons.chevron_right_rounded),
