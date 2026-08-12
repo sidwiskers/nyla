@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -17,61 +15,50 @@ class NylaShell extends StatelessWidget {
   final Widget child;
 
   static const _destinations = <({String path, IconData icon, String label})>[
-    (path: '/today', icon: Icons.home_rounded, label: 'Today'),
-    (path: '/calendar', icon: Icons.calendar_month_rounded, label: 'Calendar'),
+    (path: '/today', icon: Icons.today_outlined, label: 'Today'),
+    (path: '/calendar', icon: Icons.calendar_month_outlined, label: 'Calendar'),
     (path: '/log', icon: Icons.add_rounded, label: 'Log'),
-    (path: '/insights', icon: Icons.auto_graph_rounded, label: 'Insights'),
-    (path: '/learn', icon: Icons.style_rounded, label: 'Learn'),
+    (path: '/insights', icon: Icons.bar_chart_rounded, label: 'Insights'),
+    (path: '/more', icon: Icons.person_outline_rounded, label: 'More'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final selected =
-        _destinations.indexWhere((entry) => location.startsWith(entry.path)).clamp(0, 4);
+    final found = _destinations.indexWhere((entry) => location.startsWith(entry.path));
+    final selected = found < 0 ? 0 : found;
 
     return Scaffold(
       extendBody: true,
       body: child,
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(31),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-            child: Container(
-              height: 76,
-              padding: const EdgeInsets.symmetric(horizontal: 7),
-              decoration: BoxDecoration(
-                color: NylaColors.wine.withValues(alpha: 0.96),
-                borderRadius: BorderRadius.circular(31),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.12),
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x382A111E),
-                    blurRadius: 34,
-                    offset: Offset(0, 15),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  for (var i = 0; i < _destinations.length; i++)
-                    Expanded(
-                      child: _Destination(
-                        entry: _destinations[i],
-                        selected: i == selected,
-                        primary: _destinations[i].path == '/log',
-                        onTap: () {
-                          if (i == selected) return;
-                          NylaHaptics.select();
-                          context.go(_destinations[i].path);
-                        },
-                      ),
+      bottomNavigationBar: DecoratedBox(
+        decoration: const BoxDecoration(
+          color: Color(0xF9FFFDFC),
+          border: Border(top: BorderSide(color: NylaColors.outline)),
+          boxShadow: [
+            BoxShadow(color: Color(0x0A30213F), blurRadius: 20, offset: Offset(0, -5)),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          minimum: const EdgeInsets.only(bottom: 4),
+          child: SizedBox(
+            height: 68,
+            child: Row(
+              children: [
+                for (var i = 0; i < _destinations.length; i++)
+                  Expanded(
+                    child: _Destination(
+                      entry: _destinations[i],
+                      selected: i == selected,
+                      primary: i == 2,
+                      onTap: () {
+                        if (i == selected) return;
+                        NylaHaptics.select();
+                        context.go(_destinations[i].path);
+                      },
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -95,73 +82,8 @@ class _Destination extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (primary) return _PrimaryDestination(selected: selected, onTap: onTap);
-
-    return Semantics(
-      selected: selected,
-      button: true,
-      label: entry.label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Center(
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            padding: EdgeInsets.symmetric(
-              horizontal: selected ? 11 : 7,
-              vertical: 8,
-            ),
-            decoration: BoxDecoration(
-              color: selected
-                  ? Colors.white.withValues(alpha: 0.12)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(19),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  entry.icon,
-                  size: 20,
-                  color: selected
-                      ? Colors.white
-                      : const Color(0xFFD5C4CC),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  entry.label,
-                  maxLines: 1,
-                  style: TextStyle(
-                    color: selected
-                        ? Colors.white
-                        : const Color(0xFFCAB7C0),
-                    fontSize: 9.5,
-                    height: 1,
-                    fontWeight:
-                        selected ? FontWeight.w700 : FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PrimaryDestination extends StatelessWidget {
-  const _PrimaryDestination({
-    required this.selected,
-    required this.onTap,
-  });
-
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
+    if (primary) {
+      return Semantics(
         selected: selected,
         button: true,
         label: 'Log',
@@ -170,38 +92,53 @@ class _PrimaryDestination extends StatelessWidget {
           borderRadius: BorderRadius.circular(30),
           child: Center(
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              width: 54,
-              height: 54,
+              duration: const Duration(milliseconds: 180),
+              width: 50,
+              height: 50,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: selected
-                      ? const [Color(0xFFF2B1B5), NylaColors.coral]
-                      : const [Color(0xFFF4C5C0), Color(0xFFEBA39F)],
-                ),
+                color: selected ? NylaColors.night : NylaColors.violet,
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.54),
-                ),
                 boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x422A111E),
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
-                  ),
+                  BoxShadow(color: Color(0x2530213F), blurRadius: 14, offset: Offset(0, 6)),
                 ],
               ),
               alignment: Alignment.center,
               child: Icon(
                 selected ? Icons.check_rounded : Icons.add_rounded,
-                color: NylaColors.wine,
-                size: selected ? 25 : 27,
+                color: Colors.white,
+                size: 26,
               ),
             ),
           ),
         ),
       );
+    }
+
+    final color = selected ? NylaColors.wine : NylaColors.faintInk;
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: entry.label,
+      child: InkWell(
+        onTap: onTap,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(entry.icon, size: 20, color: color),
+              const SizedBox(height: 4),
+              Text(
+                entry.label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 9.5,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
