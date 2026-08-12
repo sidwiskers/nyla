@@ -18,6 +18,21 @@ final class VaultSetupResult {
   final String recoveryCode;
 }
 
+final class PairingInviteStatus {
+  const PairingInviteStatus({required this.joined, required this.authorized, required this.consumed});
+
+  final bool joined;
+  final bool authorized;
+  final bool consumed;
+}
+
+final class PairingJoinState {
+  const PairingJoinState({required this.code, required this.identity});
+
+  final PairingCode code;
+  final SyncIdentity identity;
+}
+
 final class SyncRunResult {
   const SyncRunResult({required this.uploaded, required this.downloaded, required this.pending});
 
@@ -152,6 +167,132 @@ final class SyncService {
     // Rotate recovery immediately so a code used for recovery is one-time in practice.
     final newCode = await rotateRecoveryCode(identity);
     return VaultSetupResult(identity: identity, recoveryCode: newCode);
+  }
+
+  Future<PairingCode> createPairingInvite() async {
+    final identity = await identityStore.read();
+    if (identity == null) throw const SyncTransportException('sync_not_configured');
+    final code = PairingCode.generate(identity.vaultId);
+    final tokenHash = await NylaPairingCrypto().tokenHash(code);
+    await httpClient.authenticatedJson(
+      identity: identity,
+      method: 'POST',
+      path: '/pairing-invites',
+      body: {'pairing_id': code.pairingId, 'token_hash': tokenHash},
+    );
+    return code;
+  }
+
+  Future<PairingInviteStatus> progressPairingInvite(PairingCode code) async {
+    final identity = await identityStore.read();
+    if (identity == null || identity.vaultId != code.vaultId) {
+      throw const SyncTransportException('sync_not_configured');
+    }
+    final status = await httpClient.unauthenticatedJson(
+      vaultId: code.vaultId,
+      method: 'GET',
+      path: '/pairing-invites/${code.pairingId}',
+    );
+    final joined = status['target_device_id'] is String;
+    final authorized = status['authorized_ms'] is int;
+    final consumed = status['consumed_ms'] is int;
+    if (joined && !authorized) {
+      final package = await NylaPairingCrypto().wrap(
+        code: code,
+        vaultKey: identity.vaultKey,
+        epoch: identity.epoch,
+      );
+      await httpClient.authenticatedJson(
+        identity: identity,
+        method: 'POST',
+        path: '/pairing-invites/${code.pairingId}/authorize',
+        body: {
+          'package_nonce': base64UrlNoPadding(package.nonce),
+          'package_ciphertext': base64UrlNoPadding(package.ciphertextAndMac),
+        },
+      );
+      return const PairingInviteStatus(joined: true, authorized: true, consumed: false);
+    }
+    return PairingInviteStatus(joined: joined, authorized: authorized, consumed: consumed);
+  }
+
+  Future<PairingJoinState> joinPairing(String encodedCode) async {
+    if (!endpointConfigured) throw const SyncTransportException('sync_endpoint_not_configured');
+    if (await identityStore.read() != null) throw const SyncTransportException('sync_already_configured');
+    final code = PairingCode.parse(encodedCode);
+    final identity = SyncIdentity.pendingForVault(deviceId: deviceId, vaultId: code.vaultId);
+    final public = await crypto.publicIdentity(identity.keys);
+    final signingPublic = base64UrlNoPadding(public.signingPublicKey);
+    final exchangePublic = base64UrlNoPadding(public.exchangePublicKey);
+    final tokenHash = await NylaPairingCrypto().tokenHash(code);
+    final timestamp = '${DateTime.now().millisecondsSinceEpoch}';
+    final nonce = _randomId();
+    final signature = await crypto.sign(
+      pairingJoinPayload(
+        vaultId: code.vaultId,
+        pairingId: code.pairingId,
+        tokenHash: tokenHash,
+        deviceId: deviceId,
+        signingPublicKey: signingPublic,
+        exchangePublicKey: exchangePublic,
+        timestamp: timestamp,
+        nonce: nonce,
+      ),
+      identity.keys,
+    );
+    await httpClient.unauthenticatedJson(
+      vaultId: code.vaultId,
+      method: 'POST',
+      path: '/pairing-invites/${code.pairingId}/join',
+      body: {
+        'token_hash': tokenHash,
+        'target_device_id': deviceId,
+        'signing_public_key': signingPublic,
+        'exchange_public_key': exchangePublic,
+        'timestamp': timestamp,
+        'nonce': nonce,
+        'signature': base64UrlNoPadding(signature),
+      },
+    );
+    return PairingJoinState(code: code, identity: identity);
+  }
+
+  Future<bool> completePairing(PairingJoinState state) async {
+    final response = await httpClient.unauthenticatedJson(
+      vaultId: state.code.vaultId,
+      method: 'GET',
+      path: '/pairing-invites/${state.code.pairingId}',
+    );
+    final nonce = response['package_nonce'];
+    final ciphertext = response['package_ciphertext'];
+    if (nonce == null || ciphertext == null) return false;
+    if (nonce is! String || ciphertext is! String) throw const SyncTransportException('invalid_pairing_package');
+    final paired = await NylaPairingCrypto().unwrap(
+      code: state.code,
+      package: PairingPackage(
+        nonce: decodeBase64UrlNoPadding(nonce),
+        ciphertextAndMac: decodeBase64UrlNoPadding(ciphertext),
+      ),
+    );
+    final identity = state.identity.copyForVault(
+      vaultId: state.code.vaultId,
+      vaultKey: paired.vaultKey,
+      epoch: paired.epoch,
+    );
+    await identityStore.write(identity);
+    await _writeCursor(0);
+    try {
+      await httpClient.authenticatedJson(
+        identity: identity,
+        method: 'POST',
+        path: '/pairing-invites/${state.code.pairingId}/consume',
+        body: const <String, Object>{},
+      );
+    } catch (_) {
+      await identityStore.delete();
+      rethrow;
+    }
+    return true;
   }
 
   Future<SyncRunResult> syncNow() async {

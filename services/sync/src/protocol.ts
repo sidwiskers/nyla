@@ -110,6 +110,33 @@ export function envelopePayload(input: {
   );
 }
 
+export function pairingJoinPayload(input: {
+  vault: string;
+  pairingId: string;
+  tokenHash: string;
+  device: string;
+  signingPublicKey: string;
+  exchangePublicKey: string;
+  timestamp: string;
+  nonce: string;
+}): Uint8Array<ArrayBuffer> {
+  return new Uint8Array(
+    new TextEncoder().encode(
+      [
+        'nyla-pairing-join-v1',
+        input.vault,
+        input.pairingId,
+        input.tokenHash,
+        input.device,
+        input.signingPublicKey,
+        input.exchangePublicKey,
+        input.timestamp,
+        input.nonce,
+      ].join('\n'),
+    ),
+  );
+}
+
 export function recoveryEnrollmentPayload(input: {
   vault: string;
   recoveryId: string;

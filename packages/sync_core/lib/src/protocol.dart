@@ -172,6 +172,28 @@ List<int> bootstrapPayload({
       nonce,
     ].join('\n'));
 
+List<int> pairingJoinPayload({
+  required String vaultId,
+  required String pairingId,
+  required String tokenHash,
+  required String deviceId,
+  required String signingPublicKey,
+  required String exchangePublicKey,
+  required String timestamp,
+  required String nonce,
+}) =>
+    utf8.encode([
+      'nyla-pairing-join-v1',
+      vaultId,
+      pairingId,
+      tokenHash,
+      deviceId,
+      signingPublicKey,
+      exchangePublicKey,
+      timestamp,
+      nonce,
+    ].join('\n'));
+
 List<int> recoveryEnrollmentPayload({
   required String vaultId,
   required String recoveryId,

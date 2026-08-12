@@ -40,6 +40,15 @@ final class SyncIdentity {
         exchangeSeed: _randomBytes(32),
       );
 
+  factory SyncIdentity.pendingForVault({required String deviceId, required String vaultId}) => SyncIdentity(
+        vaultId: vaultId,
+        deviceId: deviceId,
+        epoch: 1,
+        vaultKey: _randomBytes(32),
+        signingSeed: _randomBytes(32),
+        exchangeSeed: _randomBytes(32),
+      );
+
   factory SyncIdentity.decode(String value) {
     final decoded = jsonDecode(value);
     if (decoded is! Map<String, dynamic> || decoded['v'] != 1) {

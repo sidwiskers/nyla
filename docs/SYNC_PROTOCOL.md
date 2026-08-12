@@ -103,16 +103,17 @@ Clients acknowledge only after decrypting, validating and applying all pulled op
 
 ## Pairing
 
-Preferred pairing is existing-device authorization:
+Preferred pairing is a single QR displayed by an already-authorized device:
 
-1. New device generates ephemeral X25519 key pair and displays a QR containing its ephemeral public key plus one-time pairing ID.
-2. Existing device scans it and asks the vault to authorize the new permanent public keys.
-3. Existing device derives an ephemeral shared secret with X25519 and encrypts the vault key into a one-time enrollment package addressed to the new device.
-4. The request is signed by the existing authorized device.
-5. New device fetches the package, decrypts it locally, verifies vault identity and deletes the one-time package.
-6. Server marks the pairing ID consumed.
+1. Existing device generates a random 256-bit pairing token and random pairing ID. It uploads only `SHA-256(token)` in an authenticated, ten-minute invitation.
+2. The QR contains `NYLAP1.<vault_id>.<pairing_id>.<token>`. The confidential token travels only through the local camera/QR channel; it is never sent to the relay.
+3. New device scans the QR, creates permanent Ed25519/X25519 device keys, and joins using the token hash plus proof of possession of its Ed25519 private key.
+4. Existing device observes the joined invitation. It derives a wrapping key from the QR token with HKDF-SHA256 and encrypts `{epoch, vault_key}` with XChaCha20-Poly1305.
+5. The relay stores only that opaque package. Knowledge of the token hash is insufficient to decrypt it.
+6. New device downloads and authenticates the package using the QR token, stores the recovered vault key locally, then signs an authenticated `consume` request. Only then does the relay activate the new device.
+7. Invitation, token-derived package and pending device state expire if the flow is not completed.
 
-The vault key is never plaintext at the relay.
+This design deliberately does not rely on a public key supplied solely by the relay to protect the vault-key transfer. A compromised relay may disrupt pairing, but it cannot substitute a key and decrypt the package without the out-of-band QR token.
 
 ## Recovery
 

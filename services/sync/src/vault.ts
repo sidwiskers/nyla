@@ -15,6 +15,7 @@ import {
   error,
   httpAuthPayload,
   json,
+  pairingJoinPayload,
   readJson,
   recoveryEnrollmentPayload,
   sha256Base64Url,
@@ -112,6 +113,20 @@ export class Vault extends DurableObject<Env> {
         expires_ms INTEGER NOT NULL,
         consumed_ms INTEGER
       );
+      CREATE TABLE IF NOT EXISTS pairing_invites (
+        pairing_id TEXT PRIMARY KEY,
+        inviter_device_id TEXT NOT NULL,
+        token_hash TEXT NOT NULL,
+        target_device_id TEXT,
+        target_signing_public_key TEXT,
+        target_exchange_public_key TEXT,
+        package_nonce TEXT,
+        package_ciphertext TEXT,
+        created_ms INTEGER NOT NULL,
+        expires_ms INTEGER NOT NULL,
+        authorized_ms INTEGER,
+        consumed_ms INTEGER
+      );
       CREATE TABLE IF NOT EXISTS recovery (
         slot INTEGER PRIMARY KEY CHECK (slot = 1),
         recovery_id TEXT NOT NULL UNIQUE,
@@ -170,6 +185,14 @@ export class Vault extends DurableObject<Env> {
     if (request.method === 'GET' && pairingGet) {
       return this.getPairing(pairingGet[1]!);
     }
+    const inviteGet = path.match(/^\/pairing-invites\/([A-Za-z0-9_-]{16,64})$/);
+    if (request.method === 'GET' && inviteGet) {
+      return this.getPairingInvite(inviteGet[1]!);
+    }
+    const inviteJoin = path.match(/^\/pairing-invites\/([A-Za-z0-9_-]{16,64})\/join$/);
+    if (request.method === 'POST' && inviteJoin) {
+      return this.joinPairingInvite(request, vault, inviteJoin[1]!);
+    }
 
     const auth = await this.authenticate(request, canonicalPath);
     if (auth instanceof Response) return auth;
@@ -182,6 +205,17 @@ export class Vault extends DurableObject<Env> {
     }
     if (request.method === 'POST' && path === '/pairings/authorize') {
       return this.authorizePairing(auth);
+    }
+    if (request.method === 'POST' && path === '/pairing-invites') {
+      return this.createPairingInvite(auth);
+    }
+    const inviteAuthorize = path.match(/^\/pairing-invites\/([A-Za-z0-9_-]{16,64})\/authorize$/);
+    if (request.method === 'POST' && inviteAuthorize) {
+      return this.authorizePairingInvite(auth, inviteAuthorize[1]!);
+    }
+    const inviteConsume = path.match(/^\/pairing-invites\/([A-Za-z0-9_-]{16,64})\/consume$/);
+    if (request.method === 'POST' && inviteConsume) {
+      return this.consumePairingInvite(auth, inviteConsume[1]!);
     }
     if (request.method === 'POST' && path === '/pairings/consume') {
       return this.consumePairing(auth);
@@ -289,7 +323,8 @@ export class Vault extends DurableObject<Env> {
 
     const device = this.device(deviceId);
     if (!device || device.revoked_ms !== null) return error('device_not_authorized', 401);
-    const isPairingActivation = canonicalPath.endsWith('/pairings/consume');
+    const isPairingActivation =
+      canonicalPath.endsWith('/pairings/consume') || /\/pairing-invites\/[A-Za-z0-9_-]{16,64}\/consume$/.test(canonicalPath);
     if (device.activated_ms === null && !isPairingActivation) {
       return error('device_pending_activation', 401);
     }
@@ -409,6 +444,187 @@ export class Vault extends DurableObject<Env> {
     const hasMore = this.sql.exec('SELECT 1 AS present FROM operations WHERE cursor > ? LIMIT 1', latest).toArray().length > 0;
 
     return json({ operations: rows, next_cursor: latest, has_more: hasMore, epoch: this.currentEpoch() });
+  }
+
+  private createPairingInvite(auth: AuthContext): Response {
+    const body = JSON.parse(new TextDecoder().decode(auth.body)) as Record<string, unknown>;
+    const pairingId = body['pairing_id'];
+    const tokenHash = body['token_hash'];
+    if (!validId(pairingId) || !validBase64Url(tokenHash, 128) || decodeBase64Url(tokenHash).byteLength !== 32) {
+      return error('invalid_pairing_invite', 400);
+    }
+    const now = Date.now();
+    try {
+      this.sql.exec(
+        `INSERT INTO pairing_invites(pairing_id, inviter_device_id, token_hash, created_ms, expires_ms)
+         VALUES (?, ?, ?, ?, ?)`,
+        pairingId,
+        auth.device.device_id,
+        tokenHash,
+        now,
+        now + PAIRING_TTL_MS,
+      );
+    } catch {
+      return error('pairing_conflict', 409);
+    }
+    return json({ created: true, pairing_id: pairingId, expires_ms: now + PAIRING_TTL_MS }, 201);
+  }
+
+  private async joinPairingInvite(request: Request, vault: string, pairingId: string): Promise<Response> {
+    this.cleanup(Date.now());
+    const invite = this.sql
+      .exec(
+        `SELECT pairing_id, token_hash, target_device_id, expires_ms, consumed_ms
+         FROM pairing_invites WHERE pairing_id = ?`,
+        pairingId,
+      )
+      .toArray()[0] as
+      | { pairing_id: string; token_hash: string; target_device_id: string | null; expires_ms: number; consumed_ms: number | null }
+      | undefined;
+    if (!invite || invite.expires_ms < Date.now() || invite.consumed_ms !== null) return error('pairing_not_found', 404);
+    if (invite.target_device_id !== null) return error('pairing_already_joined', 409);
+
+    const { value } = await readJson<{
+      token_hash?: unknown;
+      target_device_id?: unknown;
+      signing_public_key?: unknown;
+      exchange_public_key?: unknown;
+      timestamp?: unknown;
+      nonce?: unknown;
+      signature?: unknown;
+    }>(request, 16 * 1024);
+    const { token_hash, target_device_id, signing_public_key, exchange_public_key, timestamp, nonce, signature } = value;
+    if (
+      token_hash !== invite.token_hash ||
+      !validId(target_device_id) ||
+      !validBase64Url(signing_public_key, 128) ||
+      !validBase64Url(exchange_public_key, 128) ||
+      decodeBase64Url(signing_public_key).byteLength !== 32 ||
+      decodeBase64Url(exchange_public_key).byteLength !== 32 ||
+      typeof timestamp !== 'string' ||
+      !clockIsFresh(timestamp) ||
+      !validId(nonce) ||
+      !validBase64Url(signature, 256)
+    ) {
+      return error('invalid_pairing_join', 400);
+    }
+    if (this.device(target_device_id)) return error('device_exists', 409);
+    const verified = await verifyEd25519(
+      signing_public_key,
+      signature,
+      pairingJoinPayload({
+        vault,
+        pairingId,
+        tokenHash: token_hash,
+        device: target_device_id,
+        signingPublicKey: signing_public_key,
+        exchangePublicKey: exchange_public_key,
+        timestamp,
+        nonce,
+      }),
+    );
+    if (!verified) return error('invalid_pairing_join_signature', 401);
+
+    const now = Date.now();
+    this.ctx.storage.transactionSync(() => {
+      this.sql.exec(
+        `UPDATE pairing_invites SET target_device_id = ?, target_signing_public_key = ?,
+         target_exchange_public_key = ? WHERE pairing_id = ? AND target_device_id IS NULL`,
+        target_device_id,
+        signing_public_key,
+        exchange_public_key,
+        pairingId,
+      );
+      this.sql.exec(
+        `INSERT INTO devices(device_id, signing_public_key, exchange_public_key, added_ms, activated_ms, pending_pairing_id)
+         VALUES (?, ?, ?, ?, NULL, ?)`,
+        target_device_id,
+        signing_public_key,
+        exchange_public_key,
+        now,
+        pairingId,
+      );
+    });
+    return json({ joined: true, expires_ms: invite.expires_ms }, 201);
+  }
+
+  private getPairingInvite(pairingId: string): Response {
+    this.cleanup(Date.now());
+    const row = this.sql
+      .exec(
+        `SELECT pairing_id, inviter_device_id, target_device_id, target_signing_public_key,
+                target_exchange_public_key, package_nonce, package_ciphertext, expires_ms,
+                authorized_ms, consumed_ms
+         FROM pairing_invites WHERE pairing_id = ?`,
+        pairingId,
+      )
+      .toArray()[0] as Record<string, unknown> | undefined;
+    if (!row) return error('pairing_not_found', 404);
+    return json(row);
+  }
+
+  private authorizePairingInvite(auth: AuthContext, pairingId: string): Response {
+    const body = JSON.parse(new TextDecoder().decode(auth.body)) as Record<string, unknown>;
+    const packageNonce = body['package_nonce'];
+    const packageCiphertext = body['package_ciphertext'];
+    if (!validBase64Url(packageNonce, 128) || !validBase64Url(packageCiphertext, 4096)) {
+      return error('invalid_pairing_package', 400);
+    }
+    const row = this.sql
+      .exec(
+        `SELECT inviter_device_id, target_device_id, expires_ms, authorized_ms, consumed_ms
+         FROM pairing_invites WHERE pairing_id = ?`,
+        pairingId,
+      )
+      .toArray()[0] as
+      | { inviter_device_id: string; target_device_id: string | null; expires_ms: number; authorized_ms: number | null; consumed_ms: number | null }
+      | undefined;
+    if (!row || row.inviter_device_id !== auth.device.device_id || row.expires_ms < Date.now() || row.consumed_ms !== null) {
+      return error('pairing_not_found', 404);
+    }
+    if (row.target_device_id === null) return error('pairing_not_joined', 409);
+    if (row.authorized_ms !== null) return error('pairing_already_authorized', 409);
+    const now = Date.now();
+    this.sql.exec(
+      `UPDATE pairing_invites SET package_nonce = ?, package_ciphertext = ?, authorized_ms = ? WHERE pairing_id = ?`,
+      packageNonce,
+      packageCiphertext,
+      now,
+      pairingId,
+    );
+    return json({ authorized: true, target_device_id: row.target_device_id });
+  }
+
+  private consumePairingInvite(auth: AuthContext, pairingId: string): Response {
+    const row = this.sql
+      .exec(
+        `SELECT target_device_id, expires_ms, authorized_ms, consumed_ms
+         FROM pairing_invites WHERE pairing_id = ?`,
+        pairingId,
+      )
+      .toArray()[0] as
+      | { target_device_id: string | null; expires_ms: number; authorized_ms: number | null; consumed_ms: number | null }
+      | undefined;
+    if (
+      !row ||
+      row.target_device_id !== auth.device.device_id ||
+      row.expires_ms < Date.now() ||
+      row.authorized_ms === null ||
+      row.consumed_ms !== null
+    ) {
+      return error('pairing_not_found', 404);
+    }
+    const now = Date.now();
+    this.ctx.storage.transactionSync(() => {
+      this.sql.exec('UPDATE pairing_invites SET consumed_ms = ? WHERE pairing_id = ?', now, pairingId);
+      this.sql.exec(
+        'UPDATE devices SET activated_ms = ?, pending_pairing_id = NULL WHERE device_id = ? AND pending_pairing_id = ?',
+        now,
+        auth.device.device_id,
+        pairingId,
+      );
+    });
+    return json({ consumed: true, activated: true });
   }
 
   private async authorizePairing(auth: AuthContext): Promise<Response> {
@@ -761,7 +977,15 @@ export class Vault extends DurableObject<Env> {
          )`,
         now,
       );
+      this.sql.exec(
+        `DELETE FROM devices
+         WHERE activated_ms IS NULL AND pending_pairing_id IN (
+           SELECT pairing_id FROM pairing_invites WHERE expires_ms < ? AND consumed_ms IS NULL
+         )`,
+        now,
+      );
       this.sql.exec('DELETE FROM pairings WHERE expires_ms < ?', now);
+      this.sql.exec('DELETE FROM pairing_invites WHERE expires_ms < ?', now);
       this.sql.exec('DELETE FROM recovery_attempts WHERE attempted_ms < ?', now - 60 * 60 * 1000);
     });
   }
