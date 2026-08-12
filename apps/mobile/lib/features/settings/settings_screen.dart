@@ -27,7 +27,7 @@ class SettingsScreen extends ConsumerWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [NylaColors.canvas, NylaColors.canvas, NylaColors.canvas],
+            colors: [Color(0xFFF0E8F8), NylaColors.canvas, Color(0xFFFFF2EC)],
             stops: [0, 0.5, 1],
           ),
         ),
@@ -186,13 +186,16 @@ class _PrivacyPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 15),
+        padding: const EdgeInsets.fromLTRB(21, 21, 18, 18),
         decoration: BoxDecoration(
-          color: NylaColors.paper,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: NylaColors.outline),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [NylaColors.night, Color(0xFF392447), NylaColors.violet],
+          ),
+          borderRadius: BorderRadius.circular(34),
           boxShadow: const [
-            BoxShadow(color: Color(0x0830213F), blurRadius: 18, offset: Offset(0, 7)),
+            BoxShadow(color: Color(0x3433203E), blurRadius: 34, offset: Offset(0, 16)),
           ],
         ),
         child: Column(
@@ -201,63 +204,53 @@ class _PrivacyPanel extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: NylaColors.lavenderSoft,
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: const Icon(Icons.shield_outlined, color: NylaColors.violet, size: 21),
+                  width: 47,
+                  height: 47,
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.11), borderRadius: BorderRadius.circular(16)),
+                  child: const Icon(Icons.shield_rounded, color: Colors.white, size: 23),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 13),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         'PRIVACY',
-                        style: TextStyle(
-                          color: NylaColors.violet,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.9,
-                        ),
+                        style: TextStyle(color: Color(0xFFD8CBE0), fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
                         'Keep Nyla yours',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontSize: 22),
                       ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 19),
             const _AppLockTile(),
-            const SizedBox(height: 8),
+            const SizedBox(height: 11),
             Container(
-              padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+              padding: const EdgeInsets.fromLTRB(14, 11, 9, 11),
               decoration: BoxDecoration(
-                color: NylaColors.lavenderMist,
-                borderRadius: BorderRadius.circular(15),
+                color: Colors.white.withValues(alpha: 0.085),
+                borderRadius: BorderRadius.circular(19),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.075)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.visibility_off_outlined, color: NylaColors.violet, size: 19),
-                  const SizedBox(width: 10),
+                  const Icon(Icons.visibility_off_rounded, color: Color(0xFFE2D6E8), size: 20),
+                  const SizedBox(width: 11),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Lock-screen wording',
-                          style: TextStyle(color: NylaColors.ink, fontWeight: FontWeight.w700, fontSize: 13),
-                        ),
+                        const Text('Lock-screen wording', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13.5)),
                         const SizedBox(height: 2),
                         Text(
                           privacy == NotificationPrivacy.private ? 'Keep period details hidden' : 'Show reminder context',
-                          style: const TextStyle(color: NylaColors.mutedInk, fontSize: 10.8),
+                          style: const TextStyle(color: Color(0xFFD4C6DA), fontSize: 11.5),
                         ),
                       ],
                     ),
@@ -265,10 +258,9 @@ class _PrivacyPanel extends StatelessWidget {
                   DropdownButtonHideUnderline(
                     child: DropdownButton<NotificationPrivacy>(
                       value: privacy,
-                      borderRadius: BorderRadius.circular(16),
-                      dropdownColor: NylaColors.paper,
-                      iconEnabledColor: NylaColors.violet,
-                      style: const TextStyle(color: NylaColors.wine, fontWeight: FontWeight.w700, fontSize: 11.5),
+                      dropdownColor: NylaColors.night,
+                      iconEnabledColor: Colors.white,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
                       items: const [
                         DropdownMenuItem(value: NotificationPrivacy.private, child: Text('Private')),
                         DropdownMenuItem(value: NotificationPrivacy.contextual, child: Text('Detailed')),
@@ -309,9 +301,9 @@ class _ReminderPanel extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.fromLTRB(16, 7, 16, 8),
         decoration: BoxDecoration(
-          color: NylaColors.paper,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: NylaColors.outline),
+          color: Colors.white.withValues(alpha: 0.78),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: Colors.white),
         ),
         child: Column(
           children: [
@@ -436,14 +428,14 @@ class _ActionTile extends StatelessWidget {
   Widget build(BuildContext context) => Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(24),
           onTap: onTap,
           child: Ink(
-            padding: const EdgeInsets.fromLTRB(13, 13, 12, 12),
+            padding: const EdgeInsets.fromLTRB(13, 14, 12, 13),
             decoration: BoxDecoration(
               color: tint,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: NylaColors.outline.withValues(alpha: 0.7)),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -472,9 +464,8 @@ class _HealthNote extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.fromLTRB(17, 16, 17, 17),
         decoration: BoxDecoration(
-          color: NylaColors.sageSoft,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: NylaColors.outline.withValues(alpha: 0.65)),
+          gradient: const LinearGradient(colors: [NylaColors.sageSoft, NylaColors.lavenderSoft]),
+          borderRadius: BorderRadius.circular(25),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -583,28 +574,31 @@ class _AppLockTileState extends ConsumerState<_AppLockTile> {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+        padding: const EdgeInsets.fromLTRB(14, 11, 9, 11),
         decoration: BoxDecoration(
-          color: NylaColors.lavenderMist,
-          borderRadius: BorderRadius.circular(15),
+          color: Colors.white.withValues(alpha: 0.085),
+          borderRadius: BorderRadius.circular(19),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.075)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.lock_outline_rounded, color: NylaColors.violet, size: 19),
-            const SizedBox(width: 10),
+            const Icon(Icons.lock_rounded, color: Color(0xFFE2D6E8), size: 20),
+            const SizedBox(width: 11),
             const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('App lock', style: TextStyle(color: NylaColors.ink, fontWeight: FontWeight.w700, fontSize: 13)),
+                  Text('App lock', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13.5)),
                   SizedBox(height: 2),
-                  Text('Use your phone lock when Nyla opens', style: TextStyle(color: NylaColors.mutedInk, fontSize: 10.8)),
+                  Text('Use your phone lock when Nyla opens', style: TextStyle(color: Color(0xFFD4C6DA), fontSize: 11.5)),
                 ],
               ),
             ),
             Switch.adaptive(
               value: enabled ?? false,
               onChanged: enabled == null ? null : _change,
+              activeTrackColor: NylaColors.lavender,
+              activeThumbColor: Colors.white,
             ),
           ],
         ),
