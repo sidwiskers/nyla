@@ -7,6 +7,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:sync_core/sync_core.dart';
 
+import '../../core/sync/sync_http_client.dart';
 import '../../core/sync/sync_service.dart';
 import '../../core/theme/nyla_theme.dart';
 import '../../providers.dart';

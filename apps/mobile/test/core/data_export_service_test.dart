@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cycle_engine/cycle_engine.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nyla/core/export/data_export_service.dart';
@@ -7,7 +8,6 @@ import 'package:nyla/core/sync/hlc_service.dart';
 import 'package:nyla/data/database/app_database.dart';
 import 'package:nyla/data/repositories/cycle_repository.dart';
 import 'package:nyla/data/repositories/day_log_repository.dart';
-import 'package:cycle_engine/cycle_engine.dart';
 
 void main() {
   test('export contains user health data but never synchronization secrets', () async {
