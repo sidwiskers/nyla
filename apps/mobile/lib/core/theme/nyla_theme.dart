@@ -68,7 +68,7 @@ abstract final class NylaTheme {
           color: NylaColors.ink,
           fontSize: 20,
           height: 1.16,
-          fontWeight: FontWeight.w750,
+          fontWeight: FontWeight.w700,
           letterSpacing: -0.35,
         ),
         titleMedium: const TextStyle(
@@ -120,15 +120,15 @@ abstract final class NylaTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: NylaColors.rose,
-          textStyle: const TextStyle(fontWeight: FontWeight.w750),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
       chipTheme: base.chipTheme.copyWith(
         backgroundColor: Colors.white.withValues(alpha: 0.68),
         selectedColor: NylaColors.wine,
         secondarySelectedColor: NylaColors.wine,
-        labelStyle: const TextStyle(color: NylaColors.ink, fontWeight: FontWeight.w650),
-        secondaryLabelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w750),
+        labelStyle: const TextStyle(color: NylaColors.ink, fontWeight: FontWeight.w600),
+        secondaryLabelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
         side: BorderSide.none,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
@@ -161,7 +161,7 @@ abstract final class NylaTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: NylaColors.wine,
-        contentTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w650),
+        contentTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
