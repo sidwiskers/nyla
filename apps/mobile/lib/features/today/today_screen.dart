@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:cycle_engine/cycle_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,9 +28,9 @@ class TodayScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _CycleDashboard(today: today, periods: periods, prediction: prediction),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           _QuickRow(today: today, values: dayValues),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           _TodayCard(
             tip: _recommendedTip(dayValues.value ?? const <DayValueEntry>[]),
             onTap: () {
@@ -86,41 +84,50 @@ class _CycleDashboard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
+      padding: const EdgeInsets.fromLTRB(21, 20, 21, 20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [NylaColors.night, Color(0xFF3A2447), NylaColors.violet],
+          colors: [Color(0xFFF0E9F8), Color(0xFFFBECEF), Color(0xFFFFF8F4)],
           stops: [0, 0.58, 1],
         ),
-        borderRadius: BorderRadius.circular(36),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white, width: 1.2),
         boxShadow: const [
-          BoxShadow(color: Color(0x3A33203E), blurRadius: 38, offset: Offset(0, 18)),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          const Positioned(right: -68, top: -62, child: _Glow(size: 190, color: Color(0x1FFFFFFF))),
-          const Positioned(left: -54, bottom: -86, child: _Glow(size: 175, color: Color(0x14E27E83))),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(23, 23, 23, 21),
-            child: periods.when(
-              loading: () => const SizedBox(height: 258, child: Center(child: CircularProgressIndicator(color: Colors.white))),
-              error: (_, _) => const SizedBox(height: 258, child: Center(child: Text('Your cycle could not be loaded.', style: TextStyle(color: Colors.white)))),
-              data: (history) {
-                if (history.isEmpty) return _FirstCycle(today: today, ref: ref);
-                final lastStart = LocalDay(history.first.startDay);
-                final cycleDay = lastStart.daysUntil(today) + 1;
-                return prediction.when(
-                  loading: () => const SizedBox(height: 258, child: Center(child: CircularProgressIndicator(color: Colors.white))),
-                  error: (_, _) => _CycleBody(today: today, day: cycleDay, estimate: null),
-                  data: (result) => _CycleBody(today: today, day: cycleDay, estimate: result.prediction),
-                );
-              },
-            ),
+          BoxShadow(
+            color: Color(0x102B2231),
+            blurRadius: 20,
+            offset: Offset(0, 9),
           ),
         ],
+      ),
+      child: periods.when(
+        loading: () => const SizedBox(
+          height: 250,
+          child: Center(child: CircularProgressIndicator()),
+        ),
+        error: (_, _) => const SizedBox(
+          height: 250,
+          child: Center(child: Text('Your cycle could not be loaded.')),
+        ),
+        data: (history) {
+          if (history.isEmpty) return _FirstCycle(today: today, ref: ref);
+          final lastStart = LocalDay(history.first.startDay);
+          final cycleDay = lastStart.daysUntil(today) + 1;
+          return prediction.when(
+            loading: () => const SizedBox(
+              height: 250,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (_, _) => _CycleBody(today: today, day: cycleDay, estimate: null),
+            data: (result) => _CycleBody(
+              today: today,
+              day: cycleDay,
+              estimate: result.prediction,
+            ),
+          );
+        },
       ),
     );
   }
@@ -134,29 +141,39 @@ class _FirstCycle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        height: 258,
+        height: 250,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const _Eyebrow('YOUR CYCLE'),
-            const Spacer(),
+            const _SoftEyebrow('YOUR CYCLE'),
+            const SizedBox(height: 24),
+            Container(
+              width: 58,
+              height: 58,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.water_drop_rounded, color: NylaColors.rose, size: 26),
+            ),
+            const SizedBox(height: 18),
             Text(
               'Start with what you know.',
-              style: Theme.of(context).textTheme.displaySmall?.copyWith(color: Colors.white, fontSize: 35),
+              style: Theme.of(context).textTheme.headlineMedium,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
-              'When your period begins, mark it. Nyla learns from your history instead of assuming everyone has the same cycle.',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: const Color(0xFFEFE4F4)),
+              'Mark the first day of your period. Nyla learns from your own history instead of assuming every cycle is the same.',
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
             const Spacer(),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: NylaColors.wine),
               onPressed: () async {
                 await NylaHaptics.confirm();
                 await ref.read(cycleRepositoryProvider).recordPeriod(start: today);
               },
-              icon: const Icon(Icons.water_drop_rounded, size: 18),
+              icon: const Icon(Icons.water_drop_rounded, size: 17),
               label: const Text('My period started'),
             ),
           ],
@@ -182,14 +199,14 @@ class _CycleBody extends StatelessWidget {
       children: [
         Row(
           children: [
-            const _Eyebrow('YOUR CYCLE'),
+            const _SoftEyebrow('YOUR CYCLE'),
             const Spacer(),
             if (estimate != null) _ConfidenceBadge(confidence: estimate!.confidence),
           ],
         ),
         const SizedBox(height: 18),
         Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
               child: Column(
@@ -197,41 +214,65 @@ class _CycleBody extends StatelessWidget {
                 children: [
                   Text(
                     headline,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontSize: 29),
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 25),
                   ),
-                  const SizedBox(height: 9),
+                  const SizedBox(height: 8),
                   Text(
                     estimate == null
                         ? 'A little more history will make your first estimate possible.'
                         : 'Expected ${rangeText(estimate!.earliestStart, estimate!.latestStart)}',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFFE9DDEA)),
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ],
               ),
             ),
             const SizedBox(width: 14),
-            _CycleDial(day: day > 0 ? day : null, progress: progress),
+            _CycleDayBadge(day: day > 0 ? day : null),
           ],
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 21),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 9,
+            backgroundColor: Colors.white.withValues(alpha: 0.82),
+            valueColor: const AlwaysStoppedAnimation<Color>(NylaColors.rose),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Text(
+              day > 0 ? 'Day $day' : 'Building history',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
+            ),
+            const Spacer(),
+            Text(
+              estimate == null ? 'More history needed' : '~$cycleLength day rhythm',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
         Container(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          padding: const EdgeInsets.fromLTRB(13, 11, 13, 11),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(19),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            color: Colors.white.withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(18),
           ),
           child: Row(
             children: [
-              const Icon(Icons.calendar_month_rounded, color: Color(0xFFE9DDEA), size: 18),
+              const Icon(Icons.calendar_month_rounded, color: NylaColors.violet, size: 18),
               const SizedBox(width: 9),
               Expanded(
                 child: Text(
-                  estimate == null ? 'Prediction starts after enough completed history.' : 'The range widens when your cycles vary more.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFFE9DDEA), fontSize: 12.5),
+                  estimate == null
+                      ? 'Predictions start after enough completed history.'
+                      : 'The range gets wider when your cycles vary more.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
                 ),
               ),
-              const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 17),
             ],
           ),
         ),
@@ -249,70 +290,43 @@ class _CycleBody extends StatelessWidget {
   }
 }
 
-class _CycleDial extends StatelessWidget {
-  const _CycleDial({required this.day, required this.progress});
+class _CycleDayBadge extends StatelessWidget {
+  const _CycleDayBadge({required this.day});
 
   final int? day;
-  final double progress;
 
   @override
-  Widget build(BuildContext context) => SizedBox.square(
-        dimension: 112,
-        child: CustomPaint(
-          painter: _CycleDialPainter(progress: progress),
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  day?.toString() ?? '—',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontSize: 28),
-                ),
-                const SizedBox(height: 1),
-                const Text('DAY', style: TextStyle(color: Color(0xFFD9CBE0), fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.9)),
-              ],
+  Widget build(BuildContext context) => Container(
+        width: 82,
+        height: 82,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.82),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white),
+        ),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              day?.toString() ?? '—',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    color: NylaColors.wine,
+                    fontSize: 25,
+                  ),
             ),
-          ),
+            const Text(
+              'DAY',
+              style: TextStyle(
+                color: NylaColors.violet,
+                fontSize: 8.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.7,
+              ),
+            ),
+          ],
         ),
       );
-}
-
-class _CycleDialPainter extends CustomPainter {
-  const _CycleDialPainter({required this.progress});
-
-  final double progress;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width * 0.42;
-    final base = Paint()
-      ..color = const Color(0x28FFFFFF)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
-      ..strokeCap = StrokeCap.round;
-    final active = Paint()
-      ..shader = const LinearGradient(colors: [Colors.white, Color(0xFFF0B9CE)]).createShader(Offset.zero & size)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
-      ..strokeCap = StrokeCap.round;
-    canvas.drawCircle(center, radius, base);
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -math.pi / 2,
-      math.pi * 2 * progress,
-      false,
-      active,
-    );
-    for (var i = 0; i < 4; i++) {
-      final angle = -math.pi / 2 + (math.pi * 2 / 4) * i;
-      final point = center + Offset(math.cos(angle), math.sin(angle)) * radius;
-      canvas.drawCircle(point, 2.2, Paint()..color = const Color(0xAAFFFFFF));
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _CycleDialPainter oldDelegate) => oldDelegate.progress != progress;
 }
 
 class _ConfidenceBadge extends StatelessWidget {
@@ -323,15 +337,24 @@ class _ConfidenceBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = switch (confidence) {
-      PredictionConfidence.high => 'HIGH CONFIDENCE',
-      PredictionConfidence.medium => 'MEDIUM CONFIDENCE',
-      PredictionConfidence.low => 'LOW CONFIDENCE',
-      PredictionConfidence.insufficient => 'EARLY ESTIMATE',
+      PredictionConfidence.high => 'High confidence',
+      PredictionConfidence.medium => 'Medium confidence',
+      PredictionConfidence.low => 'Low confidence',
+      PredictionConfidence.insufficient => 'Early estimate',
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(99)),
-      child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 8.7, fontWeight: FontWeight.w800, letterSpacing: 0.55)),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: NylaColors.violet,
+              fontSize: 10.5,
+            ),
+      ),
     );
   }
 }
@@ -360,7 +383,7 @@ class _QuickRow extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(width: 11),
+        const SizedBox(width: 10),
         Expanded(
           flex: 5,
           child: _QuickAction(
@@ -380,7 +403,13 @@ class _QuickRow extends StatelessWidget {
 }
 
 class _QuickAction extends StatelessWidget {
-  const _QuickAction({required this.tint, required this.icon, required this.title, required this.subtitle, required this.onTap});
+  const _QuickAction({
+    required this.tint,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
   final Color tint;
   final IconData icon;
@@ -392,28 +421,35 @@ class _QuickAction extends StatelessWidget {
   Widget build(BuildContext context) => Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(27),
+          borderRadius: BorderRadius.circular(24),
           onTap: onTap,
           child: Ink(
-            padding: const EdgeInsets.fromLTRB(17, 17, 15, 16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 14, 15),
             decoration: BoxDecoration(
               color: tint,
-              borderRadius: BorderRadius.circular(27),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.72), borderRadius: BorderRadius.circular(15)),
-                  child: Icon(icon, color: NylaColors.violet, size: 21),
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.76),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(icon, color: NylaColors.violet, size: 20),
                 ),
-                const SizedBox(height: 17),
+                const SizedBox(height: 15),
                 Text(title, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 3),
-                Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5)),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
+                ),
               ],
             ),
           ),
@@ -431,48 +467,59 @@ class _TodayCard extends StatelessWidget {
   Widget build(BuildContext context) => Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(31),
+          borderRadius: BorderRadius.circular(26),
           onTap: onTap,
           child: Ink(
-            padding: const EdgeInsets.all(22),
+            padding: const EdgeInsets.fromLTRB(20, 19, 20, 19),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [NylaColors.sageSoft, Color(0xFFE7DDF3)],
+                colors: [NylaColors.sageSoft, NylaColors.lavenderSoft],
               ),
-              borderRadius: BorderRadius.circular(31),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: Colors.white),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.66), borderRadius: BorderRadius.circular(99)),
-                      child: const Text('TODAY’S CARD', style: TextStyle(color: NylaColors.violet, fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 0.8)),
-                    ),
+                    const _SoftEyebrow('TODAY’S CARD'),
                     const Spacer(),
-                    const Icon(Icons.style_rounded, color: NylaColors.violet, size: 21),
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.72),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.style_rounded, color: NylaColors.violet, size: 17),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 18),
-                Text(tip.title, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 25)),
-                const SizedBox(height: 10),
+                const SizedBox(height: 15),
+                Text(
+                  tip.title,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 23),
+                ),
+                const SizedBox(height: 8),
                 Text(
                   tip.flash,
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: NylaColors.wine),
                 ),
-                const SizedBox(height: 17),
+                const SizedBox(height: 14),
                 Row(
                   children: [
-                    Text('Open the deck', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: NylaColors.violet)),
-                    const SizedBox(width: 6),
-                    const Icon(Icons.arrow_forward_rounded, color: NylaColors.violet, size: 18),
+                    Text(
+                      'Open the deck',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(color: NylaColors.violet),
+                    ),
+                    const SizedBox(width: 5),
+                    const Icon(Icons.arrow_forward_rounded, color: NylaColors.violet, size: 17),
                   ],
                 ),
               ],
@@ -482,28 +529,19 @@ class _TodayCard extends StatelessWidget {
       );
 }
 
-class _Eyebrow extends StatelessWidget {
-  const _Eyebrow(this.text);
+class _SoftEyebrow extends StatelessWidget {
+  const _SoftEyebrow(this.text);
 
   final String text;
 
   @override
   Widget build(BuildContext context) => Text(
         text,
-        style: const TextStyle(color: Color(0xFFD9CBE0), fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1.15),
-      );
-}
-
-class _Glow extends StatelessWidget {
-  const _Glow({required this.size, required this.color});
-
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        style: const TextStyle(
+          color: NylaColors.violet,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.0,
+        ),
       );
 }
