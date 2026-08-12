@@ -12,8 +12,8 @@ class NylaApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.listen(cyclePredictionProvider, (_, __) => unawaited(_refreshNotifications(ref)));
-    ref.listen(notificationConfigProvider, (_, __) => unawaited(_refreshNotifications(ref)));
+    ref.listen(cyclePredictionProvider, (_, _) => unawaited(_refreshNotifications(ref)));
+    ref.listen(notificationConfigProvider, (_, _) => unawaited(_refreshNotifications(ref)));
 
     return MaterialApp.router(
       title: 'Nyla',

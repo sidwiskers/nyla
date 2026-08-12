@@ -1,4 +1,3 @@
-import 'package:drift/drift.dart';
 import 'package:sync_core/sync_core.dart';
 
 import '../../data/database/app_database.dart';

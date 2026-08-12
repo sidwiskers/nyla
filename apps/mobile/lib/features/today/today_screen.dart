@@ -83,7 +83,7 @@ class _CycleCard extends ConsumerWidget {
         padding: const EdgeInsets.all(22),
         child: periods.when(
           loading: () => const SizedBox(height: 150, child: Center(child: CircularProgressIndicator())),
-          error: (_, __) => const _GentleError(),
+          error: (_, _) => const _GentleError(),
           data: (history) {
             if (history.isEmpty) {
               return Column(
@@ -108,7 +108,7 @@ class _CycleCard extends ConsumerWidget {
             final cycleDay = lastStart.daysUntil(today) + 1;
             return prediction.when(
               loading: () => const SizedBox(height: 150, child: Center(child: CircularProgressIndicator())),
-              error: (_, __) => const _GentleError(),
+              error: (_, _) => const _GentleError(),
               data: (result) {
                 final estimate = result.prediction;
                 return Row(

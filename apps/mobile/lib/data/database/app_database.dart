@@ -84,7 +84,7 @@ class LocalMutations extends Table {
   Set<Column<Object>> get primaryKey => {opId};
 }
 
-@DataClassName('FieldClockEntry')
+@DataClassName('EntityTombstoneEntry')
 class EntityTombstones extends Table {
   TextColumn get entityId => text()();
   TextColumn get hlc => text()();

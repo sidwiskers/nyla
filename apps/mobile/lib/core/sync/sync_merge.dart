@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:drift/drift.dart';
 import 'package:sync_core/sync_core.dart';
 
@@ -82,7 +80,7 @@ final class SyncMergeEngine {
       }
       await database.into(database.dayNotes).insertOnConflictUpdate(
             DayNotesCompanion.insert(
-              day: day,
+              day: Value(day),
               note: operation.value! as String,
               updatedHlc: operation.hlc,
               updatedMs: DateTime.now().millisecondsSinceEpoch,

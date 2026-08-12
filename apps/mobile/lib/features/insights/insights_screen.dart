@@ -21,7 +21,7 @@ class InsightsScreen extends ConsumerWidget {
       subtitle: 'Patterns Nyla can explain, not guesses it cannot.',
       child: history.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => const Text('Your insights could not be loaded.'),
+        error: (_, _) => const Text('Your insights could not be loaded.'),
         data: (periods) {
           final stats = _stats(periods);
           return Column(
@@ -48,7 +48,7 @@ class InsightsScreen extends ConsumerWidget {
                   padding: const EdgeInsets.all(20),
                   child: prediction.when(
                     loading: () => const LinearProgressIndicator(),
-                    error: (_, __) => const Text('Prediction confidence is unavailable.'),
+                    error: (_, _) => const Text('Prediction confidence is unavailable.'),
                     data: (result) {
                       final value = result.prediction;
                       if (value == null) {
@@ -84,7 +84,7 @@ class InsightsScreen extends ConsumerWidget {
       loading: () => [
         const Card(child: Padding(padding: EdgeInsets.all(20), child: LinearProgressIndicator())),
       ],
-      error: (_, __) => [
+      error: (_, _) => [
         const Card(
           child: Padding(
             padding: EdgeInsets.all(20),

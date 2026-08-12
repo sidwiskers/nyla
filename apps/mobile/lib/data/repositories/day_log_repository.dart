@@ -68,7 +68,7 @@ class DayLogRepository {
         await (database.delete(database.dayNotes)..where((row) => row.day.equals(epochDay))).go();
       } else {
         await database.into(database.dayNotes).insertOnConflictUpdate(
-              DayNotesCompanion.insert(day: epochDay, note: note.trim(), updatedHlc: clock, updatedMs: now),
+              DayNotesCompanion.insert(day: Value(epochDay), note: note.trim(), updatedHlc: clock, updatedMs: now),
             );
       }
       await database.into(database.localMutations).insert(
