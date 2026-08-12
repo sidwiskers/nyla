@@ -1,0 +1,11 @@
+name: cycle_engine
+description: Explainable menstrual-cycle prediction and pattern primitives for Nyla.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ">=3.12.0 <4.0.0"
+
+dev_dependencies:
+  test: ^1.26.3
+  lints: ^6.0.0
