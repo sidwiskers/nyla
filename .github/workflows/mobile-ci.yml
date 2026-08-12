@@ -7,12 +7,14 @@ on:
       - 'apps/mobile/**'
       - 'packages/**'
       - 'content/tips/**'
+      - 'services/sync/**'
       - '.github/workflows/mobile-ci.yml'
   pull_request:
     paths:
       - 'apps/mobile/**'
       - 'packages/**'
       - 'content/tips/**'
+      - 'services/sync/**'
       - '.github/workflows/mobile-ci.yml'
   workflow_dispatch:
 
