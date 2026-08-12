@@ -54,7 +54,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
             onPrevious: () => _changeDay(day.addDays(-1)),
             onNext: () => _changeDay(day.addDays(1)),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           _FlowPanel(
             selected: values['flow']?.value,
             onChanged: (value) async {
@@ -63,7 +63,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
             },
             onMarkPeriod: _markPeriod,
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: 34),
           NylaSectionHeader(
             eyebrow: 'BODY & MIND',
             title: 'What feels worth noting?',
@@ -98,7 +98,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
               );
             },
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: 34),
           NylaSectionHeader(
             eyebrow: 'YOUR SPACE',
             title: customLogs.isEmpty ? 'Track something personal' : 'Your own logs',
@@ -339,11 +339,16 @@ class _FlowPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
+        padding: const EdgeInsets.fromLTRB(20, 19, 20, 19),
         decoration: BoxDecoration(
           color: NylaColors.roseWash,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: NylaColors.roseSoft.withValues(alpha: 0.55)),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(30),
+            topRight: Radius.circular(18),
+            bottomRight: Radius.circular(30),
+            bottomLeft: Radius.circular(18),
+          ),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -456,18 +461,22 @@ class _LogInstrument extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final active = summary != null;
-    const radius = BorderRadius.all(Radius.circular(18));
+    final radius = index.isEven
+        ? const BorderRadius.only(topLeft: Radius.circular(27), topRight: Radius.circular(17), bottomRight: Radius.circular(27), bottomLeft: Radius.circular(17))
+        : const BorderRadius.only(topLeft: Radius.circular(17), topRight: Radius.circular(27), bottomRight: Radius.circular(17), bottomLeft: Radius.circular(27));
     return NylaPressable(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.fromLTRB(15, 15, 14, 14),
         decoration: BoxDecoration(
-          color: active ? definition.tint.withValues(alpha: 0.42) : NylaColors.paper,
+          color: active ? definition.tint.withValues(alpha: 0.6) : NylaColors.paper,
           borderRadius: radius,
           border: Border.all(
-            color: active ? NylaColors.violet.withValues(alpha: 0.18) : NylaColors.outline,
+            color: active ? NylaColors.wine.withValues(alpha: 0.16) : NylaColors.outline.withValues(alpha: 0.72),
+            width: active ? 1.4 : 1,
           ),
+          boxShadow: active ? const [BoxShadow(color: Color(0x0D381426), blurRadius: 18, offset: Offset(0, 8))] : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -552,37 +561,37 @@ class _NotesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => NylaPaperSurface(
-        padding: const EdgeInsets.fromLTRB(17, 17, 17, 16),
-        radius: BorderRadius.circular(20),
-        shadow: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        padding: EdgeInsets.zero,
+        radius: const BorderRadius.only(topLeft: Radius.circular(28), topRight: Radius.circular(28), bottomRight: Radius.circular(28), bottomLeft: Radius.circular(8)),
+        child: Stack(
           children: [
-            const NylaOverline('PRIVATE NOTE'),
-            const SizedBox(height: 6),
-            Text('Anything else?', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18)),
-            const SizedBox(height: 4),
-            Text(
-              'Add a detail only when you want to remember it later.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              minLines: 3,
-              maxLines: 7,
-              maxLength: 4000,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(hintText: 'Write a note…', counterText: ''),
-              onTapOutside: (_) => FocusScope.of(context).unfocus(),
-            ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.icon(
-                onPressed: onSave,
-                icon: const Icon(Icons.check_rounded, size: 17),
-                label: const Text('Save note'),
+            const Positioned(left: 20, top: 0, bottom: 0, child: VerticalDivider(width: 1, thickness: 1, color: NylaColors.roseSoft)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(36, 22, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const NylaOverline('A NOTE FOR YOU'),
+                  const SizedBox(height: 7),
+                  Text('Anything else?', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 5),
+                  Text('A private detail can make a future pattern easier to understand.', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12)),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: controller,
+                    minLines: 3,
+                    maxLines: 7,
+                    maxLength: 4000,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(hintText: 'Write only what is useful to remember…', counterText: ''),
+                    onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                  ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton.icon(onPressed: onSave, icon: const Icon(Icons.check_rounded, size: 17), label: const Text('Save note')),
+                  ),
+                ],
               ),
             ),
           ],
