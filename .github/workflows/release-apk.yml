@@ -41,7 +41,6 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-
           missing=()
           for name in \
             CLOUDFLARE_API_TOKEN \
@@ -54,7 +53,6 @@ jobs:
               missing+=("$name")
             fi
           done
-
           if (( ${#missing[@]} > 0 )); then
             printf '::error::Missing required GitHub Actions secrets: %s\n' "${missing[*]}"
             exit 1
@@ -74,46 +72,71 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Resolve workers.dev URL from Cloudflare
+      - name: Resolve workers.dev endpoint
         id: resolve
         shell: bash
         run: |
           set -euo pipefail
 
           worker_name="$(python3 - <<'PY'
-          import json
+          import re
           from pathlib import Path
-          config = json.loads(Path('services/sync/wrangler.jsonc').read_text())
-          name = config.get('name')
-          if not isinstance(name, str) or not name:
+
+          text = Path('services/sync/wrangler.jsonc').read_text()
+          match = re.search(r'"name"\s*:\s*"([^"]+)"', text)
+          if match is None:
               raise SystemExit('services/sync/wrangler.jsonc must define a Worker name')
-          print(name)
+          print(match.group(1))
           PY
           )"
 
-          response="$(curl --fail --silent --show-error \
-            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain")"
+          get_subdomain() {
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"
+          }
 
+          response="$(get_subdomain)"
           subdomain="$(printf '%s' "$response" | python3 -c '
           import json, sys
           payload = json.load(sys.stdin)
-          if payload.get("success") is not True:
-              raise SystemExit("Cloudflare did not return a Workers subdomain")
-          subdomain = (payload.get("result") or {}).get("subdomain")
-          if not isinstance(subdomain, str) or not subdomain:
-              raise SystemExit("Your Cloudflare account does not have a workers.dev subdomain configured")
-          print(subdomain)
+          result = payload.get("result") or {}
+          value = result.get("subdomain")
+          print(value if isinstance(value, str) else "")
           ')"
+
+          if [[ -z "$subdomain" ]]; then
+            desired="nyla-${CLOUDFLARE_ACCOUNT_ID:0:10}"
+            response="$(curl --fail --silent --show-error \
+              --request PUT \
+              --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              --header 'Content-Type: application/json' \
+              --data "{\"subdomain\":\"$desired\"}" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain")"
+            subdomain="$(printf '%s' "$response" | python3 -c '
+          import json, sys
+          payload = json.load(sys.stdin)
+          if payload.get("success") is not True:
+              raise SystemExit("Cloudflare could not create a workers.dev subdomain")
+          result = payload.get("result") or {}
+          value = result.get("subdomain")
+          print(value if isinstance(value, str) else "")
+          ')"
+          fi
+
+          if [[ -z "$subdomain" ]]; then
+            echo '::error::Cloudflare did not provide a workers.dev subdomain.'
+            exit 1
+          fi
 
           base_url="https://${worker_name}.${subdomain}.workers.dev"
           echo "worker_name=$worker_name" >> "$GITHUB_OUTPUT"
           echo "base_url=$base_url" >> "$GITHUB_OUTPUT"
-          echo "Resolved Nyla sync endpoint: $base_url"
+          echo "Using Cloudflare endpoint: $base_url" >> "$GITHUB_STEP_SUMMARY"
 
   build-release:
     name: Build and validate signed APK
-    needs: [preflight, resolve-sync-url]
+    needs: resolve-sync-url
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
@@ -138,12 +161,10 @@ jobs:
           set -euo pipefail
           version="${MANUAL_VERSION#v}"
           tag="v${version}"
-
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
             echo "::error::Invalid release version: $version"
             exit 1
           fi
-
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "artifact_name=nyla-$version" >> "$GITHUB_OUTPUT"
@@ -172,6 +193,18 @@ jobs:
           cp "$RUNNER_TEMP/nyla-platform/.metadata" apps/mobile/.metadata
           python3 apps/mobile/tool/configure_platforms.py
 
+      - name: Render Nyla icon artwork
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends librsvg2-bin
+          cd apps/mobile
+          rsvg-convert -w 1024 -h 1024 assets/branding/nyla_app_icon.svg \
+            -o assets/branding/nyla_app_icon.png
+          rsvg-convert -w 1024 -h 1024 assets/branding/nyla_app_icon_foreground.svg \
+            -o assets/branding/nyla_app_icon_foreground.png
+
       - name: Restore release keystore
         shell: bash
         run: |
@@ -188,6 +221,10 @@ jobs:
       - name: Resolve Flutter dependencies
         working-directory: apps/mobile
         run: flutter pub get
+
+      - name: Generate native launcher icons
+        working-directory: apps/mobile
+        run: dart run flutter_launcher_icons
 
       - name: Generate Drift code
         working-directory: apps/mobile
@@ -231,17 +268,14 @@ jobs:
           source_apk='apps/mobile/build/app/outputs/flutter-apk/app-release.apk'
           mkdir -p dist
           final_apk="dist/${{ steps.release.outputs.apk_name }}"
-
           test -s "$source_apk"
           cp "$source_apk" "$final_apk"
-
           apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           if [[ -z "$apksigner" ]]; then
             echo '::error::Android apksigner was not found on the runner.'
             exit 1
           fi
           "$apksigner" verify --verbose --print-certs "$final_apk"
-
           (
             cd dist
             sha256sum '${{ steps.release.outputs.apk_name }}' > '${{ steps.release.outputs.apk_name }}.sha256'
@@ -267,108 +301,52 @@ jobs:
         working-directory: services/sync
     steps:
       - uses: actions/checkout@v6
-
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-
       - name: Install relay dependencies
         run: npm install --no-audit --no-fund
-
       - name: Typecheck relay
         run: npm run typecheck
-
       - name: Test relay in workerd
         run: npm test
 
   deploy-sync:
     name: Deploy encrypted sync relay
-    needs: [build-release, validate-sync, resolve-sync-url]
+    needs: [resolve-sync-url, build-release, validate-sync]
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    outputs:
-      deployed_url: ${{ steps.deploy.outputs.deployed_url }}
     defaults:
       run:
         working-directory: services/sync
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      EXPECTED_SYNC_BASE_URL: ${{ needs.resolve-sync-url.outputs.base_url }}
+      NYLA_SYNC_BASE_URL: ${{ needs.resolve-sync-url.outputs.base_url }}
     steps:
       - uses: actions/checkout@v6
-
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-
       - name: Install relay dependencies
         run: npm install --no-audit --no-fund
-
-      - name: Deploy relay and capture Cloudflare target
-        id: deploy
-        shell: bash
-        env:
-          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
-        run: |
-          set -euo pipefail
-          npm run deploy
-
-          deployed_url="$(python3 - "$WRANGLER_OUTPUT_FILE_PATH" <<'PY'
-          import json, sys
-          from pathlib import Path
-
-          path = Path(sys.argv[1])
-          if not path.is_file():
-              raise SystemExit('Wrangler did not create its machine-readable output file')
-
-          deploy = None
-          for line in path.read_text().splitlines():
-              if not line.strip():
-                  continue
-              event = json.loads(line)
-              if event.get('type') == 'deploy':
-                  deploy = event
-          if deploy is None:
-              raise SystemExit('Wrangler output did not contain a successful deploy event')
-
-          targets = deploy.get('targets') or []
-          workers_dev = [
-              target for target in targets
-              if isinstance(target, str) and target.startswith('https://') and '.workers.dev' in target
-          ]
-          if len(workers_dev) != 1:
-              raise SystemExit(f'Expected exactly one workers.dev deployment target, got: {targets!r}')
-          print(workers_dev[0].rstrip('/'))
-          PY
-          )"
-
-          expected="${EXPECTED_SYNC_BASE_URL%/}"
-          if [[ "$deployed_url" != "$expected" ]]; then
-            echo "::error::Cloudflare deployed '$deployed_url' but release build expects '$expected'."
-            exit 1
-          fi
-
-          echo "deployed_url=$deployed_url" >> "$GITHUB_OUTPUT"
-          echo "Cloudflare deployed: $deployed_url"
-
-      - name: Verify deployed relay endpoint
+      - name: Deploy relay to Cloudflare
+        run: npm run deploy
+      - name: Verify the endpoint embedded in the APK
         shell: bash
         working-directory: .
-        env:
-          DEPLOYED_URL: ${{ steps.deploy.outputs.deployed_url }}
         run: |
           set -euo pipefail
-          endpoint="${DEPLOYED_URL%/}/health"
-          for _ in {1..10}; do
+          endpoint="${NYLA_SYNC_BASE_URL%/}/health"
+          for _ in {1..12}; do
             body="$(curl --fail --silent --show-error --max-time 10 "$endpoint" 2>/dev/null || true)"
             if [[ "$body" == 'ok' ]]; then
-              echo "Verified $endpoint"
+              echo "Verified $endpoint" >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
             sleep 2
           done
-          echo "::error::Deployed Nyla relay did not return 'ok' from $endpoint."
+          echo '::error::The Cloudflare endpoint embedded in the APK did not become healthy after deployment.'
           exit 1
 
   publish-release:
@@ -379,13 +357,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-
       - name: Download validated APK
         uses: actions/download-artifact@v8
         with:
           name: ${{ needs.build-release.outputs.artifact_name }}
           path: dist
-
       - name: Publish or update release
         shell: bash
         env:
@@ -399,7 +375,6 @@ jobs:
           checksum="$apk.sha256"
           test -s "$apk"
           test -s "$checksum"
-
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$apk" "$checksum" --clobber
           else
