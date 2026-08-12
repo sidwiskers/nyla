@@ -128,9 +128,7 @@ class SettingsScreen extends ConsumerWidget {
               title: const Text('Encrypted multi-device sync'),
               subtitle: const Text('Local data remains readable only on your devices.'),
               trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Sync setup is being wired to the encrypted vault service.')),
-              ),
+              onTap: () => context.push('/settings/sync'),
             ),
           ),
           const SizedBox(height: 22),

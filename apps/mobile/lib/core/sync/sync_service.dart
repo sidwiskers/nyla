@@ -41,6 +41,24 @@ final class SyncRunResult {
   final int pending;
 }
 
+final class SyncDevice {
+  const SyncDevice({
+    required this.deviceId,
+    required this.addedMs,
+    required this.activatedMs,
+    required this.revokedMs,
+    required this.isCurrent,
+  });
+
+  final String deviceId;
+  final int? addedMs;
+  final int? activatedMs;
+  final int? revokedMs;
+  final bool isCurrent;
+
+  bool get active => activatedMs != null && revokedMs == null;
+}
+
 final class SyncService {
   SyncService({
     required this.database,
@@ -66,6 +84,38 @@ final class SyncService {
   bool get endpointConfigured => SyncEndpoint.isConfigured;
 
   Future<SyncIdentity?> identity() => identityStore.read();
+
+  Future<List<SyncDevice>> devices() async {
+    final identity = await identityStore.read();
+    if (identity == null) throw const SyncTransportException('sync_not_configured');
+    final response = await httpClient.authenticatedJson(identity: identity, method: 'GET', path: '/devices');
+    final rows = response['devices'];
+    if (rows is! List) throw const SyncTransportException('invalid_device_list');
+    final result = <SyncDevice>[];
+    for (final raw in rows) {
+      if (raw is! Map<String, dynamic>) throw const SyncTransportException('invalid_device_list');
+      final id = raw['device_id'];
+      final added = raw['added_ms'];
+      final activated = raw['activated_ms'];
+      final revoked = raw['revoked_ms'];
+      if (id is! String ||
+          (added != null && added is! int) ||
+          (activated != null && activated is! int) ||
+          (revoked != null && revoked is! int)) {
+        throw const SyncTransportException('invalid_device_list');
+      }
+      result.add(
+        SyncDevice(
+          deviceId: id,
+          addedMs: added as int?,
+          activatedMs: activated as int?,
+          revokedMs: revoked as int?,
+          isCurrent: id == identity.deviceId,
+        ),
+      );
+    }
+    return result;
+  }
 
   Future<VaultSetupResult> createVault() async {
     if (!endpointConfigured) throw const SyncTransportException('sync_endpoint_not_configured');

@@ -8,6 +8,7 @@ import '../features/learn/learn_screen.dart';
 import '../features/log/log_screen.dart';
 import '../features/settings/export_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/settings/sync_screen.dart';
 import '../features/today/today_screen.dart';
 import 'shell.dart';
 
@@ -48,6 +49,10 @@ final nylaRouter = GoRouter(
     GoRoute(
       path: '/settings/export',
       builder: (context, state) => const ExportScreen(),
+    ),
+    GoRoute(
+      path: '/settings/sync',
+      builder: (context, state) => const SyncScreen(),
     ),
   ],
 );
