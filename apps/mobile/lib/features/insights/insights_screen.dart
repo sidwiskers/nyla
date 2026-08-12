@@ -14,6 +14,7 @@ class InsightsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final history = ref.watch(periodHistoryProvider);
     final prediction = ref.watch(cyclePredictionProvider);
+    final patterns = ref.watch(symptomPatternsProvider);
 
     return NylaPage(
       title: 'Insights',
@@ -66,21 +67,67 @@ class InsightsScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 14),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: _InsightCopy(
-                    title: 'Personal patterns appear with logging',
-                    body: periods.length < 3
-                        ? 'Keep logging only what matters to you. Symptom patterns need repeated observations before Nyla will surface them.'
-                        : 'Nyla only surfaces repeated patterns when there is enough history to describe them without turning correlation into a diagnosis.',
-                  ),
-                ),
-              ),
+              ..._patternCards(context, patterns, periods.length),
             ],
           );
         },
       ),
+    );
+  }
+
+  List<Widget> _patternCards(
+    BuildContext context,
+    AsyncValue<List<SymptomPattern>> patterns,
+    int periodCount,
+  ) {
+    return patterns.when(
+      loading: () => [
+        const Card(child: Padding(padding: EdgeInsets.all(20), child: LinearProgressIndicator())),
+      ],
+      error: (_, __) => [
+        const Card(
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: Text('Personal symptom patterns could not be calculated.'),
+          ),
+        ),
+      ],
+      data: (items) {
+        if (items.isEmpty) {
+          return [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: _InsightCopy(
+                  title: 'Personal patterns need real coverage',
+                  body: periodCount < 4
+                      ? 'A repeated pattern needs observations across at least four periods. Keep logging only what matters to you.'
+                      : 'Nyla has not found a well-supported repeated symptom pattern yet. Missing days are treated as unknown—not as “no symptom.”',
+                ),
+              ),
+            ),
+          ];
+        }
+
+        return [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 2, 4, 9),
+            child: Text('Patterns in your logs', style: Theme.of(context).textTheme.titleLarge),
+          ),
+          for (var index = 0; index < items.take(4).length; index++) ...[
+            _PatternCard(pattern: items[index]),
+            if (index != items.take(4).length - 1) const SizedBox(height: 10),
+          ],
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              'These are descriptive observations from your own logs. They do not establish a cause or diagnosis.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
+            ),
+          ),
+        ];
+      },
     );
   }
 
@@ -161,6 +208,58 @@ class _StatCard extends StatelessWidget {
           ),
         ),
       );
+}
+
+class _PatternCard extends StatelessWidget {
+  const _PatternCard({required this.pattern});
+
+  final SymptomPattern pattern;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = _symptomLabel(pattern.key);
+    final timing = switch (pattern.window) {
+      CycleWindow.beforePeriod => 'in the three days before your period',
+      CycleWindow.periodStart => 'during the first two days of your period',
+    };
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(color: NylaColors.sage, borderRadius: BorderRadius.circular(14)),
+              child: const Icon(Icons.repeat_rounded, size: 19),
+            ),
+            const SizedBox(height: 13),
+            Text('$label has shown a repeat', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 6),
+            Text(
+              'You logged $label $timing in ${pattern.cyclesPresent} of ${pattern.cyclesObserved} adequately observed cycles.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 9),
+            Text(
+              '${(pattern.occurrenceRate * 100).round()}% of observed cycles · at least ${pattern.coverageRequiredPerCycle} logged days required per cycle',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _symptomLabel(String key) => switch (key) {
+        'cramps' => 'cramps',
+        'headache' => 'headaches',
+        'bloating' => 'bloating',
+        'skin' => 'skin changes',
+        'breast_tenderness' => 'breast tenderness',
+        _ => key.replaceAll('_', ' '),
+      };
 }
 
 class _InsightCopy extends StatelessWidget {
