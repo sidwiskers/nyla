@@ -3,8 +3,8 @@
 Nyla is a private, local-first menstrual health companion built around four principles:
 
 - **Intelligent, explainable tracking** — predictions learn from a person's history without pretending biology is exact.
-- **Pleasant, effortless UX** — calm, soft and distinctive rather than clinical or generically "Material".
-- **Curated menstrual-health education** — medically sourced flashcards and long-form explanations are part of the product, never a paywall.
+- **Pleasant, effortless UX** — calm, soft and distinctive rather than clinical or generically Material.
+- **Curated menstrual-health education** — medically sourced guidance is part of the product, never a paywall.
 - **Privacy by architecture** — readable health data stays on the device. Multi-device sync relays end-to-end encrypted changes only.
 
 Pregnancy, trying-to-conceive, sexual activity, masturbation and sexual coaching are intentionally outside the product.
@@ -23,15 +23,13 @@ The local encrypted database is the source of truth. Cloudflare is a transport a
 
 ## Product surfaces
 
-The primary navigation is intentionally small:
-
 1. **Today** — current cycle state, predicted range, one useful insight, quick logging.
 2. **Calendar** — recorded and predicted periods, history, uncertainty ranges.
-3. **Log** — fast flow/symptom/body logging with user-customizable favorites.
+3. **Log** — fast flow, symptom and body logging with custom logs.
 4. **Insights** — personal patterns, trends and explainable observations.
-5. **Learn** — curated flashcards and detailed menstrual-health guidance.
+5. **Learn** — curated menstrual-health guidance.
 
-Settings, notification controls, privacy, sync, device management and export live outside the primary navigation.
+Settings, reminders, privacy, sync, device management and export live outside the primary navigation.
 
 ## Security model
 
@@ -39,93 +37,99 @@ Nyla targets OWASP MASVS storage, cryptography, authentication, network and priv
 
 See `docs/ARCHITECTURE.md`, `docs/SECURITY.md` and `docs/SYNC_PROTOCOL.md`.
 
-## Signed Android releases
+## No-PC Android release setup
 
-`.github/workflows/release-apk.yml` is **manual only**. Normal pushes and tags do not build or publish a release APK.
+Everything below can be done from GitHub and Cloudflare in a phone browser. The APK workflow is **manual only**; normal pushes and tags never build or publish a release APK.
 
-The workflow validates the release configuration, automatically resolves the Cloudflare Worker URL, validates the relay, runs the Flutter/package/content gates, builds and verifies the signed APK with that URL embedded, then deploys the relay, verifies Cloudflare's actual deployment target and optionally publishes the APK plus SHA-256 checksum as a GitHub Release.
+### Do this once, in this order
 
-Add these values under **Repository Settings → Secrets and variables → Actions → Repository secrets**:
+**1. Add these five Repository Secrets first**
+
+Go to **GitHub repository → Settings → Secrets and variables → Actions → New repository secret**.
 
 ```text
 CLOUDFLARE_API_TOKEN
 CLOUDFLARE_ACCOUNT_ID
-ANDROID_KEYSTORE_BASE64
 ANDROID_KEYSTORE_PASSWORD
 ANDROID_KEY_ALIAS
 ANDROID_KEY_PASSWORD
 ```
 
-`NYLA_SYNC_BASE_URL` is **not a secret and is not required**. The release workflow obtains it automatically from Cloudflare.
-
-### Credential examples
-
-The examples below are deliberately fake.
+Examples and short notes:
 
 ```text
 CLOUDFLARE_API_TOKEN
 example: wP9_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-where: Cloudflare dashboard → Account API tokens → Create Token → Custom → Edit Cloudflare Workers
-note: use a scoped Workers token; never use the Global API Key.
+get it: Cloudflare → Account API tokens → Create Token
+use: a scoped token allowed to edit/deploy Workers; do not use the Global API Key
 
 CLOUDFLARE_ACCOUNT_ID
 example: 023e105f4ecef8ad9ca31a8372d0c353
-where: Cloudflare dashboard → Workers & Pages → Account details
-note: this is an ID, not a password.
-
-ANDROID_KEYSTORE_BASE64
-example: MIIK...very-long-single-line-base64...AB
-where: base64 form of the permanent Android release .jks keystore
-note: base64 is not encryption. Keep the original keystore permanently and privately.
+get it: Cloudflare → Workers & Pages → account details
 
 ANDROID_KEYSTORE_PASSWORD
-example: a-long-random-password
-note: password protecting the keystore file.
+example: NylaStore-A7x9-very-long-random-value
+use: a strong password you keep permanently
 
 ANDROID_KEY_ALIAS
 example: nyla
-note: the key name inside the keystore. Keep this the same forever.
+use: simply `nyla`; do not change it later
 
 ANDROID_KEY_PASSWORD
-example: another-long-random-password
-note: password for the signing key itself. It may equal the keystore password, but separate strong values are cleaner.
+example: NylaKey-P4m8-another-long-random-value
+use: another strong password you keep permanently
 ```
 
-### Automatic Cloudflare URL flow
+**2. Generate the permanent Android signing key**
 
-No URL copying is required.
+Go to **Actions → Generate Android Keystore → Run workflow**. This workflow is manual only.
 
-1. The workflow reads the Worker name (`nyla-sync`) from `services/sync/wrangler.jsonc`.
-2. It calls Cloudflare's account Workers API using `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` and reads the account `workers.dev` subdomain.
-3. It derives the endpoint as `https://nyla-sync.<account-subdomain>.workers.dev`.
-4. That exact endpoint is passed to Flutter through `--dart-define=NYLA_SYNC_BASE_URL=...` while the signed APK is built.
-5. After the APK and relay validation pass, Wrangler deploys the Worker with machine-readable deployment output enabled.
-6. The workflow reads the real `workers.dev` target returned by Wrangler and refuses the release if it does not exactly match the URL embedded in the APK.
-7. Finally it calls `<deployed-url>/health` and requires `ok` before GitHub Release publication.
+When it finishes, download the `nyla-android-signing-bootstrap` artifact. It contains:
 
-The Worker configuration explicitly enables `workers_dev`, so this endpoint is deterministic.
+```text
+nyla-release.jks                 ← permanent backup; keep this safe
+nyla-release.jks.base64.txt      ← open this on your phone
+nyla-release.jks.sha256          ← checksum for the backup
+```
 
-### No-PC keystore setup
+**3. Add the sixth and final Repository Secret**
 
-Nyla includes `.github/workflows/generate-android-keystore.yml`, also manual only.
+Open `nyla-release.jks.base64.txt`, copy the entire single line, then create:
 
-1. First add `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` as Repository Secrets.
-2. Open **Actions → Generate Android Keystore → Run workflow**.
-3. Download the `nyla-android-signing-bootstrap` artifact after it succeeds.
-4. Open `nyla-release.jks.base64.txt` on your phone and copy the entire single line into a new Repository Secret named `ANDROID_KEYSTORE_BASE64`.
-5. Keep `nyla-release.jks` somewhere private as an emergency backup.
-6. Delete the keystore-generation workflow run after setup. Its artifact expires automatically after one day.
+```text
+ANDROID_KEYSTORE_BASE64
+```
 
-The generator never prints your signing passwords. Do this once, before the first public/distributed Nyla APK.
+Paste that line as its value. You do **not** invent or obtain this value elsewhere; the keystore workflow creates it for you.
 
-### Important signing rule
+Keep `nyla-release.jks` somewhere private as an emergency backup, then delete the keystore-generation workflow run. Its artifact also expires automatically after one day.
 
-The Android release keystore is permanent. Once a Nyla APK signed by it is distributed, future updates must use the same signing key. Do not regenerate it casually and do not use an online keystore/base64 generator.
+> The signing key is permanent. After a Nyla APK signed with it is distributed, future updates must use the same key, alias and passwords.
 
-GitHub Actions reconstructs the keystore from `ANDROID_KEYSTORE_BASE64` only inside the temporary runner. Signing passwords are passed directly to Gradle through environment variables and are never committed or written to `key.properties`.
+### That is all the configuration
 
-### Releasing
+The final six Repository Secrets are:
 
-Open **Actions → Release APK → Run workflow**, choose the branch, enter a version such as `1.0.0`, keep **Publish GitHub Release** enabled if desired, then press **Run workflow**.
+```text
+CLOUDFLARE_API_TOKEN
+CLOUDFLARE_ACCOUNT_ID
+ANDROID_KEYSTORE_BASE64
+ANDROID_KEYSTORE_PASSWORD
+ANDROID_KEY_ALIAS
+ANDROID_KEY_PASSWORD
+```
 
-That is the only way the production APK workflow starts. You never need to manually create or maintain `NYLA_SYNC_BASE_URL`.
+There is **no `NYLA_SYNC_BASE_URL` secret**. The release workflow reads the `nyla-sync` Worker name, gets or creates the account's `workers.dev` subdomain through Cloudflare, derives the public endpoint automatically, embeds that endpoint in the APK and verifies `/health` after deployment.
+
+## Build a release APK
+
+Go to **Actions → Release APK → Run workflow**.
+
+1. Choose `main`.
+2. Enter a version such as `1.0.0`.
+3. Leave **Publish GitHub Release** enabled if you want a GitHub Release entry.
+4. Press **Run workflow**.
+
+The workflow validates the app and relay, generates the Nyla launcher icons, builds and verifies the signed APK, deploys the sync relay, checks the exact endpoint embedded in the APK, writes a SHA-256 checksum and then publishes the release when requested.
+
+That manual button is the only way the production APK workflow starts.
