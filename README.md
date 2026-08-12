@@ -95,11 +95,24 @@ example: another-long-random-password
 note: password for the signing key itself. It may equal the keystore password, but separate strong values are cleaner.
 ```
 
+### No-PC keystore setup
+
+Nyla includes `.github/workflows/generate-android-keystore.yml`, also manual only.
+
+1. First add `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` as Repository Secrets.
+2. Open **Actions → Generate Android Keystore → Run workflow**.
+3. Download the `nyla-android-signing-bootstrap` artifact after it succeeds.
+4. Open `nyla-release.jks.base64.txt` on your phone and copy the entire single line into a new Repository Secret named `ANDROID_KEYSTORE_BASE64`.
+5. Keep `nyla-release.jks` somewhere private as an emergency backup.
+6. Delete the keystore-generation workflow run after setup. Its artifact expires automatically after one day.
+
+The generator never prints your signing passwords. Do this once, before the first public/distributed Nyla APK.
+
 ### Important signing rule
 
 The Android release keystore is permanent. Once a Nyla APK signed by it is distributed, future updates must use the same signing key. Do not regenerate it casually and do not use an online keystore/base64 generator.
 
-Because this project is managed without a PC, the keystore only needs to be created once; afterward GitHub Actions reconstructs it from `ANDROID_KEYSTORE_BASE64` inside the temporary runner and signs releases automatically. Signing passwords are passed directly to Gradle through environment variables and are never committed or written to `key.properties`.
+GitHub Actions reconstructs the keystore from `ANDROID_KEYSTORE_BASE64` only inside the temporary runner. Signing passwords are passed directly to Gradle through environment variables and are never committed or written to `key.properties`.
 
 ### Releasing
 
