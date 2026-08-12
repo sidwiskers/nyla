@@ -10,6 +10,7 @@ import 'sync_endpoint.dart';
 import 'sync_http_client.dart';
 import 'sync_identity.dart';
 import 'sync_merge.dart';
+import 'sync_order.dart';
 
 final class VaultSetupResult {
   const VaultSetupResult({required this.identity, required this.recoveryCode});
@@ -363,7 +364,7 @@ final class SyncService {
   Future<int> _pushAll(SyncIdentity identity) async {
     var uploaded = 0;
     while (true) {
-      final pending = await database.pendingMutations();
+      final pending = orderPendingMutations(await database.pendingMutations());
       if (pending.isEmpty) return uploaded;
       final envelopes = <SyncEnvelope>[];
       for (final mutation in pending) {
