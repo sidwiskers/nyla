@@ -76,6 +76,15 @@ final class SyncIdentity {
         exchangeSeed: exchangeSeed,
       );
 
+  SyncIdentity copyForVault({required String vaultId, required List<int> vaultKey, required int epoch}) => SyncIdentity(
+        vaultId: vaultId,
+        deviceId: deviceId,
+        epoch: epoch,
+        vaultKey: vaultKey,
+        signingSeed: signingSeed,
+        exchangeSeed: exchangeSeed,
+      );
+
   static String _randomId() => base64UrlNoPadding(_randomBytes(16));
 
   static List<int> _randomBytes(int count) {

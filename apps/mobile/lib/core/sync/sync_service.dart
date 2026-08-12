@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:drift/drift.dart';
 import 'package:sync_core/sync_core.dart';
@@ -10,6 +11,13 @@ import 'sync_endpoint.dart';
 import 'sync_http_client.dart';
 import 'sync_identity.dart';
 import 'sync_merge.dart';
+
+final class VaultSetupResult {
+  const VaultSetupResult({required this.identity, required this.recoveryCode});
+
+  final SyncIdentity identity;
+  final String recoveryCode;
+}
 
 final class SyncRunResult {
   const SyncRunResult({required this.uploaded, required this.downloaded, required this.pending});
@@ -45,19 +53,106 @@ final class SyncService {
 
   Future<SyncIdentity?> identity() => identityStore.read();
 
-  Future<SyncIdentity> createVault() async {
+  Future<VaultSetupResult> createVault() async {
     if (!endpointConfigured) throw const SyncTransportException('sync_endpoint_not_configured');
     if (await identityStore.read() != null) throw const SyncTransportException('sync_already_configured');
     final identity = SyncIdentity.create(deviceId);
-    try {
-      await httpClient.bootstrap(identity);
-      await identityStore.write(identity);
-      await _writeCursor(0);
-      return identity;
-    } catch (_) {
-      await identityStore.delete();
-      rethrow;
+    await httpClient.bootstrap(identity);
+    await identityStore.write(identity);
+    await _writeCursor(0);
+    final recoveryCode = await rotateRecoveryCode(identity);
+    return VaultSetupResult(identity: identity, recoveryCode: recoveryCode);
+  }
+
+  Future<String?> pendingRecoveryCode() => secureVault.readPendingRecoveryCode();
+
+  Future<void> confirmRecoveryCodeSaved() => secureVault.clearPendingRecoveryCode();
+
+  Future<String> rotateRecoveryCode([SyncIdentity? suppliedIdentity]) async {
+    final identity = suppliedIdentity ?? await identityStore.read();
+    if (identity == null) throw const SyncTransportException('sync_not_configured');
+    final code = RecoveryCode.generate(identity.vaultId);
+    await secureVault.writePendingRecoveryCode(code.toString());
+    final recoveryCrypto = NylaRecoveryCrypto();
+    final envelope = await recoveryCrypto.wrapVaultKey(code: code, vaultKey: identity.vaultKey);
+    await httpClient.authenticatedJson(
+      identity: identity,
+      method: 'PUT',
+      path: '/recovery',
+      body: {
+        'recovery_id': envelope.recoveryId,
+        'recovery_signing_public_key': base64UrlNoPadding(envelope.recoverySigningPublicKey),
+        'wrap_nonce': base64UrlNoPadding(envelope.wrapNonce),
+        'wrapped_vault_key': base64UrlNoPadding(envelope.wrappedVaultKey),
+      },
+    );
+    return code.toString();
+  }
+
+  Future<VaultSetupResult> recoverVault(String encodedCode) async {
+    if (!endpointConfigured) throw const SyncTransportException('sync_endpoint_not_configured');
+    if (await identityStore.read() != null) throw const SyncTransportException('sync_already_configured');
+    final code = RecoveryCode.parse(encodedCode);
+    final recoveryCrypto = NylaRecoveryCrypto();
+    final derived = await recoveryCrypto.derive(code);
+    final envelopeResponse = await httpClient.unauthenticatedJson(
+      vaultId: code.vaultId,
+      method: 'GET',
+      path: '/recovery/${derived.recoveryId}',
+    );
+    final recoveryId = envelopeResponse['recovery_id'];
+    final wrapNonce = envelopeResponse['wrap_nonce'];
+    final wrappedVaultKey = envelopeResponse['wrapped_vault_key'];
+    if (recoveryId is! String || wrapNonce is! String || wrappedVaultKey is! String) {
+      throw const SyncTransportException('invalid_recovery_envelope');
     }
+    final vaultKey = await recoveryCrypto.unwrapVaultKey(
+      code: code,
+      recoveryId: recoveryId,
+      nonce: decodeBase64UrlNoPadding(wrapNonce),
+      wrappedVaultKey: decodeBase64UrlNoPadding(wrappedVaultKey),
+    );
+
+    var identity = SyncIdentity.create(deviceId).copyForVault(vaultId: code.vaultId, vaultKey: vaultKey, epoch: 1);
+    final public = await crypto.publicIdentity(identity.keys);
+    final signingPublic = base64UrlNoPadding(public.signingPublicKey);
+    final exchangePublic = base64UrlNoPadding(public.exchangePublicKey);
+    final timestamp = '${DateTime.now().millisecondsSinceEpoch}';
+    final nonce = _randomId();
+    final signature = await recoveryCrypto.signEnrollment(
+      code: code,
+      payload: recoveryEnrollmentPayload(
+        vaultId: code.vaultId,
+        recoveryId: recoveryId,
+        deviceId: deviceId,
+        signingPublicKey: signingPublic,
+        exchangePublicKey: exchangePublic,
+        timestamp: timestamp,
+        nonce: nonce,
+      ),
+    );
+    final enrolled = await httpClient.unauthenticatedJson(
+      vaultId: code.vaultId,
+      method: 'POST',
+      path: '/recovery/$recoveryId/enroll',
+      body: {
+        'device_id': deviceId,
+        'signing_public_key': signingPublic,
+        'exchange_public_key': exchangePublic,
+        'timestamp': timestamp,
+        'nonce': nonce,
+        'signature': base64UrlNoPadding(signature),
+      },
+    );
+    final epoch = enrolled['epoch'];
+    if (epoch is! int || epoch < 1) throw const SyncTransportException('invalid_recovery_epoch');
+    identity = identity.copyWith(epoch: epoch);
+    await identityStore.write(identity);
+    await _writeCursor(0);
+
+    // Rotate recovery immediately so a code used for recovery is one-time in practice.
+    final newCode = await rotateRecoveryCode(identity);
+    return VaultSetupResult(identity: identity, recoveryCode: newCode);
   }
 
   Future<SyncRunResult> syncNow() async {
@@ -196,6 +291,11 @@ final class SyncService {
       result.add(value);
     }
     return result;
+  }
+
+  String _randomId() {
+    final random = Random.secure();
+    return base64UrlNoPadding(List<int>.generate(16, (_) => random.nextInt(256), growable: false));
   }
 
   Future<int> _readCursor() async {

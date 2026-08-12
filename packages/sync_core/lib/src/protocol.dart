@@ -172,6 +172,26 @@ List<int> bootstrapPayload({
       nonce,
     ].join('\n'));
 
+List<int> recoveryEnrollmentPayload({
+  required String vaultId,
+  required String recoveryId,
+  required String deviceId,
+  required String signingPublicKey,
+  required String exchangePublicKey,
+  required String timestamp,
+  required String nonce,
+}) =>
+    utf8.encode([
+      'nyla-recovery-enroll-v1',
+      vaultId,
+      recoveryId,
+      deviceId,
+      signingPublicKey,
+      exchangePublicKey,
+      timestamp,
+      nonce,
+    ].join('\n'));
+
 List<int> httpAuthPayload({
   required String method,
   required String canonicalPath,

@@ -48,6 +48,21 @@ final class SyncHttpClient {
     );
   }
 
+  Future<Map<String, dynamic>> unauthenticatedJson({
+    required String vaultId,
+    required String method,
+    required String path,
+    Object? body,
+  }) =>
+      _requestJsonForVault(
+        vaultId: vaultId,
+        identity: null,
+        method: method,
+        path: path,
+        authenticated: false,
+        body: body,
+      );
+
   Future<Map<String, dynamic>> authenticatedJson({
     required SyncIdentity identity,
     required String method,
@@ -71,9 +86,29 @@ final class SyncHttpClient {
     required bool authenticated,
     Map<String, String>? query,
     Object? body,
+  }) =>
+      _requestJsonForVault(
+        vaultId: identity.vaultId,
+        identity: identity,
+        method: method,
+        path: path,
+        authenticated: authenticated,
+        query: query,
+        body: body,
+      );
+
+  Future<Map<String, dynamic>> _requestJsonForVault({
+    required String vaultId,
+    required SyncIdentity? identity,
+    required String method,
+    required String path,
+    required bool authenticated,
+    Map<String, String>? query,
+    Object? body,
   }) async {
     if (!baseUrl.startsWith('https://')) throw const SyncTransportException('Sync endpoint must use HTTPS.');
-    final canonical = Uri(path: '/v1/vaults/${identity.vaultId}$path', queryParameters: query).toString();
+    if (authenticated && identity == null) throw const SyncTransportException('Authenticated request lacks identity.');
+    final canonical = Uri(path: '/v1/vaults/$vaultId$path', queryParameters: query).toString();
     final endpoint = Uri.parse(baseUrl).resolve(canonical);
     final bodyBytes = body == null ? const <int>[] : utf8.encode(jsonEncode(body));
     final request = http.Request(method, endpoint)
@@ -85,6 +120,7 @@ final class SyncHttpClient {
     }
 
     if (authenticated) {
+      final authIdentity = identity!;
       final timestamp = '${DateTime.now().millisecondsSinceEpoch}';
       final nonce = _randomId();
       final bodyHash = await _crypto.sha256Base64Url(bodyBytes);
@@ -96,9 +132,9 @@ final class SyncHttpClient {
           nonce: nonce,
           bodyHash: bodyHash,
         ),
-        identity.keys,
+        authIdentity.keys,
       );
-      request.headers['x-nyla-device'] = identity.deviceId;
+      request.headers['x-nyla-device'] = authIdentity.deviceId;
       request.headers['x-nyla-timestamp'] = timestamp;
       request.headers['x-nyla-nonce'] = nonce;
       request.headers['x-nyla-signature'] = base64UrlNoPadding(signature);

@@ -116,11 +116,11 @@ The vault key is never plaintext at the relay.
 
 ## Recovery
 
-On vault creation, the app creates a separate high-entropy recovery secret and shows it once with an explicit save/verify step.
+On vault creation, the app creates a separate random 256-bit recovery secret and shows `NYLA1.<vault_id>.<secret>` with an explicit save/verify step. The vault ID is routing metadata; the secret is the confidential part.
 
-A recovery-derived wrapping key encrypts the vault key. The relay stores only the wrapped vault key, random salt/parameters and a verifier that does not reveal the recovery secret.
+HKDF-SHA256 derives independent recovery-signing and vault-wrapping keys using the vault ID as salt/context and domain-separated `info` labels. XChaCha20-Poly1305 wraps the vault key; Ed25519 proof derived from the recovery secret authorizes a recovered device. The relay stores only the wrapped vault key, nonce, recovery ID and recovery public signing key.
 
-Recovery is rate-limited. After successful local unwrap, a recovered device creates new permanent device keys and rotates the recovery envelope.
+Recovery is rate-limited. After successful local unwrap, a recovered device creates fresh permanent device keys, enrolls them, then immediately creates a new recovery secret and replaces the recovery envelope. The code that was just used therefore stops authorizing future recovery.
 
 ## Compaction
 

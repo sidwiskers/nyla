@@ -10,6 +10,7 @@ class SecureVault {
   static const _deviceIdName = 'nyla.device-id.v1';
   static const _appLockName = 'nyla.app-lock.v1';
   static const _syncIdentityName = 'nyla.sync-identity.v1';
+  static const _pendingRecoveryName = 'nyla.pending-recovery.v1';
 
   final FlutterSecureStorage _storage;
 
@@ -41,6 +42,12 @@ class SecureVault {
   Future<void> writeSyncIdentity(String encoded) => _storage.write(key: _syncIdentityName, value: encoded);
 
   Future<void> deleteSyncIdentity() => _storage.delete(key: _syncIdentityName);
+
+  Future<String?> readPendingRecoveryCode() => _storage.read(key: _pendingRecoveryName);
+
+  Future<void> writePendingRecoveryCode(String code) => _storage.write(key: _pendingRecoveryName, value: code);
+
+  Future<void> clearPendingRecoveryCode() => _storage.delete(key: _pendingRecoveryName);
 
   List<int> _randomBytes(int count) {
     final random = Random.secure();
