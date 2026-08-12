@@ -71,6 +71,11 @@ class NotificationService {
     if (route != null && !_navigationController.isClosed) _navigationController.add(route);
   }
 
+  Future<void> cancelAll() async {
+    await initialize();
+    await _plugin.cancelAll();
+  }
+
   Future<bool> requestPermission() async {
     await initialize();
     bool granted = true;

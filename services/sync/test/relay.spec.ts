@@ -172,6 +172,25 @@ describe('Nyla relay in Workers runtime', () => {
     expect(await replay.json()).toEqual({ error: 'replayed_request' });
   });
 
+  it('authenticated deletion erases the entire vault and allows only a fresh bootstrap afterward', async () => {
+    const subject = await identity();
+    const created = await bootstrap(subject);
+    expect(created.status).toBe(201);
+    await created.text();
+
+    const deleted = await authenticated(subject, 'DELETE', '/vault');
+    expect(deleted.status).toBe(200);
+    expect(await deleted.json()).toEqual({ deleted: true });
+
+    const oldAccess = await authenticated(subject, 'GET', '/devices');
+    expect(oldAccess.status).toBe(401);
+    expect(await oldAccess.json()).toEqual({ error: 'authentication_required' });
+
+    const recreated = await bootstrap(subject);
+    expect(recreated.status).toBe(201);
+    expect(await recreated.json()).toEqual({ created: true, epoch: 1 });
+  });
+
   it('fails closed on unsigned vault access', async () => {
     const subject = await identity();
     const created = await bootstrap(subject);

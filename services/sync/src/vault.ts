@@ -72,6 +72,10 @@ export class Vault extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
+    this.ensureSchema();
+  }
+
+  private ensureSchema(): void {
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS meta (
         key TEXT PRIMARY KEY,
@@ -261,6 +265,10 @@ export class Vault extends DurableObject<Env> {
     }
     if (request.method === 'DELETE' && path === '/vault') {
       await this.ctx.storage.deleteAll();
+      // deleteAll clears the SQLite schema too. Recreate empty tables while
+      // this Durable Object instance is still alive so a fresh vault can
+      // bootstrap safely on the same opaque object ID.
+      this.ensureSchema();
       return json({ deleted: true });
     }
 

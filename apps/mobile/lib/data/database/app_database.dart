@@ -132,9 +132,7 @@ class AppDatabase extends _$AppDatabase {
     if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(databaseKeyHex)) {
       throw ArgumentError.value(databaseKeyHex, 'databaseKeyHex', 'Expected a 256-bit hex key');
     }
-    final directory = await getApplicationSupportDirectory();
-    await directory.create(recursive: true);
-    final file = File(p.join(directory.path, 'nyla.db'));
+    final file = await _databaseFile();
     final executor = NativeDatabase.createInBackground(
       file,
       setup: (rawDb) {
@@ -148,6 +146,30 @@ class AppDatabase extends _$AppDatabase {
       },
     );
     return AppDatabase(executor);
+  }
+
+  /// Removes the encrypted local database and every SQLite sidecar.
+  ///
+  /// Callers must close the active database and destroy its encryption key
+  /// before invoking this. WAL/SHM/journal files are included so a requested
+  /// local erase does not leave readable database pages behind.
+  static Future<void> deleteLocalFiles() async {
+    final file = await _databaseFile();
+    for (final path in <String>[
+      file.path,
+      '${file.path}-wal',
+      '${file.path}-shm',
+      '${file.path}-journal',
+    ]) {
+      final candidate = File(path);
+      if (await candidate.exists()) await candidate.delete();
+    }
+  }
+
+  static Future<File> _databaseFile() async {
+    final directory = await getApplicationSupportDirectory();
+    await directory.create(recursive: true);
+    return File(p.join(directory.path, 'nyla.db'));
   }
 
   @override

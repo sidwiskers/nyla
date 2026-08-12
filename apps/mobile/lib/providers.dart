@@ -15,6 +15,9 @@ import 'data/repositories/preferences_repository.dart';
 final databaseProvider = Provider<AppDatabase>((ref) => throw StateError('Database has not been bootstrapped.'));
 final deviceIdProvider = Provider<String>((ref) => throw StateError('Device identity has not been bootstrapped.'));
 final secureVaultProvider = Provider<SecureVault>((ref) => const SecureVault());
+final resetLocalDataProvider = Provider<Future<void> Function()>(
+  (ref) => throw StateError('Local reset has not been bootstrapped.'),
+);
 
 final hlcServiceProvider = Provider<HlcService>(
   (ref) => HlcService(ref.watch(databaseProvider), ref.watch(deviceIdProvider)),

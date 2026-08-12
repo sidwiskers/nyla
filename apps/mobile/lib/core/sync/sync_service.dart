@@ -135,6 +135,19 @@ final class SyncService {
 
   Future<SyncIdentity?> identity() => identityStore.read();
 
+  Future<void> deleteRemoteVault() async {
+    if (!endpointConfigured) throw const SyncTransportException('sync_endpoint_not_configured');
+    var stored = await identityStore.read();
+    if (stored == null) throw const SyncTransportException('sync_not_configured');
+    stored = await _prepareRemoteState(stored);
+    final response = await httpClient.authenticatedJson(
+      identity: stored,
+      method: 'DELETE',
+      path: '/vault',
+    );
+    if (response['deleted'] != true) throw const SyncTransportException('invalid_delete_ack');
+  }
+
   Future<List<SyncDevice>> devices() async {
     final stored = await identityStore.read();
     if (stored == null) throw const SyncTransportException('sync_not_configured');

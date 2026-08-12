@@ -56,6 +56,10 @@ class SecureVault {
 
   Future<void> clearPendingRotation() => _storage.delete(key: _pendingRotationName);
 
+  /// Cryptographically forgets every Nyla secret held by this installation,
+  /// including the SQLCipher key, sync identity and recovery/rotation state.
+  Future<void> clearAll() => _storage.deleteAll();
+
   List<int> _randomBytes(int count) {
     final random = Random.secure();
     return List<int>.generate(count, (_) => random.nextInt(256), growable: false);
