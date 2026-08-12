@@ -1,4 +1,4 @@
-enum TipCategory { cycle, body, care, products, comfort, symptoms, seekCare }
+enum TipCategory { cycle, understanding, body, care, products, comfort, symptoms, seekCare }
 
 final class MedicalSource {
   const MedicalSource({
