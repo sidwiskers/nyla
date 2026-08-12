@@ -71,10 +71,12 @@ class _PrivacyGateState extends ConsumerState<_PrivacyGate> with WidgetsBindingO
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
         if (mounted && !_concealed) setState(() => _concealed = true);
+        return;
       case AppLifecycleState.resumed:
         unawaited(_resume());
+        return;
       case AppLifecycleState.detached:
-        break;
+        return;
     }
   }
 
