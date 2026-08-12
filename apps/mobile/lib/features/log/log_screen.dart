@@ -151,16 +151,12 @@ class _LogScreenState extends ConsumerState<LogScreen> {
       builder: (context) => _SeveritySheet(definition: definition, selected: current?.severity),
     );
     if (severity == null) return;
-    if (severity == 0) {
-      await ref.read(dayLogRepositoryProvider).clearValue(epochDay: day.epochDay, key: definition.key);
-    } else {
-      await ref.read(dayLogRepositoryProvider).setValue(
-            epochDay: day.epochDay,
-            key: definition.key,
-            value: severityLabels[severity],
-            severity: severity,
-          );
-    }
+    await ref.read(dayLogRepositoryProvider).setValue(
+          epochDay: day.epochDay,
+          key: definition.key,
+          value: severityLabels[severity],
+          severity: severity,
+        );
   }
 }
 
@@ -319,6 +315,7 @@ class _SeveritySheet extends StatelessWidget {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(severityLabels[index]),
+                subtitle: index == 0 ? const Text('Explicitly record that you did not have this symptom') : null,
                 trailing: selected == index ? const Icon(Icons.check_circle_rounded, color: NylaColors.rose) : null,
                 onTap: () => Navigator.pop(context, index),
               ),

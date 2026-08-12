@@ -154,7 +154,7 @@ class _CycleHalo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cycleLength = estimate?.predictedCycleLength ?? 28;
-    final progress = day == null ? 0.08 : (day! / cycleLength).clamp(0.04, 1.0);
+    final progress = day == null ? 0.08 : (day! / cycleLength).clamp(0.04, 1.0).toDouble();
     return SizedBox.square(
       dimension: 104,
       child: Stack(

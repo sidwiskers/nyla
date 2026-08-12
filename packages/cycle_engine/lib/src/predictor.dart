@@ -58,15 +58,15 @@ final class CyclePredictor {
         : allIntervals;
     final filtered = robustCycleFilter(limited);
 
-    final estimated = recencyWeightedMean(filtered).round().clamp(
-          minimumCycleDays,
-          maximumCycleDays,
-        );
+    final estimated = recencyWeightedMean(filtered)
+        .round()
+        .clamp(minimumCycleDays, maximumCycleDays)
+        .toInt();
     final variability = robustVariability(filtered);
 
     // A range is always shown. Even exceptionally consistent history gets a
     // minimum one-day uncertainty in either direction.
-    final radius = math.max(1, (variability * 1.5).ceil()).clamp(1, 21);
+    final radius = math.max(1, (variability * 1.5).ceil()).clamp(1, 21).toInt();
     final lastStart = unique.last.start;
     final likely = lastStart.addDays(estimated);
 

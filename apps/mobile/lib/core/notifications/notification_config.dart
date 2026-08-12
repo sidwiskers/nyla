@@ -65,9 +65,9 @@ class NotificationConfig {
         periodApproaching: value['period_approaching'] == true,
         expectedWindowStarts: value['expected_window_starts'] == true,
         dailyLogReminder: value['daily_log_reminder'] == true,
-        periodDaysBefore: days is int ? days.clamp(1, 7) : 2,
-        dailyHour: hour is int ? hour.clamp(0, 23) : 20,
-        dailyMinute: minute is int ? minute.clamp(0, 59) : 0,
+        periodDaysBefore: days is int ? days.clamp(1, 7).toInt() : 2,
+        dailyHour: hour is int ? hour.clamp(0, 23).toInt() : 20,
+        dailyMinute: minute is int ? minute.clamp(0, 59).toInt() : 0,
         privacy: privacyRaw == NotificationPrivacy.contextual.name
             ? NotificationPrivacy.contextual
             : NotificationPrivacy.private,
