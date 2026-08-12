@@ -36,7 +36,7 @@ class _LearnScreenState extends State<LearnScreen> {
         .toList(growable: false);
     final index = cards.isEmpty ? 0 : currentIndex.clamp(0, cards.length - 1);
     final screenHeight = MediaQuery.sizeOf(context).height;
-    final deckHeight = (screenHeight * 0.54).clamp(360.0, 540.0).toDouble();
+    final deckHeight = (screenHeight * 0.50).clamp(330.0, 500.0).toDouble();
 
     return NylaPage(
       title: 'Learn',
@@ -66,20 +66,14 @@ class _LearnScreenState extends State<LearnScreen> {
                     right: 31,
                     top: 18,
                     bottom: 0,
-                    child: _BackCard(
-                      rotation: -0.018,
-                      color: NylaColors.lavenderSoft,
-                    ),
+                    child: _BackCard(rotation: -0.018, color: NylaColors.lavenderSoft),
                   ),
                   const Positioned(
                     left: 24,
                     right: 24,
                     top: 10,
                     bottom: 9,
-                    child: _BackCard(
-                      rotation: 0.012,
-                      color: NylaColors.peachSoft,
-                    ),
+                    child: _BackCard(rotation: 0.012, color: NylaColors.peachSoft),
                   ),
                   PageView.builder(
                     controller: _controller,
@@ -287,7 +281,6 @@ class _BrowseSheetState extends State<_BrowseSheet> {
             const SizedBox(height: 18),
             TextField(
               controller: controller,
-              autofocus: false,
               textInputAction: TextInputAction.search,
               decoration: const InputDecoration(
                 hintText: 'Cramps, flow, products…',
@@ -338,10 +331,7 @@ class _BrowseSheetState extends State<_BrowseSheet> {
                       NylaHaptics.confirm();
                       Navigator.pop(
                         context,
-                        _BrowseSelection(
-                          category: category,
-                          query: controller.text.trim(),
-                        ),
+                        _BrowseSelection(category: category, query: controller.text.trim()),
                       );
                     },
                     child: const Text('Show cards'),
@@ -375,10 +365,7 @@ class _DeckHeader extends StatelessWidget {
             const Spacer(),
             const Icon(Icons.swipe_rounded, size: 17, color: NylaColors.violet),
             const SizedBox(width: 6),
-            Text(
-              'Swipe',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.8),
-            ),
+            Text('Swipe', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.8)),
           ],
         ),
       );
@@ -435,16 +422,8 @@ class _KnowledgeCardState extends State<_KnowledgeCard> {
             alignment: Alignment.center,
             transform: showBack ? (Matrix4.identity()..rotateY(math.pi)) : Matrix4.identity(),
             child: showBack
-                ? _DetailedCard(
-                    tip: widget.tip,
-                    palette: palette,
-                    onClose: _toggle,
-                  )
-                : _QuickCard(
-                    tip: widget.tip,
-                    palette: palette,
-                    onOpen: _toggle,
-                  ),
+                ? _DetailedCard(tip: widget.tip, palette: palette, onClose: _toggle)
+                : _QuickCard(tip: widget.tip, palette: palette, onOpen: _toggle),
           ),
         );
       },
@@ -494,21 +473,19 @@ class _QuickCard extends StatelessWidget {
             children: [
               Positioned.fill(
                 child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: _CardMotifPainter(accent: palette.accent),
-                  ),
+                  child: CustomPaint(painter: _CardMotifPainter(accent: palette.accent)),
                 ),
               ),
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final compact = constraints.maxHeight < 405;
-                  final horizontal = compact ? 20.0 : 24.0;
+                  final compact = constraints.maxHeight < 365;
+                  final horizontal = compact ? 19.0 : 23.0;
                   return Padding(
                     padding: EdgeInsets.fromLTRB(
                       horizontal,
-                      compact ? 18 : 22,
+                      compact ? 16 : 20,
                       horizontal,
-                      compact ? 17 : 21,
+                      compact ? 15 : 19,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -518,61 +495,45 @@ class _QuickCard extends StatelessWidget {
                             _FrontCategoryBadge(category: tip.category),
                             const Spacer(),
                             Container(
-                              width: compact ? 36 : 42,
-                              height: compact ? 36 : 42,
+                              width: compact ? 34 : 40,
+                              height: compact ? 34 : 40,
                               decoration: BoxDecoration(
                                 color: Colors.white.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(15),
+                                borderRadius: BorderRadius.circular(14),
                                 border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                               ),
                               alignment: Alignment.center,
                               child: Icon(
                                 _categoryIcon(tip.category),
                                 color: Colors.white,
-                                size: compact ? 18 : 21,
+                                size: compact ? 17 : 20,
                               ),
                             ),
                           ],
                         ),
-                        SizedBox(height: compact ? 13 : 18),
+                        SizedBox(height: compact ? 11 : 15),
+                        Text(
+                          tip.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                                color: Colors.white,
+                                fontSize: compact ? 25 : 29,
+                                height: 1.03,
+                                letterSpacing: -0.65,
+                              ),
+                        ),
+                        SizedBox(height: compact ? 10 : 13),
                         Expanded(
-                          child: SingleChildScrollView(
-                            physics: const BouncingScrollPhysics(),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  tip.title,
-                                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                                        color: Colors.white,
-                                        fontSize: compact ? 27 : 32,
-                                        height: 1.04,
-                                        letterSpacing: -0.7,
-                                      ),
-                                ),
-                                SizedBox(height: compact ? 13 : 17),
-                                _FrontTakeaway(text: tip.flash),
-                                if (!compact && tip.details.isNotEmpty) ...[
-                                  const SizedBox(height: 14),
-                                  Text(
-                                    tip.details.first,
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                          color: Colors.white.withValues(alpha: 0.76),
-                                          height: 1.45,
-                                        ),
-                                  ),
-                                ],
-                                const SizedBox(height: 4),
-                              ],
-                            ),
+                          child: Align(
+                            alignment: Alignment.topLeft,
+                            child: _FrontTakeaway(text: tip.flash, compact: compact),
                           ),
                         ),
-                        SizedBox(height: compact ? 9 : 12),
+                        SizedBox(height: compact ? 8 : 10),
                         Container(
-                          height: compact ? 42 : 46,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          height: compact ? 40 : 44,
+                          padding: const EdgeInsets.symmetric(horizontal: 11),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(99),
@@ -581,26 +542,23 @@ class _QuickCard extends StatelessWidget {
                           child: Row(
                             children: [
                               Container(
-                                width: 28,
-                                height: 28,
-                                decoration: BoxDecoration(
-                                  color: palette.accent,
-                                  shape: BoxShape.circle,
-                                ),
+                                width: 27,
+                                height: 27,
+                                decoration: BoxDecoration(color: palette.accent, shape: BoxShape.circle),
                                 alignment: Alignment.center,
-                                child: const Icon(Icons.flip_rounded, color: Colors.white, size: 15),
+                                child: const Icon(Icons.flip_rounded, color: Colors.white, size: 14),
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 9),
                               Expanded(
                                 child: Text(
                                   'Turn card',
                                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                                         color: Colors.white,
-                                        fontSize: 13,
+                                        fontSize: 12.8,
                                       ),
                                 ),
                               ),
-                              const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
+                              const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 17),
                             ],
                           ),
                         ),
@@ -622,7 +580,7 @@ class _FrontCategoryBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(99),
@@ -632,46 +590,52 @@ class _FrontCategoryBadge extends StatelessWidget {
           _categoryName(category).toUpperCase(),
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 9.4,
+            fontSize: 9,
             fontWeight: FontWeight.w800,
-            letterSpacing: 0.9,
+            letterSpacing: 0.85,
           ),
         ),
       );
 }
 
 class _FrontTakeaway extends StatelessWidget {
-  const _FrontTakeaway({required this.text});
+  const _FrontTakeaway({required this.text, required this.compact});
 
   final String text;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(15, 13, 15, 14),
+        width: double.infinity,
+        padding: EdgeInsets.fromLTRB(14, compact ? 10 : 12, 14, compact ? 11 : 13),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(19),
           border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'THE TAKEAWAY',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.68),
-                fontSize: 9.2,
+                fontSize: 8.8,
                 fontWeight: FontWeight.w800,
-                letterSpacing: 1.05,
+                letterSpacing: 1,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 5),
             Text(
               text,
+              maxLines: compact ? 4 : 5,
+              overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: Colors.white,
+                    fontSize: compact ? 14.2 : 15.2,
                     fontWeight: FontWeight.w600,
-                    height: 1.4,
+                    height: 1.36,
                   ),
             ),
           ],
@@ -694,7 +658,7 @@ class _DetailedCard extends StatelessWidget {
           children: [
             Container(height: 7, color: palette.accent),
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 12, 12, 3),
+              padding: const EdgeInsets.fromLTRB(20, 9, 10, 1),
               child: Row(
                 children: [
                   Expanded(
@@ -715,20 +679,20 @@ class _DetailedCard extends StatelessWidget {
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 27),
+                padding: const EdgeInsets.fromLTRB(22, 5, 22, 25),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       tip.title,
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 27),
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 25),
                     ),
-                    const SizedBox(height: 15),
+                    const SizedBox(height: 13),
                     _Takeaway(text: tip.flash, accent: palette.accent),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 17),
                     for (final paragraph in tip.details) ...[
                       Text(paragraph, style: Theme.of(context).textTheme.bodyLarge),
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 14),
                     ],
                     if (tip.practical.isNotEmpty)
                       _GuidanceSection(
@@ -740,7 +704,7 @@ class _DetailedCard extends StatelessWidget {
                         surface: NylaColors.sageSoft,
                       ),
                     if (tip.seekCare.isNotEmpty) ...[
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 15),
                       _GuidanceSection(
                         eyebrow: 'Care note',
                         title: 'When to check in',
@@ -750,7 +714,7 @@ class _DetailedCard extends StatelessWidget {
                         surface: NylaColors.peachSoft,
                       ),
                     ],
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 18),
                     _ReferencesButton(tip: tip),
                   ],
                 ),
@@ -781,13 +745,10 @@ class _Takeaway extends StatelessWidget {
         children: [
           Container(
             width: 3,
-            height: 62,
-            decoration: BoxDecoration(
-              color: accent,
-              borderRadius: BorderRadius.circular(99),
-            ),
+            height: 58,
+            decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(99)),
           ),
-          const SizedBox(width: 13),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -796,18 +757,18 @@ class _Takeaway extends StatelessWidget {
                   'THE TAKEAWAY',
                   style: TextStyle(
                     color: accent,
-                    fontSize: 9.5,
+                    fontSize: 9.2,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: 1.05,
+                    letterSpacing: 1,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 5),
                 Text(
                   text,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: NylaColors.ink,
                         fontWeight: FontWeight.w600,
-                        height: 1.42,
+                        height: 1.4,
                       ),
                 ),
               ],
@@ -1021,10 +982,7 @@ class _CategoryBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-        decoration: BoxDecoration(
-          color: palette.soft,
-          borderRadius: BorderRadius.circular(99),
-        ),
+        decoration: BoxDecoration(color: palette.soft, borderRadius: BorderRadius.circular(99)),
         child: Text(
           _categoryName(category).toUpperCase(),
           maxLines: 1,
@@ -1112,8 +1070,8 @@ class _CardMotifPainter extends CustomPainter {
         center: Offset(size.width * 0.96, size.height * 0.22),
         radius: size.width * 0.18,
       ),
-      1.0,
-      3.0,
+      1,
+      3,
       false,
       paint,
     );
@@ -1154,10 +1112,7 @@ class _CardPalette {
 }
 
 _CardPalette _paletteFor(TipCategory category) => switch (category) {
-      TipCategory.cycle => const _CardPalette(
-          accent: NylaColors.rose,
-          soft: NylaColors.roseWash,
-        ),
+      TipCategory.cycle => const _CardPalette(accent: NylaColors.rose, soft: NylaColors.roseWash),
       TipCategory.understanding => const _CardPalette(
           accent: NylaColors.violet,
           soft: NylaColors.lavenderSoft,
