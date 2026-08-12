@@ -17,20 +17,30 @@ final class CyclePredictor {
   final int historyLimit;
 
   PredictionResult predict(List<PeriodRecord> records) {
-    final usable = records.where((r) => !r.excludeFromPrediction).toList()
-      ..sort((a, b) => a.start.compareTo(b.start));
+    final chronological = [...records]..sort((a, b) => a.start.compareTo(b.start));
 
-    if (usable.length < 2) {
+    if (chronological.length < 2) {
       return const PredictionResult.unavailable(
         'At least two recorded period starts are needed before a cycle interval can be estimated.',
       );
     }
 
-    // Deduplicate period starts defensively. Two records on one day should not
-    // create a zero-day cycle.
+    // Deduplicate starts defensively. When duplicates disagree about
+    // exclusion, prefer the included record: an accidental duplicate must not
+    // suppress an otherwise valid interval. Prefer a completed representative
+    // when both records have the same exclusion state.
     final unique = <PeriodRecord>[];
-    for (final record in usable) {
-      if (unique.isEmpty || unique.last.start != record.start) unique.add(record);
+    for (final record in chronological) {
+      if (unique.isEmpty || unique.last.start != record.start) {
+        unique.add(record);
+        continue;
+      }
+      final existing = unique.last;
+      final preferRecord = (existing.excludeFromPrediction && !record.excludeFromPrediction) ||
+          (existing.excludeFromPrediction == record.excludeFromPrediction &&
+              existing.durationDays == null &&
+              record.durationDays != null);
+      if (preferRecord) unique[unique.length - 1] = record;
     }
 
     if (unique.length < 2) {
@@ -41,7 +51,15 @@ final class CyclePredictor {
 
     final allIntervals = <int>[];
     for (var i = 1; i < unique.length; i++) {
-      final days = unique[i - 1].start.daysUntil(unique[i].start);
+      final previous = unique[i - 1];
+      final current = unique[i];
+
+      // Exclusion applies to intervals touching that period. We deliberately
+      // keep the start in the chronology: deleting it first would bridge over
+      // an unusual cycle and invent a false long cycle.
+      if (previous.excludeFromPrediction || current.excludeFromPrediction) continue;
+
+      final days = previous.start.daysUntil(current.start);
       if (days >= minimumCycleDays && days <= maximumCycleDays) {
         allIntervals.add(days);
       }
@@ -67,10 +85,15 @@ final class CyclePredictor {
     // A range is always shown. Even exceptionally consistent history gets a
     // minimum one-day uncertainty in either direction.
     final radius = math.max(1, (variability * 1.5).ceil()).clamp(1, 21).toInt();
+
+    // An unusual/excluded period is still a real period start and therefore
+    // the correct anchor for the current cycle. Exclusion changes what Nyla
+    // learns from that cycle, not where the next cycle is measured from.
     final lastStart = unique.last.start;
     final likely = lastStart.addDays(estimated);
 
     final durationValues = unique
+        .where((record) => !record.excludeFromPrediction)
         .map((record) => record.durationDays)
         .whereType<int>()
         .where((days) => days >= 1 && days <= 14)

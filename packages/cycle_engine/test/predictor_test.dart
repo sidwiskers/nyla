@@ -70,8 +70,60 @@ void main() {
         excludeFromPrediction: true,
       ),
       p('2026-02-26'),
+      p('2026-03-26'),
     ]).prediction!;
 
     expect(result.predictedCycleLength, 28);
+    expect(result.rawCompletedCycles, 2);
+  });
+
+  test('excluded period never bridges neighbours into a false interval', () {
+    final result = predictor.predict([
+      p('2026-01-01'),
+      p('2026-01-29'),
+      PeriodRecord(
+        start: LocalDay.parseIso('2026-02-26'),
+        excludeFromPrediction: true,
+      ),
+      p('2026-03-26'),
+      p('2026-04-23'),
+    ]).prediction!;
+
+    // Only Jan 1→Jan 29 and Mar 26→Apr 23 are eligible. Jan 29→Mar 26 must
+    // never be invented as a 56-day completed cycle.
+    expect(result.rawCompletedCycles, 2);
+    expect(result.predictedCycleLength, 28);
+  });
+
+  test('latest excluded period remains the anchor for the next estimate', () {
+    final result = predictor.predict([
+      p('2026-01-01'),
+      p('2026-01-29'),
+      p('2026-02-26'),
+      PeriodRecord(
+        start: LocalDay.parseIso('2026-03-30'),
+        excludeFromPrediction: true,
+      ),
+    ]).prediction!;
+
+    expect(result.predictedCycleLength, 28);
+    expect(result.likelyStart.toIsoString(), '2026-04-27');
+    expect(result.rawCompletedCycles, 2);
+  });
+
+  test('excluded periods do not influence predicted period duration', () {
+    final result = predictor.predict([
+      p('2026-01-01', '2026-01-05'),
+      p('2026-01-29', '2026-02-02'),
+      PeriodRecord(
+        start: LocalDay.parseIso('2026-02-26'),
+        end: LocalDay.parseIso('2026-03-10'),
+        excludeFromPrediction: true,
+      ),
+      p('2026-03-26', '2026-03-30'),
+      p('2026-04-23', '2026-04-27'),
+    ]).prediction!;
+
+    expect(result.predictedPeriodDurationDays, 5);
   });
 }
