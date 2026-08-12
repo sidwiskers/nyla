@@ -171,6 +171,53 @@ def configure_android_theme() -> None:
 def configure_android_gradle() -> None:
     path = require(ANDROID / "app/build.gradle.kts")
     text = path.read_text(encoding="utf-8")
+
+    signing_prelude = """val nylaKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+val nylaKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+val nylaKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+val nylaKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+val nylaReleaseSigningConfigured = listOf(
+    nylaKeystorePath,
+    nylaKeystorePassword,
+    nylaKeyAlias,
+    nylaKeyPassword,
+).all { !it.isNullOrBlank() }
+
+"""
+    if "val nylaKeystorePath =" not in text:
+        android_marker = "android {\n"
+        if android_marker not in text:
+            fail("unexpected Flutter Android Gradle template: no android block")
+        text = text.replace(android_marker, signing_prelude + android_marker, 1)
+
+    signing_block = """    if (nylaReleaseSigningConfigured) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(nylaKeystorePath!!)
+                storePassword = nylaKeystorePassword
+                keyAlias = nylaKeyAlias
+                keyPassword = nylaKeyPassword
+            }
+        }
+    }
+
+"""
+    if "create(\"release\")" not in text:
+        default_config_marker = "    defaultConfig {\n"
+        if default_config_marker not in text:
+            fail("unexpected Flutter Android Gradle template: no defaultConfig block")
+        text = text.replace(default_config_marker, signing_block + default_config_marker, 1)
+
+    debug_signing = "            signingConfig = signingConfigs.getByName(\"debug\")"
+    release_signing = (
+        "            signingConfig = if (nylaReleaseSigningConfigured) "
+        "signingConfigs.getByName(\"release\") else signingConfigs.getByName(\"debug\")"
+    )
+    if release_signing not in text:
+        if debug_signing not in text:
+            fail("unexpected Flutter Android Gradle template: release signing marker changed")
+        text = text.replace(debug_signing, release_signing, 1)
+
     marker = "        targetCompatibility = JavaVersion.VERSION_17\n"
     if "isCoreLibraryDesugaringEnabled = true" not in text:
         if marker not in text:
