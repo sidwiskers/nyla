@@ -1,0 +1,290 @@
+name: Release APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version, for example 1.0.0'
+        required: true
+        default: '1.0.0'
+        type: string
+      publish_github_release:
+        description: 'Publish/update the GitHub Release'
+        required: true
+        default: true
+        type: boolean
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nyla-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: '3.44.9'
+
+jobs:
+  preflight:
+    name: Validate release secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require release configuration
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NYLA_SYNC_BASE_URL: ${{ secrets.NYLA_SYNC_BASE_URL }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          missing=()
+          for name in \
+            CLOUDFLARE_API_TOKEN \
+            CLOUDFLARE_ACCOUNT_ID \
+            NYLA_SYNC_BASE_URL \
+            ANDROID_KEYSTORE_BASE64 \
+            ANDROID_KEYSTORE_PASSWORD \
+            ANDROID_KEY_ALIAS \
+            ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+
+          if (( ${#missing[@]} > 0 )); then
+            printf '::error::Missing required GitHub Actions secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlparse
+
+          value = os.environ['NYLA_SYNC_BASE_URL']
+          parsed = urlparse(value)
+          if parsed.scheme != 'https' or not parsed.netloc or parsed.query or parsed.fragment:
+              raise SystemExit('NYLA_SYNC_BASE_URL must be a clean HTTPS origin/base URL')
+          PY
+
+  deploy-sync:
+    name: Test and deploy encrypted sync relay
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/sync
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      NYLA_SYNC_BASE_URL: ${{ secrets.NYLA_SYNC_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install relay dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck relay
+        run: npm run typecheck
+
+      - name: Test relay in workerd
+        run: npm test
+
+      - name: Deploy relay to Cloudflare
+        run: npm run deploy
+
+      - name: Verify deployed relay endpoint
+        shell: bash
+        working-directory: .
+        run: |
+          set -euo pipefail
+          endpoint="${NYLA_SYNC_BASE_URL%/}/health"
+          for _ in {1..10}; do
+            body="$(curl --fail --silent --show-error --max-time 10 "$endpoint" 2>/dev/null || true)"
+            if [[ "$body" == 'ok' ]]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo '::error::The configured NYLA_SYNC_BASE_URL did not expose Nyla /health after deployment.'
+          exit 1
+
+  build-release:
+    name: Build signed release APK
+    needs: deploy-sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NYLA_SYNC_BASE_URL: ${{ secrets.NYLA_SYNC_BASE_URL }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      MANUAL_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve release metadata
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_TYPE" == 'tag' ]]; then
+            tag="$GITHUB_REF_NAME"
+            version="${tag#v}"
+          else
+            version="${MANUAL_VERSION#v}"
+            tag="v${version}"
+          fi
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid release version: $version"
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "apk_name=Nyla-${version}.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Install pinned Flutter
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/flutter/bin/flutter" config --no-analytics
+          "$RUNNER_TEMP/flutter/bin/flutter" --version
+
+      - name: Generate pinned native scaffolds
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter create \
+            --org app.nyla \
+            --project-name nyla \
+            --platforms=android,ios \
+            "$RUNNER_TEMP/nyla-platform"
+          cp -R "$RUNNER_TEMP/nyla-platform/android" apps/mobile/
+          cp -R "$RUNNER_TEMP/nyla-platform/ios" apps/mobile/
+          cp "$RUNNER_TEMP/nyla-platform/.metadata" apps/mobile/.metadata
+          python3 apps/mobile/tool/configure_platforms.py
+
+      - name: Restore release keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+          keystore="$RUNNER_TEMP/nyla-release.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          if [[ ! -s "$keystore" ]]; then
+            echo '::error::ANDROID_KEYSTORE_BASE64 decoded to an empty keystore.'
+            exit 1
+          fi
+          chmod 600 "$keystore"
+          echo "ANDROID_KEYSTORE_PATH=$keystore" >> "$GITHUB_ENV"
+
+      - name: Resolve Flutter dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Generate Drift code
+        working-directory: apps/mobile
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze release source
+        working-directory: apps/mobile
+        run: flutter analyze --fatal-infos
+
+      - name: Run app tests
+        working-directory: apps/mobile
+        run: flutter test
+
+      - name: Test cycle engine
+        working-directory: packages/cycle_engine
+        run: dart test
+
+      - name: Test sync core
+        working-directory: packages/sync_core
+        run: dart test
+
+      - name: Validate medical content
+        working-directory: content/tips
+        run: dart test
+
+      - name: Build signed release APK
+        working-directory: apps/mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter build apk \
+            --release \
+            --build-name='${{ steps.release.outputs.version }}' \
+            --build-number='${{ github.run_number }}' \
+            --dart-define="NYLA_SYNC_BASE_URL=${NYLA_SYNC_BASE_URL%/}"
+
+      - name: Verify APK signature and checksum
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_apk='apps/mobile/build/app/outputs/flutter-apk/app-release.apk'
+          final_apk="$RUNNER_TEMP/${{ steps.release.outputs.apk_name }}"
+          checksum="$final_apk.sha256"
+
+          test -s "$source_apk"
+          cp "$source_apk" "$final_apk"
+
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          if [[ -z "$apksigner" ]]; then
+            echo '::error::Android apksigner was not found on the runner.'
+            exit 1
+          fi
+          "$apksigner" verify --verbose --print-certs "$final_apk"
+
+          sha256sum "$final_apk" > "$checksum"
+          echo "apk=$final_apk" >> "$GITHUB_OUTPUT"
+          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+
+      - name: Upload signed APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nyla-${{ steps.release.outputs.version }}
+          path: |
+            ${{ steps.package.outputs.apk }}
+            ${{ steps.package.outputs.checksum }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag' || inputs.publish_github_release == true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+          APK: ${{ steps.package.outputs.apk }}
+          CHECKSUM: ${{ steps.package.outputs.checksum }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" "$CHECKSUM" --clobber
+          else
+            gh release create "$TAG" \
+              "$APK" \
+              "$CHECKSUM" \
+              --target "$GITHUB_SHA" \
+              --title "Nyla $VERSION" \
+              --generate-notes
+          fi
