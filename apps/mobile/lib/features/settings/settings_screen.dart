@@ -17,164 +17,120 @@ class SettingsScreen extends ConsumerWidget {
     final config = configAsync.value ?? const NotificationConfig();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings'), backgroundColor: Colors.transparent),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 36),
-        children: [
-          const _SectionTitle('Privacy'),
-          Card(
-            child: Column(
-              children: [
-                _AppLockTile(),
-                const Divider(height: 1, indent: 18, endIndent: 18),
-                ListTile(
-                  leading: const _IconBox(icon: Icons.visibility_off_rounded, tint: NylaColors.lavender),
-                  title: const Text('Notification wording'),
-                  subtitle: Text(
-                    config.privacy == NotificationPrivacy.private
-                        ? 'Keep period details off the lock screen'
-                        : 'Show helpful reminder details',
-                  ),
-                  trailing: DropdownButton<NotificationPrivacy>(
-                    value: config.privacy,
-                    underline: const SizedBox.shrink(),
-                    items: const [
-                      DropdownMenuItem(value: NotificationPrivacy.private, child: Text('Private')),
-                      DropdownMenuItem(value: NotificationPrivacy.contextual, child: Text('Detailed')),
-                    ],
-                    onChanged: (value) async {
-                      if (value == null) return;
-                      await NylaHaptics.select();
-                      await _save(ref, config.copyWith(privacy: value));
-                    },
-                  ),
-                ),
-              ],
-            ),
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: const Text('Settings'),
+        backgroundColor: Colors.transparent,
+      ),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF0E8F8), NylaColors.canvas, Color(0xFFFFF2EC)],
+            stops: [0, 0.5, 1],
           ),
-          const SizedBox(height: 22),
-          const _SectionTitle('Reminders'),
-          Card(
-            child: Column(
-              children: [
-                SwitchListTile.adaptive(
-                  title: const Text('Period approaching'),
-                  subtitle: Text('${config.periodDaysBefore} days before the earliest expected day'),
-                  value: config.periodApproaching,
-                  onChanged: (enabled) => _toggleWithPermission(
-                    context,
-                    ref,
-                    enabled,
-                    config.copyWith(periodApproaching: enabled),
-                  ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: ListView(
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(18, MediaQuery.paddingOf(context).top + kToolbarHeight + 8, 18, 42),
+            children: [
+              _PrivacyPanel(
+                privacy: config.privacy,
+                onPrivacyChanged: (value) async {
+                  await NylaHaptics.select();
+                  await _save(ref, config.copyWith(privacy: value));
+                },
+              ),
+              const SizedBox(height: 24),
+              const _SectionHeader(
+                eyebrow: 'REMINDERS',
+                title: 'Only when useful',
+                subtitle: 'Choose what deserves your attention. Everything else stays quiet.',
+              ),
+              const SizedBox(height: 12),
+              _ReminderPanel(
+                config: config,
+                onPeriodApproaching: (enabled) => _toggleWithPermission(
+                  context,
+                  ref,
+                  enabled,
+                  config.copyWith(periodApproaching: enabled),
                 ),
-                if (config.periodApproaching)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                    child: Row(
-                      children: [
-                        const Text('Lead time'),
-                        Expanded(
-                          child: Slider(
-                            min: 1,
-                            max: 7,
-                            divisions: 6,
-                            value: config.periodDaysBefore.toDouble(),
-                            label: '${config.periodDaysBefore} days',
-                            onChanged: (value) => _save(ref, config.copyWith(periodDaysBefore: value.round())),
-                          ),
-                        ),
-                        Text('${config.periodDaysBefore}d'),
-                      ],
+                onExpectedWindow: (enabled) => _toggleWithPermission(
+                  context,
+                  ref,
+                  enabled,
+                  config.copyWith(expectedWindowStarts: enabled),
+                ),
+                onDailyLog: (enabled) => _toggleWithPermission(
+                  context,
+                  ref,
+                  enabled,
+                  config.copyWith(dailyLogReminder: enabled),
+                ),
+                onLeadTime: (value) => _save(ref, config.copyWith(periodDaysBefore: value)),
+                onPickTime: () => _pickTime(context, ref, config),
+                timeText: _timeText(config.dailyHour, config.dailyMinute),
+              ),
+              const SizedBox(height: 24),
+              const _SectionHeader(
+                eyebrow: 'YOUR SPACE',
+                title: 'Data & devices',
+                subtitle: 'Your history stays yours. These are the tools around it.',
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _ActionTile(
+                      icon: Icons.devices_rounded,
+                      tint: NylaColors.lavenderSoft,
+                      title: 'Devices',
+                      subtitle: 'Private sync',
+                      onTap: () {
+                        NylaHaptics.select();
+                        context.push('/settings/sync');
+                      },
                     ),
                   ),
-                const Divider(height: 1, indent: 18, endIndent: 18),
-                SwitchListTile.adaptive(
-                  title: const Text('Expected window starts'),
-                  subtitle: const Text('A reminder when your predicted range begins'),
-                  value: config.expectedWindowStarts,
-                  onChanged: (enabled) => _toggleWithPermission(
-                    context,
-                    ref,
-                    enabled,
-                    config.copyWith(expectedWindowStarts: enabled),
-                  ),
-                ),
-                const Divider(height: 1, indent: 18, endIndent: 18),
-                SwitchListTile.adaptive(
-                  title: const Text('Daily check-in'),
-                  subtitle: Text(_timeText(config.dailyHour, config.dailyMinute)),
-                  value: config.dailyLogReminder,
-                  onChanged: (enabled) => _toggleWithPermission(
-                    context,
-                    ref,
-                    enabled,
-                    config.copyWith(dailyLogReminder: enabled),
-                  ),
-                ),
-                if (config.dailyLogReminder)
-                  ListTile(
-                    title: const Text('Check-in time'),
-                    trailing: TextButton(
-                      onPressed: () => _pickTime(context, ref, config),
-                      child: Text(_timeText(config.dailyHour, config.dailyMinute)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ActionTile(
+                      icon: Icons.tune_rounded,
+                      tint: NylaColors.sageSoft,
+                      title: 'Your logs',
+                      subtitle: 'Customize tracking',
+                      onTap: () {
+                        NylaHaptics.select();
+                        context.push('/settings/logs');
+                      },
                     ),
                   ),
-              ],
-            ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ActionTile(
+                      icon: Icons.ios_share_rounded,
+                      tint: NylaColors.peachSoft,
+                      title: 'Export',
+                      subtitle: 'Make a copy',
+                      onTap: () {
+                        NylaHaptics.select();
+                        context.push('/settings/export');
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const _HealthNote(),
+              const SizedBox(height: 18),
+              const _EraseDataTile(),
+            ],
           ),
-          const SizedBox(height: 22),
-          const _SectionTitle('Sync'),
-          Card(
-            child: ListTile(
-              leading: const _IconBox(icon: Icons.cloud_outlined, tint: NylaColors.sage),
-              title: const Text('Sync across devices'),
-              subtitle: const Text('Keep your Nyla history in step on your trusted devices'),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () {
-                NylaHaptics.select();
-                context.push('/settings/sync');
-              },
-            ),
-          ),
-          const SizedBox(height: 22),
-          const _SectionTitle('Your data'),
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const _IconBox(icon: Icons.tune_rounded, tint: NylaColors.lavender),
-                  title: const Text('Custom logs'),
-                  subtitle: const Text('Add or archive things that matter to you'),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () {
-                    NylaHaptics.select();
-                    context.push('/settings/logs');
-                  },
-                ),
-                const Divider(height: 1, indent: 18, endIndent: 18),
-                ListTile(
-                  leading: const _IconBox(icon: Icons.ios_share_rounded, tint: NylaColors.peach),
-                  title: const Text('Export'),
-                  subtitle: const Text('Make a copy of your history'),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () {
-                    NylaHaptics.select();
-                    context.push('/settings/export');
-                  },
-                ),
-                const Divider(height: 1, indent: 18, endIndent: 18),
-                const ListTile(
-                  leading: _IconBox(icon: Icons.info_outline_rounded, tint: NylaColors.lavender),
-                  title: Text('Health guidance'),
-                  subtitle: Text('Carefully reviewed with trusted medical sources'),
-                ),
-                const Divider(height: 1, indent: 18, endIndent: 18),
-                const _EraseDataTile(),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -222,7 +178,358 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
+class _PrivacyPanel extends StatelessWidget {
+  const _PrivacyPanel({required this.privacy, required this.onPrivacyChanged});
+
+  final NotificationPrivacy privacy;
+  final ValueChanged<NotificationPrivacy> onPrivacyChanged;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(21, 21, 18, 18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [NylaColors.night, Color(0xFF392447), NylaColors.violet],
+          ),
+          borderRadius: BorderRadius.circular(34),
+          boxShadow: const [
+            BoxShadow(color: Color(0x3433203E), blurRadius: 34, offset: Offset(0, 16)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 47,
+                  height: 47,
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.11), borderRadius: BorderRadius.circular(16)),
+                  child: const Icon(Icons.shield_rounded, color: Colors.white, size: 23),
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'PRIVACY',
+                        style: TextStyle(color: Color(0xFFD8CBE0), fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Keep Nyla yours',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontSize: 22),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 19),
+            const _AppLockTile(),
+            const SizedBox(height: 11),
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 11, 9, 11),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.085),
+                borderRadius: BorderRadius.circular(19),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.075)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.visibility_off_rounded, color: Color(0xFFE2D6E8), size: 20),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Lock-screen wording', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13.5)),
+                        const SizedBox(height: 2),
+                        Text(
+                          privacy == NotificationPrivacy.private ? 'Keep period details hidden' : 'Show reminder context',
+                          style: const TextStyle(color: Color(0xFFD4C6DA), fontSize: 11.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                  DropdownButtonHideUnderline(
+                    child: DropdownButton<NotificationPrivacy>(
+                      value: privacy,
+                      dropdownColor: NylaColors.night,
+                      iconEnabledColor: Colors.white,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
+                      items: const [
+                        DropdownMenuItem(value: NotificationPrivacy.private, child: Text('Private')),
+                        DropdownMenuItem(value: NotificationPrivacy.contextual, child: Text('Detailed')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) onPrivacyChanged(value);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _ReminderPanel extends StatelessWidget {
+  const _ReminderPanel({
+    required this.config,
+    required this.onPeriodApproaching,
+    required this.onExpectedWindow,
+    required this.onDailyLog,
+    required this.onLeadTime,
+    required this.onPickTime,
+    required this.timeText,
+  });
+
+  final NotificationConfig config;
+  final ValueChanged<bool> onPeriodApproaching;
+  final ValueChanged<bool> onExpectedWindow;
+  final ValueChanged<bool> onDailyLog;
+  final ValueChanged<int> onLeadTime;
+  final VoidCallback onPickTime;
+  final String timeText;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(16, 7, 16, 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.78),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: Colors.white),
+        ),
+        child: Column(
+          children: [
+            _ReminderRow(
+              icon: Icons.upcoming_rounded,
+              tint: NylaColors.roseWash,
+              title: 'Period approaching',
+              subtitle: '${config.periodDaysBefore} days before your earliest expected day',
+              value: config.periodApproaching,
+              onChanged: onPeriodApproaching,
+            ),
+            if (config.periodApproaching)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(54, 0, 5, 8),
+                child: Row(
+                  children: [
+                    const Text('1d', style: TextStyle(color: NylaColors.faintInk, fontSize: 10.5, fontWeight: FontWeight.w700)),
+                    Expanded(
+                      child: Slider(
+                        min: 1,
+                        max: 7,
+                        divisions: 6,
+                        value: config.periodDaysBefore.toDouble(),
+                        label: '${config.periodDaysBefore} days',
+                        onChanged: (value) => onLeadTime(value.round()),
+                      ),
+                    ),
+                    const Text('7d', style: TextStyle(color: NylaColors.faintInk, fontSize: 10.5, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+            const _SoftDivider(),
+            _ReminderRow(
+              icon: Icons.blur_on_rounded,
+              tint: NylaColors.lavenderSoft,
+              title: 'Expected window',
+              subtitle: 'A gentle note when the predicted range begins',
+              value: config.expectedWindowStarts,
+              onChanged: onExpectedWindow,
+            ),
+            const _SoftDivider(),
+            _ReminderRow(
+              icon: Icons.wb_twilight_rounded,
+              tint: NylaColors.sageSoft,
+              title: 'Daily check-in',
+              subtitle: config.dailyLogReminder ? timeText : 'Off',
+              value: config.dailyLogReminder,
+              onChanged: onDailyLog,
+            ),
+            if (config.dailyLogReminder)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(54, 0, 5, 10),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: onPickTime,
+                    icon: const Icon(Icons.schedule_rounded, size: 17),
+                    label: Text('Change time · $timeText'),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+}
+
+class _ReminderRow extends StatelessWidget {
+  const _ReminderRow({
+    required this.icon,
+    required this.tint,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final Color tint;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(15)),
+              child: Icon(icon, color: NylaColors.violet, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 14.5)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.2)),
+                ],
+              ),
+            ),
+            Switch.adaptive(value: value, onChanged: onChanged),
+          ],
+        ),
+      );
+}
+
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({required this.icon, required this.tint, required this.title, required this.subtitle, required this.onTap});
+
+  final IconData icon;
+  final Color tint;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: onTap,
+          child: Ink(
+            padding: const EdgeInsets.fromLTRB(13, 14, 12, 13),
+            decoration: BoxDecoration(
+              color: tint,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 39,
+                  height: 39,
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.72), borderRadius: BorderRadius.circular(14)),
+                  child: Icon(icon, color: NylaColors.violet, size: 19),
+                ),
+                const SizedBox(height: 14),
+                Text(title, maxLines: 1, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 13.8)),
+                const SizedBox(height: 3),
+                Text(subtitle, maxLines: 2, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 10.5, height: 1.25)),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
+class _HealthNote extends StatelessWidget {
+  const _HealthNote();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(17, 16, 17, 17),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [NylaColors.sageSoft, NylaColors.lavenderSoft]),
+          borderRadius: BorderRadius.circular(25),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.bookmark_rounded, color: NylaColors.violet, size: 20),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Health guidance', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Nyla’s learning cards are curated with trusted medical sources and review dates.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.8, color: NylaColors.ink),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.eyebrow, required this.title, required this.subtitle});
+
+  final String eyebrow;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              eyebrow,
+              style: const TextStyle(color: NylaColors.violet, fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1.05),
+            ),
+            const SizedBox(height: 5),
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 3),
+            Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12)),
+          ],
+        ),
+      );
+}
+
+class _SoftDivider extends StatelessWidget {
+  const _SoftDivider();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        height: 1,
+        margin: const EdgeInsets.only(left: 54),
+        color: NylaColors.outline.withValues(alpha: 0.75),
+      );
+}
+
 class _AppLockTile extends ConsumerStatefulWidget {
+  const _AppLockTile();
+
   @override
   ConsumerState<_AppLockTile> createState() => _AppLockTileState();
 }
@@ -266,12 +573,35 @@ class _AppLockTileState extends ConsumerState<_AppLockTile> {
   }
 
   @override
-  Widget build(BuildContext context) => SwitchListTile.adaptive(
-        secondary: const _IconBox(icon: Icons.lock_outline_rounded, tint: NylaColors.roseSoft),
-        title: const Text('App lock'),
-        subtitle: const Text('Use your phone lock whenever Nyla opens'),
-        value: enabled ?? false,
-        onChanged: enabled == null ? null : _change,
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(14, 11, 9, 11),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.085),
+          borderRadius: BorderRadius.circular(19),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.075)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.lock_rounded, color: Color(0xFFE2D6E8), size: 20),
+            const SizedBox(width: 11),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('App lock', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13.5)),
+                  SizedBox(height: 2),
+                  Text('Use your phone lock when Nyla opens', style: TextStyle(color: Color(0xFFD4C6DA), fontSize: 11.5)),
+                ],
+              ),
+            ),
+            Switch.adaptive(
+              value: enabled ?? false,
+              onChanged: enabled == null ? null : _change,
+              activeTrackColor: NylaColors.lavender,
+              activeThumbColor: Colors.white,
+            ),
+          ],
+        ),
       );
 }
 
@@ -351,6 +681,7 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
+            icon: const Icon(Icons.delete_sweep_rounded, color: NylaColors.warning, size: 28),
             title: Text(scope == _EraseScope.cloudAndLocal ? 'Remove the synced copy too?' : 'Erase this device?'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -362,7 +693,7 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
                       : 'This removes everything stored by Nyla on this device. Your shared sync copy and other devices are left alone.',
                 ),
                 const SizedBox(height: 16),
-                const Text('Type ERASE to confirm.'),
+                Text('Type ERASE to confirm.', style: Theme.of(context).textTheme.labelLarge),
                 const SizedBox(height: 8),
                 TextField(
                   controller: controller,
@@ -390,42 +721,44 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
   }
 
   @override
-  Widget build(BuildContext context) => ListTile(
-        leading: const _IconBox(icon: Icons.delete_outline_rounded, tint: NylaColors.peach),
-        title: const Text('Erase data'),
-        subtitle: const Text('Permanently remove data from this device or your shared sync copy'),
-        trailing: _busy
-            ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
-            : const Icon(Icons.chevron_right_rounded),
-        textColor: NylaColors.warning,
-        iconColor: NylaColors.warning,
-        onTap: _busy ? null : _begin,
-      );
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
-        child: Text(text, style: Theme.of(context).textTheme.titleLarge),
-      );
-}
-
-class _IconBox extends StatelessWidget {
-  const _IconBox({required this.icon, required this.tint});
-
-  final IconData icon;
-  final Color tint;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(14)),
-        child: Icon(icon, size: 20),
+  Widget build(BuildContext context) => Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: _busy ? null : _begin,
+          child: Ink(
+            padding: const EdgeInsets.fromLTRB(15, 13, 14, 13),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.58),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: NylaColors.outline.withValues(alpha: 0.82)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(color: NylaColors.peachSoft, borderRadius: BorderRadius.circular(13)),
+                  child: const Icon(Icons.delete_outline_rounded, color: NylaColors.warning, size: 19),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Erase data', style: TextStyle(color: NylaColors.warning, fontWeight: FontWeight.w700, fontSize: 13.5)),
+                      const SizedBox(height: 2),
+                      Text('Permanent removal controls', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 10.8)),
+                    ],
+                  ),
+                ),
+                if (_busy)
+                  const SizedBox.square(dimension: 19, child: CircularProgressIndicator(strokeWidth: 2))
+                else
+                  const Icon(Icons.chevron_right_rounded, color: NylaColors.faintInk),
+              ],
+            ),
+          ),
+        ),
       );
 }
