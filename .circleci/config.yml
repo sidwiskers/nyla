@@ -132,6 +132,31 @@ jobs:
             python3 apps/mobile/tool/configure_platforms.py
 
       - run:
+          name: Tune Gradle for CircleCI memory
+          command: |
+            set -euo pipefail
+            properties="apps/mobile/android/gradle.properties"
+            test -f "$properties"
+
+            sed -i \
+              -e 's/^org\.gradle\.jvmargs=.*/org.gradle.jvmargs=-Xmx4G -XX:MaxMetaspaceSize=1G -XX:ReservedCodeCacheSize=256m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8/' \
+              -e '/^org\.gradle\.daemon=/d' \
+              -e '/^org\.gradle\.parallel=/d' \
+              -e '/^org\.gradle\.workers\.max=/d' \
+              -e '/^kotlin\.daemon\.jvmargs=/d' \
+              "$properties"
+
+            printf '%s\n' \
+              'org.gradle.daemon=false' \
+              'org.gradle.parallel=false' \
+              'org.gradle.workers.max=2' \
+              'kotlin.daemon.jvmargs=-Xmx768m' \
+              >> "$properties"
+
+            echo "CircleCI Gradle limits:"
+            grep -E '^(org\.gradle\.(jvmargs|daemon|parallel|workers\.max)|kotlin\.daemon\.jvmargs)=' "$properties"
+
+      - run:
           name: Render Nyla launcher artwork
           command: |
             set -euo pipefail
@@ -203,6 +228,17 @@ jobs:
             set -euo pipefail
             source "$BASH_ENV"
             cd apps/mobile
+
+            echo "Build memory before Gradle:"
+            free -h || true
+            printf 'cgroup memory.max: '
+            cat /sys/fs/cgroup/memory.max 2>/dev/null || true
+            printf 'cgroup memory.current: '
+            cat /sys/fs/cgroup/memory.current 2>/dev/null || true
+
+            (cd android && ./gradlew --stop) || true
+
+            set +e
             timeout --signal=TERM --kill-after=30s 60m \
               flutter build apk \
                 --release \
@@ -210,6 +246,19 @@ jobs:
                 --build-name="$NYLA_RELEASE_VERSION" \
                 --build-number="<< pipeline.number >>" \
                 --dart-define="NYLA_SYNC_BASE_URL=$NYLA_SYNC_BASE_URL"
+            status=$?
+            set -e
+
+            if (( status != 0 )); then
+              echo "Android build failed with status $status"
+              echo "cgroup memory events:"
+              cat /sys/fs/cgroup/memory.events 2>/dev/null || true
+              echo "Memory after failure:"
+              free -h || true
+              echo "Recent Gradle daemon logs:"
+              find "$HOME/.gradle/daemon" -type f -name 'daemon-*.out.log' -print -exec tail -n 140 {} \; 2>/dev/null || true
+              exit "$status"
+            fi
 
       - run:
           name: Verify APK and checksum
