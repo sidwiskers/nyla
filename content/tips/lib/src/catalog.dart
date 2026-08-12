@@ -44,6 +44,24 @@ final nhsPms = MedicalSource(
   url: 'https://www.nhs.uk/conditions/pre-menstrual-syndrome/',
   reviewedOn: _reviewed,
 );
+final nhsPeriodProblems = MedicalSource(
+  organization: 'NHS',
+  title: 'Period problems',
+  url: 'https://www.nhs.uk/conditions/periods/period-problems/',
+  reviewedOn: _reviewed,
+);
+final nhsMigraine = MedicalSource(
+  organization: 'NHS',
+  title: 'Migraine',
+  url: 'https://www.nhs.uk/conditions/migraine/',
+  reviewedOn: _reviewed,
+);
+final owhIronDeficiency = MedicalSource(
+  organization: "U.S. Office on Women's Health",
+  title: 'Iron-deficiency anemia',
+  url: 'https://womenshealth.gov/a-z-topics/iron-deficiency-anemia',
+  reviewedOn: _reviewed,
+);
 final nhsDischarge = MedicalSource(
   organization: 'NHS',
   title: 'Vaginal discharge',
