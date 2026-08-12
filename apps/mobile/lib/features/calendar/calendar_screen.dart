@@ -399,10 +399,10 @@ class _PredictionStory extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Why a range?', style: Theme.of(context).textTheme.titleMedium),
+                  Text('Expected ${rangeText(prediction.earliestStart, prediction.latestStart)}', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 5),
                   Text(
-                    'Those outlined days are an uncertainty window, not a promise. Nyla widens the window when your recent cycles vary more.',
+                    'The outlined days are a window, not a promise. Your recent cycle variation is about ${prediction.variabilityDays.toStringAsFixed(1)} days, so Nyla leaves room for uncertainty.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: NylaColors.ink, fontSize: 12.2),
                   ),
                 ],
