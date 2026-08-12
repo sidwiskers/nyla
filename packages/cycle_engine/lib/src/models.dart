@@ -7,7 +7,7 @@ enum PredictionConfidence { insufficient, low, medium, high }
 /// Spotting is intentionally modeled separately by the application and must not
 /// be promoted to a period start by the prediction engine.
 final class PeriodRecord {
-  const PeriodRecord({
+  PeriodRecord({
     required this.start,
     this.end,
     this.excludeFromPrediction = false,

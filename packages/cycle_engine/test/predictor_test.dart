@@ -9,6 +9,16 @@ PeriodRecord p(String start, [String? end]) => PeriodRecord(
 void main() {
   const predictor = CyclePredictor();
 
+  test('period record rejects an end date before its start', () {
+    expect(
+      () => PeriodRecord(
+        start: const LocalDay(10),
+        end: const LocalDay(9),
+      ),
+      throwsA(isA<AssertionError>()),
+    );
+  });
+
   test('requires completed interval', () {
     final result = predictor.predict([p('2026-08-01')]);
     expect(result.isAvailable, isFalse);
