@@ -22,39 +22,58 @@ class TodayScreen extends ConsumerWidget {
     final today = LocalDay.fromDateTime(DateTime.now());
     final periods = ref.watch(periodHistoryProvider);
     final prediction = ref.watch(cyclePredictionProvider);
-    final dayValues = ref.watch(dayValuesProvider(today.epochDay));
-    final tip = _recommendedTip(dayValues.value ?? const <DayValueEntry>[]);
+    final values = ref.watch(dayValuesProvider(today.epochDay));
+    final tip = _recommendedTip(values.value ?? const <DayValueEntry>[]);
 
     return NylaPage(
-      title: _greeting(),
-      subtitle: friendlyDay(today),
+      title: '',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _CycleHero(
-            today: today,
-            periods: periods,
-            prediction: prediction,
+          _TodayHeader(
+            greeting: _greeting(),
+            onNotifications: () {
+              NylaHaptics.select();
+              context.push('/settings');
+            },
+          ),
+          const SizedBox(height: 18),
+          NylaPillTabs(
+            labels: const ['Overview', 'Cycle', 'Symptoms'],
+            selectedIndex: 0,
+            onSelected: (index) {
+              if (index == 0) return;
+              NylaHaptics.select();
+              context.go(index == 1 ? '/calendar' : '/log?day=${today.toIsoString()}');
+            },
           ),
           const SizedBox(height: 14),
-          _CheckInStrip(today: today, values: dayValues),
-          const SizedBox(height: 30),
-          const NylaSectionHeader(
-            title: 'A little context for today',
-            subtitle: 'Useful, short, and never required.',
-          ),
-          const SizedBox(height: 12),
-          _TodayReading(
+          _CycleCard(today: today, periods: periods, prediction: prediction),
+          const SizedBox(height: 14),
+          _InsightCard(
             tip: tip,
             onTap: () {
               NylaHaptics.select();
-              context.go('/learn');
+              context.push('/learn');
             },
           ),
-          const SizedBox(height: 92),
+          const SizedBox(height: 14),
+          _NextPeriodCard(today: today, prediction: prediction),
+          const SizedBox(height: 14),
+          _QuickActions(
+            onPeriod: () => _openLog(context, today),
+            onSymptoms: () => _openLog(context, today),
+            onNote: () => _openLog(context, today),
+          ),
+          const SizedBox(height: 88),
         ],
       ),
     );
+  }
+
+  void _openLog(BuildContext context, LocalDay today) {
+    NylaHaptics.select();
+    context.go('/log?day=${today.toIsoString()}');
   }
 
   String _greeting() {
@@ -69,544 +88,209 @@ class TodayScreen extends ConsumerWidget {
     final cramps = byKey['cramps'];
     if ((cramps?.severity ?? 0) > 0) return _tip('why-cramps-happen');
     final discharge = byKey['discharge'];
-    if (discharge != null && discharge.value != 'none') {
-      return _tip('normal-discharge');
-    }
+    if (discharge != null && discharge.value != 'none') return _tip('normal-discharge');
     final sleep = byKey['sleep'];
-    if (sleep != null &&
-        (sleep.value == 'poor' || sleep.value == 'very_poor')) {
+    if (sleep != null && (sleep.value == 'poor' || sleep.value == 'very_poor')) {
       return _tip('sleep-and-discomfort');
     }
     final flow = byKey['flow'];
-    if (flow != null && flow.value != 'none') {
-      return _tip('hands-before-after-products');
-    }
+    if (flow != null && flow.value != 'none') return _tip('hands-before-after-products');
 
-    final safeGeneral = healthTips
-        .where(
-          (tip) =>
-              tip.category != TipCategory.seekCare &&
-              tip.id != 'tampon-metals-2026',
-        )
+    final general = healthTips
+        .where((item) => item.category != TipCategory.seekCare && item.id != 'tampon-metals-2026')
         .toList(growable: false);
-    final index =
-        DateTime.now().difference(DateTime.utc(2026, 1, 1)).inDays.abs() %
-            safeGeneral.length;
-    return safeGeneral[index];
+    final index = DateTime.now().difference(DateTime.utc(2026, 1, 1)).inDays.abs() % general.length;
+    return general[index];
   }
 
   HealthTip _tip(String id) => healthTips.firstWhere((tip) => tip.id == id);
 }
 
-class _CycleHero extends ConsumerWidget {
-  const _CycleHero({
-    required this.today,
-    required this.periods,
-    required this.prediction,
-  });
+class _TodayHeader extends StatelessWidget {
+  const _TodayHeader({required this.greeting, required this.onNotifications});
+
+  final String greeting;
+  final VoidCallback onNotifications;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$greeting,',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: NylaColors.mutedInk,
+                        fontSize: 14,
+                      ),
+                ),
+                const SizedBox(height: 1),
+                const Row(
+                  children: [
+                    Text(
+                      'Nyla',
+                      style: TextStyle(
+                        color: NylaColors.ink,
+                        fontFamily: 'serif',
+                        fontSize: 29,
+                        height: 1.1,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    SizedBox(width: 7),
+                    NylaBloomMark(size: 23),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          NylaPressable(
+            onTap: onNotifications,
+            semanticsLabel: 'Reminders',
+            borderRadius: BorderRadius.circular(99),
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: NylaColors.paper,
+                shape: BoxShape.circle,
+                border: Border.all(color: NylaColors.outline),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.notifications_none_rounded, color: NylaColors.mutedInk, size: 20),
+            ),
+          ),
+        ],
+      );
+}
+
+class _CycleCard extends ConsumerWidget {
+  const _CycleCard({required this.today, required this.periods, required this.prediction});
 
   final LocalDay today;
   final AsyncValue<List<PeriodEntry>> periods;
   final AsyncValue<PredictionResult> prediction;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return periods.when(
-      loading: () => const _HeroLoading(),
-      error: (_, _) => const _HeroError(),
-      data: (history) {
-        if (history.isEmpty) {
-          return _FirstCycleHero(
-            onStarted: () async {
-              await NylaHaptics.confirm();
-              await ref.read(cycleRepositoryProvider).recordPeriod(start: today);
-            },
+  Widget build(BuildContext context, WidgetRef ref) => periods.when(
+        loading: () => const _LoadingCard(height: 154),
+        error: (_, _) => const _SimpleMessage(
+          icon: Icons.refresh_rounded,
+          title: 'Your cycle is taking a moment',
+          body: 'Try again shortly.',
+        ),
+        data: (history) {
+          if (history.isEmpty) {
+            return _FirstCycleCard(
+              onStart: () async {
+                await NylaHaptics.confirm();
+                await ref.read(cycleRepositoryProvider).recordPeriod(start: today);
+              },
+            );
+          }
+          final lastStart = LocalDay(history.first.startDay);
+          final cycleDay = math.max(1, lastStart.daysUntil(today) + 1);
+          final estimate = prediction.value?.prediction;
+          return _CycleCardBody(
+            cycleDay: cycleDay,
+            lastStart: lastStart,
+            estimate: estimate,
           );
-        }
-
-        final lastStart = LocalDay(history.first.startDay);
-        final cycleDay = lastStart.daysUntil(today) + 1;
-        return prediction.when(
-          loading: () => _CycleHeroBody(
-            today: today,
-            lastStart: lastStart,
-            cycleDay: cycleDay,
-            prediction: null,
-            loadingPrediction: true,
-          ),
-          error: (_, _) => _CycleHeroBody(
-            today: today,
-            lastStart: lastStart,
-            cycleDay: cycleDay,
-            prediction: null,
-          ),
-          data: (result) => _CycleHeroBody(
-            today: today,
-            lastStart: lastStart,
-            cycleDay: cycleDay,
-            prediction: result.prediction,
-          ),
-        );
-      },
-    );
-  }
+        },
+      );
 }
 
-class _CycleHeroBody extends StatelessWidget {
-  const _CycleHeroBody({
-    required this.today,
-    required this.lastStart,
-    required this.cycleDay,
-    required this.prediction,
-    this.loadingPrediction = false,
-  });
+class _CycleCardBody extends StatelessWidget {
+  const _CycleCardBody({required this.cycleDay, required this.lastStart, required this.estimate});
 
-  final LocalDay today;
-  final LocalDay lastStart;
   final int cycleDay;
-  final CyclePrediction? prediction;
-  final bool loadingPrediction;
+  final LocalDay lastStart;
+  final CyclePrediction? estimate;
 
   @override
   Widget build(BuildContext context) {
-    final estimate = prediction;
-    final cycleLength = estimate?.predictedCycleLength ?? math.max(cycleDay, 28);
-    final progress =
-        (cycleDay / math.max(cycleLength, 1)).clamp(0.03, 1.0).toDouble();
-    final rangeStart = estimate == null
-        ? null
-        : (lastStart.daysUntil(estimate.earliestStart) / cycleLength)
-            .clamp(0.0, 1.0)
-            .toDouble();
-    final rangeEnd = estimate == null
-        ? null
-        : (lastStart.daysUntil(estimate.latestStart) / cycleLength)
-            .clamp(0.0, 1.0)
-            .toDouble();
+    final cycleLength = estimate?.predictedCycleLength ?? math.max(28, cycleDay);
+    final progress = (cycleDay / math.max(cycleLength, 1)).clamp(0.02, 1.0).toDouble();
+    final phase = _phase(cycleDay, cycleLength);
+    final range = estimate == null ? shortDay(lastStart) : rangeText(estimate!.earliestStart, estimate!.latestStart);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: NylaColors.paper,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(34),
-          topRight: Radius.circular(34),
-          bottomLeft: Radius.circular(34),
-          bottomRight: Radius.circular(14),
-        ),
-        border: Border.all(color: Colors.white),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x122A111E),
-            blurRadius: 32,
-            offset: Offset(0, 14),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
+    return NylaPaperSurface(
+      padding: const EdgeInsets.fromLTRB(17, 17, 16, 17),
+      radius: BorderRadius.circular(22),
+      child: Row(
         children: [
-          const Positioned.fill(
-            child: IgnorePointer(child: _HeroAtmosphere()),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(23, 22, 23, 21),
+          _CycleRing(day: cycleDay, progress: progress),
+          const SizedBox(width: 16),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const NylaOverline(
-                      'Your cycle',
-                      color: NylaColors.rose,
-                    ),
-                    const Spacer(),
-                    if (estimate != null)
-                      _ConfidenceLabel(confidence: estimate.confidence)
-                    else if (loadingPrediction)
-                      const _SmallLoading(),
-                  ],
+                Text(
+                  'Cycle Day $cycleDay',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18),
                 ),
-                const SizedBox(height: 19),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _headline(today, cycleDay, estimate),
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineMedium
-                                ?.copyWith(fontSize: 28),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            estimate == null
-                                ? 'Nyla will add an expected window once there is enough completed history.'
-                                : 'Expected ${rangeText(estimate.earliestStart, estimate.latestStart)}',
-                            style:
-                                Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                      color: NylaColors.mutedInk,
-                                    ),
-                          ),
-                        ],
+                const SizedBox(height: 4),
+                Text(
+                  phase,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: NylaColors.violet,
+                        fontWeight: FontWeight.w700,
                       ),
-                    ),
-                    const SizedBox(width: 14),
-                    _CycleOrbit(day: cycleDay, progress: progress),
-                  ],
                 ),
-                const SizedBox(height: 20),
-                _CycleRail(
-                  progress: progress,
-                  rangeStart: rangeStart,
-                  rangeEnd: rangeEnd,
-                ),
-                const SizedBox(height: 11),
-                Row(
-                  children: [
-                    Text(
-                      'Cycle day $cycleDay',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            color: NylaColors.wine,
-                            fontSize: 12.5,
-                          ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      estimate == null
-                          ? 'Learning from your history'
-                          : 'Range reflects your variation',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontSize: 11.5,
-                          ),
-                    ),
-                  ],
+                const SizedBox(height: 4),
+                Text(
+                  estimate == null ? 'Started $range' : 'Expected period $range',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.8),
                 ),
               ],
             ),
           ),
+          const Icon(Icons.chevron_right_rounded, color: NylaColors.faintInk, size: 20),
         ],
       ),
     );
   }
 
-  String _headline(
-    LocalDay today,
-    int cycleDay,
-    CyclePrediction? prediction,
-  ) {
-    if (prediction == null) {
-      return cycleDay > 0 ? 'Cycle day $cycleDay' : 'Building your history';
-    }
-    final until = today.daysUntil(prediction.likelyStart);
-    if (until > 1) return 'Your period may start in $until days';
-    if (until == 1) return 'Your period may start tomorrow';
-    if (until >= -1) return 'Your period may start around now';
-    return cycleDay > 0 ? 'Cycle day $cycleDay' : 'Cycle in progress';
+  String _phase(int day, int cycleLength) {
+    if (day <= 5) return 'Menstrual phase';
+    final ovulation = math.max(10, cycleLength - 14);
+    if (day < ovulation - 1) return 'Follicular phase';
+    if ((day - ovulation).abs() <= 1) return 'Ovulation window';
+    return 'Luteal phase';
   }
 }
 
-class _FirstCycleHero extends StatelessWidget {
-  const _FirstCycleHero({required this.onStarted});
-
-  final VoidCallback onStarted;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(
-          color: NylaColors.paper,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(34),
-            topRight: Radius.circular(34),
-            bottomLeft: Radius.circular(34),
-            bottomRight: Radius.circular(14),
-          ),
-          border: Border.all(color: Colors.white),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x122A111E),
-              blurRadius: 32,
-              offset: Offset(0, 14),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          children: [
-            const Positioned.fill(
-              child: IgnorePointer(child: _HeroAtmosphere()),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(23, 23, 23, 22),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const NylaOverline('Your cycle'),
-                  const SizedBox(height: 46),
-                  Text(
-                    'Start with today.',
-                    style: Theme.of(context)
-                        .textTheme
-                        .displaySmall
-                        ?.copyWith(fontSize: 35),
-                  ),
-                  const SizedBox(height: 11),
-                  Text(
-                    'When your period begins, tell Nyla. Your own history becomes the pattern—not a generic 28-day assumption.',
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 28),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: onStarted,
-                      icon: const Icon(Icons.water_drop_rounded, size: 18),
-                      label: const Text('My period started'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-}
-
-class _CheckInStrip extends StatelessWidget {
-  const _CheckInStrip({required this.today, required this.values});
-
-  final LocalDay today;
-  final AsyncValue<List<DayValueEntry>> values;
-
-  @override
-  Widget build(BuildContext context) {
-    final count = values.value?.length ?? 0;
-    final hasLog = count > 0;
-    return NylaPressable(
-      onTap: () {
-        NylaHaptics.select();
-        context.go('/log?day=${today.toIsoString()}');
-      },
-      borderRadius: BorderRadius.circular(27),
-      semanticsLabel: hasLog ? 'Edit today’s check-in' : 'Check in for today',
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(17, 15, 15, 15),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: hasLog
-                ? const [NylaColors.sageSoft, Color(0xFFF4F0E8)]
-                : const [NylaColors.roseWash, NylaColors.peachSoft],
-          ),
-          borderRadius: BorderRadius.circular(27),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
-        ),
-        child: Row(
-          children: [
-            NylaIconToken(
-              icon: hasLog ? Icons.check_rounded : Icons.add_rounded,
-              size: 48,
-              background: hasLog ? NylaColors.sage : NylaColors.wine,
-              foreground: hasLog ? NylaColors.wine : Colors.white,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    hasLog ? '$count things logged' : 'How are you today?',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    hasLog ? 'Review or add anything useful.' : 'A quick check-in, only if useful.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontSize: 12.3,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              width: 38,
-              height: 38,
-              decoration: const BoxDecoration(
-                color: NylaColors.paper,
-                shape: BoxShape.circle,
-              ),
-              alignment: Alignment.center,
-              child: const Icon(
-                Icons.arrow_forward_rounded,
-                size: 19,
-                color: NylaColors.wine,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TodayReading extends StatelessWidget {
-  const _TodayReading({required this.tip, required this.onTap});
-
-  final HealthTip tip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => NylaPressable(
-        onTap: onTap,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(30),
-          topRight: Radius.circular(16),
-          bottomLeft: Radius.circular(16),
-          bottomRight: Radius.circular(30),
-        ),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: NylaColors.sageSoft,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(30),
-              topRight: Radius.circular(16),
-              bottomLeft: Radius.circular(16),
-              bottomRight: Radius.circular(30),
-            ),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
-            children: [
-              const Positioned(
-                right: -30,
-                top: -18,
-                child: _ReadingMotif(),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(21, 20, 20, 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const NylaOverline(
-                          'Today’s reading',
-                          color: Color(0xFF4C7565),
-                        ),
-                        const Spacer(),
-                        Text(
-                          _categoryName(tip.category),
-                          style: const TextStyle(
-                            color: Color(0xFF4C7565),
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 30),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 360),
-                      child: Text(
-                        tip.title,
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineMedium
-                            ?.copyWith(fontSize: 27),
-                      ),
-                    ),
-                    const SizedBox(height: 11),
-                    Text(
-                      tip.flash,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: NylaColors.ink,
-                            height: 1.46,
-                          ),
-                    ),
-                    const SizedBox(height: 22),
-                    const Row(
-                      children: [
-                        Text(
-                          'Read the card',
-                          style: TextStyle(
-                            color: NylaColors.wine,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        SizedBox(width: 7),
-                        Icon(
-                          Icons.arrow_forward_rounded,
-                          color: NylaColors.wine,
-                          size: 18,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-
-  String _categoryName(TipCategory category) => switch (category) {
-        TipCategory.cycle => 'Cycle',
-        TipCategory.understanding => 'Understanding',
-        TipCategory.body => 'Body',
-        TipCategory.care => 'Care',
-        TipCategory.products => 'Products',
-        TipCategory.comfort => 'Comfort',
-        TipCategory.symptoms => 'Symptoms',
-        TipCategory.seekCare => 'Care note',
-      };
-}
-
-class _CycleOrbit extends StatelessWidget {
-  const _CycleOrbit({required this.day, required this.progress});
+class _CycleRing extends StatelessWidget {
+  const _CycleRing({required this.day, required this.progress});
 
   final int day;
   final double progress;
 
   @override
   Widget build(BuildContext context) => SizedBox.square(
-        dimension: 118,
+        dimension: 78,
         child: CustomPaint(
-          painter: _CycleOrbitPainter(progress: progress),
+          painter: _RingPainter(progress),
           child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '$day',
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineMedium
-                      ?.copyWith(fontSize: 28),
-                ),
-                const Text(
-                  'DAY',
-                  style: TextStyle(
-                    color: NylaColors.mutedInk,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.05,
-                  ),
-                ),
-              ],
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: NylaColors.night,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
         ),
       );
 }
 
-class _CycleOrbitPainter extends CustomPainter {
-  const _CycleOrbitPainter({required this.progress});
+class _RingPainter extends CustomPainter {
+  const _RingPainter(this.progress);
 
   final double progress;
 
@@ -615,18 +299,16 @@ class _CycleOrbitPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width * 0.39;
     final track = Paint()
-      ..color = NylaColors.outline
+      ..color = NylaColors.roseSoft
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
+      ..strokeWidth = 7
       ..strokeCap = StrokeCap.round;
     final active = Paint()
-      ..shader = const SweepGradient(
-        colors: [NylaColors.rose, NylaColors.coral, NylaColors.wine],
-      ).createShader(Rect.fromCircle(center: center, radius: radius))
+      ..shader = const SweepGradient(colors: [NylaColors.rose, NylaColors.violet, NylaColors.wine])
+          .createShader(Rect.fromCircle(center: center, radius: radius))
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
+      ..strokeWidth = 7
       ..strokeCap = StrokeCap.round;
-
     canvas.drawCircle(center, radius, track);
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
@@ -635,252 +317,257 @@ class _CycleOrbitPainter extends CustomPainter {
       false,
       active,
     );
-
-    for (var i = 0; i < 4; i++) {
-      final angle = -math.pi / 2 + i * math.pi / 2;
-      final point = center + Offset(math.cos(angle), math.sin(angle)) * radius;
-      canvas.drawCircle(
-        point,
-        2.1,
-        Paint()..color = NylaColors.paper,
-      );
-    }
   }
 
   @override
-  bool shouldRepaint(covariant _CycleOrbitPainter oldDelegate) =>
-      oldDelegate.progress != progress;
+  bool shouldRepaint(covariant _RingPainter oldDelegate) => oldDelegate.progress != progress;
 }
 
-class _CycleRail extends StatelessWidget {
-  const _CycleRail({
-    required this.progress,
-    required this.rangeStart,
-    required this.rangeEnd,
-  });
+class _FirstCycleCard extends StatelessWidget {
+  const _FirstCycleCard({required this.onStart});
 
-  final double progress;
-  final double? rangeStart;
-  final double? rangeEnd;
+  final VoidCallback onStart;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        height: 18,
-        child: CustomPaint(
-          painter: _CycleRailPainter(
-            progress: progress,
-            rangeStart: rangeStart,
-            rangeEnd: rangeEnd,
-          ),
-          child: const SizedBox.expand(),
-        ),
-      );
-}
-
-class _CycleRailPainter extends CustomPainter {
-  const _CycleRailPainter({
-    required this.progress,
-    required this.rangeStart,
-    required this.rangeEnd,
-  });
-
-  final double progress;
-  final double? rangeStart;
-  final double? rangeEnd;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const y = 9.0;
-    final line = Paint()
-      ..color = NylaColors.outline
-      ..strokeWidth = 6
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(Offset(3, y), Offset(size.width - 3, y), line);
-
-    final start = rangeStart;
-    final end = rangeEnd;
-    if (start != null && end != null) {
-      final left = size.width * math.min(start, end);
-      final right = size.width * math.max(start, end);
-      final rangePaint = Paint()
-        ..color = NylaColors.roseSoft
-        ..strokeWidth = 9
-        ..strokeCap = StrokeCap.round;
-      canvas.drawLine(Offset(left, y), Offset(right, y), rangePaint);
-    }
-
-    final x = size.width * progress;
-    canvas.drawCircle(
-      Offset(x, y),
-      7,
-      Paint()..color = NylaColors.paper,
-    );
-    canvas.drawCircle(
-      Offset(x, y),
-      4.5,
-      Paint()..color = NylaColors.wine,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _CycleRailPainter oldDelegate) =>
-      oldDelegate.progress != progress ||
-      oldDelegate.rangeStart != rangeStart ||
-      oldDelegate.rangeEnd != rangeEnd;
-}
-
-class _ConfidenceLabel extends StatelessWidget {
-  const _ConfidenceLabel({required this.confidence});
-
-  final PredictionConfidence confidence;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = switch (confidence) {
-      PredictionConfidence.high => 'Steady pattern',
-      PredictionConfidence.medium => 'Usable pattern',
-      PredictionConfidence.low => 'Wide variation',
-      PredictionConfidence.insufficient => 'Early estimate',
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: NylaColors.roseWash,
-        borderRadius: BorderRadius.circular(99),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: NylaColors.wine,
-          fontSize: 9.5,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-class _HeroAtmosphere extends StatelessWidget {
-  const _HeroAtmosphere();
-
-  @override
-  Widget build(BuildContext context) => Stack(
-        fit: StackFit.expand,
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(1.0, -0.9),
-                radius: 0.95,
-                colors: [
-                  NylaColors.roseSoft.withValues(alpha: 0.62),
-                  Colors.transparent,
+  Widget build(BuildContext context) => NylaPaperSurface(
+        padding: const EdgeInsets.all(18),
+        radius: BorderRadius.circular(22),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const NylaIconToken(
+              icon: Icons.water_drop_outlined,
+              size: 48,
+              background: NylaColors.roseWash,
+              foreground: NylaColors.rose,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Start your cycle', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18)),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Tell Nyla when your period begins. Your view becomes more personal from there.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton(onPressed: onStart, child: const Text('My period started')),
                 ],
               ),
             ),
+          ],
+        ),
+      );
+}
+
+class _InsightCard extends StatelessWidget {
+  const _InsightCard({required this.tip, required this.onTap});
+
+  final HealthTip tip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => NylaPressable(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(17, 16, 13, 16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFFFFCFB), Color(0xFFF7EAF4)],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: NylaColors.outline),
           ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(-1.1, 1.0),
-                radius: 0.85,
-                colors: [
-                  NylaColors.sageSoft.withValues(alpha: 0.72),
-                  Colors.transparent,
-                ],
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Today’s Insight', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    Text(
+                      tip.flash,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: NylaColors.ink,
+                            fontSize: 12.6,
+                          ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 12),
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  color: NylaColors.lavenderSoft,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(Icons.self_improvement_rounded, color: NylaColors.violet, size: 42),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _NextPeriodCard extends StatelessWidget {
+  const _NextPeriodCard({required this.today, required this.prediction});
+
+  final LocalDay today;
+  final AsyncValue<PredictionResult> prediction;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = prediction.value?.prediction;
+    final days = value == null ? null : today.daysUntil(value.likelyStart);
+    final headline = days == null
+        ? 'Still learning your rhythm'
+        : days <= 0
+            ? 'Around now'
+            : 'In $days day${days == 1 ? '' : 's'}';
+    final date = value == null ? 'Add a few cycles to see an estimate' : shortDay(value.likelyStart);
+
+    return NylaPaperSurface(
+      padding: const EdgeInsets.fromLTRB(17, 16, 14, 16),
+      radius: BorderRadius.circular(20),
+      shadow: false,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Next Period', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                  headline,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 22),
+                ),
+                const SizedBox(height: 2),
+                Text(date, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5)),
+              ],
+            ),
+          ),
+          const NylaIconToken(
+            icon: Icons.calendar_month_outlined,
+            size: 54,
+            background: NylaColors.lavenderSoft,
+            foreground: NylaColors.violet,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickActions extends StatelessWidget {
+  const _QuickActions({required this.onPeriod, required this.onSymptoms, required this.onNote});
+
+  final VoidCallback onPeriod;
+  final VoidCallback onSymptoms;
+  final VoidCallback onNote;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Expanded(
+            child: _Action(
+              icon: Icons.water_drop_outlined,
+              label: 'Log Period',
+              tint: NylaColors.roseWash,
+              onTap: onPeriod,
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: _Action(
+              icon: Icons.bolt_rounded,
+              label: 'Log Symptoms',
+              tint: NylaColors.lavenderSoft,
+              onTap: onSymptoms,
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: _Action(
+              icon: Icons.notes_rounded,
+              label: 'Add Note',
+              tint: NylaColors.lavenderMist,
+              onTap: onNote,
             ),
           ),
         ],
       );
 }
 
-class _ReadingMotif extends StatelessWidget {
-  const _ReadingMotif();
+class _Action extends StatelessWidget {
+  const _Action({required this.icon, required this.label, required this.tint, required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final Color tint;
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: 150,
-        height: 150,
-        child: CustomPaint(painter: _ReadingMotifPainter()),
-      );
-}
-
-class _ReadingMotifPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 12
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0x244C7565);
-    canvas.drawArc(
-      Rect.fromLTWH(18, 16, 114, 114),
-      -0.45,
-      2.35,
-      false,
-      paint,
-    );
-    paint
-      ..strokeWidth = 4
-      ..color = const Color(0x304C7565);
-    canvas.drawArc(
-      Rect.fromLTWH(43, 40, 76, 76),
-      1.0,
-      3.0,
-      false,
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _HeroLoading extends StatelessWidget {
-  const _HeroLoading();
-
-  @override
-  Widget build(BuildContext context) => const NylaPaperSurface(
-        padding: EdgeInsets.all(30),
-        radius: BorderRadius.only(
-          topLeft: Radius.circular(34),
-          topRight: Radius.circular(34),
-          bottomLeft: Radius.circular(34),
-          bottomRight: Radius.circular(14),
-        ),
-        child: SizedBox(
-          height: 190,
-          child: Center(child: CircularProgressIndicator()),
+  Widget build(BuildContext context) => NylaPressable(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
+          decoration: BoxDecoration(
+            color: NylaColors.paper,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: NylaColors.outline),
+          ),
+          child: Column(
+            children: [
+              NylaIconToken(icon: icon, size: 38, background: tint),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: NylaColors.ink,
+                      fontSize: 10.6,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ],
+          ),
         ),
       );
 }
 
-class _HeroError extends StatelessWidget {
-  const _HeroError();
+class _LoadingCard extends StatelessWidget {
+  const _LoadingCard({required this.height});
+
+  final double height;
 
   @override
-  Widget build(BuildContext context) => const NylaPaperSurface(
-        radius: BorderRadius.only(
-          topLeft: Radius.circular(34),
-          topRight: Radius.circular(34),
-          bottomLeft: Radius.circular(34),
-          bottomRight: Radius.circular(14),
-        ),
-        child: NylaInlineNote(
-          icon: Icons.refresh_rounded,
-          title: 'Your cycle could not be loaded',
-          body: 'Your local data is still here. Try again in a moment.',
-        ),
+  Widget build(BuildContext context) => NylaPaperSurface(
+        child: SizedBox(height: height, child: const Center(child: CircularProgressIndicator())),
       );
 }
 
-class _SmallLoading extends StatelessWidget {
-  const _SmallLoading();
+class _SimpleMessage extends StatelessWidget {
+  const _SimpleMessage({required this.icon, required this.title, required this.body});
+
+  final IconData icon;
+  final String title;
+  final String body;
 
   @override
-  Widget build(BuildContext context) => const SizedBox.square(
-        dimension: 18,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      );
+  Widget build(BuildContext context) => NylaInlineNote(icon: icon, title: title, body: body);
 }
