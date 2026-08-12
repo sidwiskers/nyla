@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cryptography_flutter/cryptography_flutter.dart' show FlutterCryptography;
 import 'package:local_auth/local_auth.dart';
 
 import 'app.dart';
@@ -9,6 +10,7 @@ import 'providers.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterCryptography.enable();
   runApp(const NylaBootstrap());
 }
 

@@ -78,10 +78,19 @@ class LocalMutations extends Table {
   TextColumn get valueJson => text().nullable()();
   TextColumn get hlc => text()();
   IntColumn get createdMs => integer()();
-  BoolColumn get checkpointed => boolean().withDefault(const Constant(false))();
+  BoolColumn get uploaded => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column<Object>> get primaryKey => {opId};
+}
+
+@DataClassName('FieldClockEntry')
+class EntityTombstones extends Table {
+  TextColumn get entityId => text()();
+  TextColumn get hlc => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {entityId};
 }
 
 @DataClassName('FieldClockEntry')
@@ -111,6 +120,7 @@ class SyncState extends Table {
     CustomLogs,
     Preferences,
     LocalMutations,
+    EntityTombstones,
     FieldClocks,
     SyncState,
   ],
@@ -150,6 +160,29 @@ class AppDatabase extends _$AppDatabase {
       (select(dayValues)..where((row) => row.day.equals(epochDay))).watch();
 
   Stream<List<DayValueEntry>> watchAllDayValues() => select(dayValues).watch();
+
+  Future<List<LocalMutationEntry>> pendingMutations({int limit = 128}) =>
+      (select(localMutations)
+            ..where((row) => row.uploaded.equals(false))
+            ..orderBy([(row) => OrderingTerm.asc(row.createdMs), (row) => OrderingTerm.asc(row.opId)])
+            ..limit(limit))
+          .get();
+
+  Future<void> markMutationsUploaded(Iterable<String> opIds) async {
+    final ids = opIds.toList(growable: false);
+    if (ids.isEmpty) return;
+    await (update(localMutations)..where((row) => row.opId.isIn(ids))).write(
+      const LocalMutationsCompanion(uploaded: Value(true)),
+    );
+  }
+
+  Future<int> pendingMutationCount() async {
+    final count = localMutations.opId.count();
+    final query = selectOnly(localMutations)
+      ..addColumns([count])
+      ..where(localMutations.uploaded.equals(false));
+    return (await query.map((row) => row.read(count) ?? 0).getSingle());
+  }
 
   Future<String?> preference(String key) async =>
       (await (select(preferences)..where((row) => row.key.equals(key))).getSingleOrNull())?.value;

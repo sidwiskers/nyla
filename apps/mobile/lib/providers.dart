@@ -5,6 +5,7 @@ import 'core/notifications/notification_config.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/storage/secure_vault.dart';
 import 'core/sync/hlc_service.dart';
+import 'core/sync/sync_service.dart';
 import 'data/database/app_database.dart';
 import 'data/repositories/cycle_repository.dart';
 import 'data/repositories/day_log_repository.dart';
@@ -22,6 +23,13 @@ final cycleRepositoryProvider = Provider<CycleRepository>(
 );
 final dayLogRepositoryProvider = Provider<DayLogRepository>(
   (ref) => DayLogRepository(ref.watch(databaseProvider), ref.watch(hlcServiceProvider)),
+);
+final syncServiceProvider = Provider<SyncService>(
+  (ref) => SyncService(
+    database: ref.watch(databaseProvider),
+    deviceId: ref.watch(deviceIdProvider),
+    secureVault: ref.watch(secureVaultProvider),
+  ),
 );
 final preferencesRepositoryProvider = Provider<PreferencesRepository>(
   (ref) => PreferencesRepository(ref.watch(databaseProvider)),

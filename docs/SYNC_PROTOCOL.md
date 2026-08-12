@@ -34,6 +34,7 @@ A plaintext operation contains:
   "v": 1,
   "op": "random-id",
   "entity": "random-id",
+  "entity_type": "day",
   "field": "flow",
   "hlc": "1786500000000:2:device-id",
   "kind": "set",
@@ -67,12 +68,12 @@ If both edit `flow` offline, the HLC ordering picks one deterministic winner on 
 
 ## Envelope
 
-Canonical plaintext is encrypted with XChaCha20-Poly1305 using the vault key and a fresh 24-byte nonce.
+Canonical UTF-8 JSON plaintext is encrypted with XChaCha20-Poly1305 using the vault key and a fresh 24-byte nonce. Map keys are emitted in the protocol order shown above. The `ciphertext` envelope field is `cipherText || 16-byte Poly1305 MAC`, base64url encoded without padding; the nonce is carried separately.
 
 AAD binds:
 
 ```text
-nyla-sync-v1 | vault_id | device_id | op_id
+nyla-sync-v1|vault_id|device_id|op_id
 ```
 
 Upload envelope:
@@ -82,6 +83,7 @@ Upload envelope:
   "v": 1,
   "vault": "...",
   "device": "...",
+  "epoch": 1,
   "op": "...",
   "nonce": "base64url",
   "ciphertext": "base64url",
@@ -89,7 +91,7 @@ Upload envelope:
 }
 ```
 
-The Ed25519 signature covers a canonical binary representation of all preceding envelope fields. The relay verifies the signature using the registered public key before accepting the operation.
+The Ed25519 signature covers the exact UTF-8 sequence `nyla-envelope-v1\\nvault_id\\ndevice_id\\nepoch\\nop_id\\nnonce\\nciphertext`. The relay verifies the signature using the registered public key before accepting the operation, and receiving clients verify it again before decryption.
 
 ## Server cursor
 

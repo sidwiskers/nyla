@@ -717,7 +717,7 @@ export class Vault extends DurableObject<Env> {
   private listDevices(): Response {
     const rows = this.sql
       .exec(
-        `SELECT device_id, exchange_public_key, added_ms, activated_ms, revoked_ms
+        `SELECT device_id, signing_public_key, exchange_public_key, added_ms, activated_ms, revoked_ms
          FROM devices WHERE activated_ms IS NOT NULL ORDER BY added_ms ASC`,
       )
       .toArray();

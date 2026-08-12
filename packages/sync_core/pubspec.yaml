@@ -1,10 +1,13 @@
 name: sync_core
-description: Deterministic synchronization primitives shared by Nyla clients.
+description: Deterministic synchronization and end-to-end cryptographic primitives for Nyla.
 version: 1.0.0
 publish_to: none
 
 environment:
   sdk: ">=3.12.0 <4.0.0"
+
+dependencies:
+  cryptography: ^2.9.0
 
 dev_dependencies:
   lints: ^6.0.0
