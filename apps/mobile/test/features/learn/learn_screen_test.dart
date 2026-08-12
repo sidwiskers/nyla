@@ -20,10 +20,10 @@ void main() {
     await tester.pumpAndSettle();
 
     final first = healthTips.first;
-    expect(find.text(first.title), findsOneWidget);
-    expect(find.text(first.flash), findsOneWidget);
-    expect(find.text('THE TAKEAWAY'), findsOneWidget);
-    expect(find.text('Read the full card'), findsOneWidget);
+    expect(find.text(first.title).hitTestable(), findsOneWidget);
+    expect(find.text(first.flash).hitTestable(), findsOneWidget);
+    expect(find.text('THE TAKEAWAY').hitTestable(), findsOneWidget);
+    expect(find.text('Read the full card').hitTestable(), findsOneWidget);
     expect(find.text('Reviewed sources'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -42,7 +42,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Read the full card'));
+    final open = find.text('Read the full card').hitTestable();
+    expect(open, findsOneWidget);
+    await tester.tap(open);
     await tester.pumpAndSettle();
 
     final first = healthTips.first;
@@ -50,7 +52,7 @@ void main() {
     for (final paragraph in first.details) {
       expect(find.text(paragraph), findsOneWidget);
     }
-    expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.close_rounded).hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -68,7 +70,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Read the full card'), findsOneWidget);
+    expect(find.text('Read the full card').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
