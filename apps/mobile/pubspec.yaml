@@ -38,12 +38,23 @@ dependencies:
 dev_dependencies:
   build_runner: 2.10.5
   drift_dev: 2.32.1
+  flutter_launcher_icons: ^0.14.4
   flutter_test:
     sdk: flutter
   lints: ^6.0.0
 
 flutter:
   uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/branding/nyla_app_icon.png
+  adaptive_icon_background: "#FFF8F4"
+  adaptive_icon_foreground: assets/branding/nyla_app_icon_foreground.png
+  adaptive_icon_foreground_inset: 18
+  remove_alpha_ios: true
+  background_color_ios: "#FFF8F4"
 
 hooks:
   user_defines:
