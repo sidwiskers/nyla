@@ -6,6 +6,8 @@ import {
   MAX_BATCH_OPERATIONS,
   MAX_OPERATION_BYTES,
   MAX_PULL_OPERATIONS,
+  MAX_ROTATION_BODY_BYTES,
+  MAX_ROTATION_CHECKPOINT_BYTES,
   PAIRING_TTL_MS,
   PayloadTooLargeError,
   bootstrapPayload,
@@ -141,12 +143,30 @@ export class Vault extends DurableObject<Env> {
       CREATE TABLE IF NOT EXISTS rotations (
         epoch INTEGER NOT NULL,
         target_device_id TEXT NOT NULL,
+        source_device_id TEXT,
+        ephemeral_public_key TEXT,
         package_nonce TEXT NOT NULL,
         package_ciphertext TEXT NOT NULL,
         created_ms INTEGER NOT NULL,
         PRIMARY KEY (epoch, target_device_id)
       );
+      CREATE TABLE IF NOT EXISTS checkpoints (
+        epoch INTEGER PRIMARY KEY,
+        base_cursor INTEGER NOT NULL,
+        nonce TEXT NOT NULL,
+        ciphertext TEXT NOT NULL,
+        created_ms INTEGER NOT NULL
+      );
     `);
+    this.ensureColumn('rotations', 'source_device_id', 'TEXT');
+    this.ensureColumn('rotations', 'ephemeral_public_key', 'TEXT');
+  }
+
+  private ensureColumn(table: string, column: string, type: string): void {
+    const columns = this.sql.exec(`PRAGMA table_info(${table})`).toArray() as Array<{ name: string }>;
+    if (!columns.some((entry) => entry.name === column)) {
+      this.sql.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+    }
   }
 
   override async fetch(request: Request): Promise<Response> {
@@ -203,6 +223,9 @@ export class Vault extends DurableObject<Env> {
     if (request.method === 'GET' && path === '/operations') {
       return this.pullOperations(url);
     }
+    if (request.method === 'GET' && path === '/state') {
+      return this.syncState(url);
+    }
     if (request.method === 'POST' && path === '/pairings/authorize') {
       return this.authorizePairing(auth);
     }
@@ -229,10 +252,6 @@ export class Vault extends DurableObject<Env> {
     const rotationGet = path.match(/^\/rotations\/(\d+)$/);
     if (request.method === 'GET' && rotationGet) {
       return this.getRotation(auth.device.device_id, Number(rotationGet[1]));
-    }
-    const revoke = path.match(/^\/devices\/([A-Za-z0-9_-]{16,64})\/revoke$/);
-    if (request.method === 'POST' && revoke) {
-      return this.revokeDevice(auth.device.device_id, revoke[1]!);
     }
     if (request.method === 'GET' && path === '/devices') {
       return this.listDevices();
@@ -329,8 +348,11 @@ export class Vault extends DurableObject<Env> {
       return error('device_pending_activation', 401);
     }
 
+    const maxBodyBytes = canonicalPath.endsWith('/rotate') ? MAX_ROTATION_BODY_BYTES : 512 * 1024;
+    const declared = Number(request.headers.get('content-length') ?? '0');
+    if (Number.isFinite(declared) && declared > maxBodyBytes) return error('payload_too_large', 413);
     const body = new Uint8Array(await request.arrayBuffer());
-    if (body.byteLength > 512 * 1024) return error('payload_too_large', 413);
+    if (body.byteLength > maxBodyBytes) return error('payload_too_large', 413);
     const bodyHash = await sha256Base64Url(body);
     const validSignature = await verifyEd25519(
       device.signing_public_key,
@@ -392,6 +414,11 @@ export class Vault extends DurableObject<Env> {
       if (!validSignature) return error('invalid_operation_signature', 401);
       validated.push(raw);
     }
+
+    // Signature verification yields to the event loop. A rotation may have
+    // committed while this batch was being verified, so re-check the epoch
+    // immediately before the synchronous insertion transaction.
+    if (this.currentEpoch() !== epoch) return error('vault_key_epoch_changed', 409);
 
     const now = Date.now();
     this.ctx.storage.transactionSync(() => {
@@ -847,44 +874,120 @@ export class Vault extends DurableObject<Env> {
   private rotateVault(auth: AuthContext): Response {
     const body = JSON.parse(new TextDecoder().decode(auth.body)) as {
       new_epoch?: unknown;
+      base_cursor?: unknown;
       revoke_device_ids?: unknown;
       packages?: unknown;
+      checkpoint?: unknown;
+      recovery?: unknown;
     };
     const current = this.currentEpoch();
     if (typeof body.new_epoch !== 'number' || body.new_epoch !== current + 1) {
       return error('invalid_epoch', 409);
     }
-    if (!Array.isArray(body.revoke_device_ids) || !Array.isArray(body.packages)) {
+    if (
+      typeof body.base_cursor !== 'number' ||
+      !Number.isSafeInteger(body.base_cursor) ||
+      body.base_cursor < 0 ||
+      !Array.isArray(body.revoke_device_ids) ||
+      !Array.isArray(body.packages) ||
+      typeof body.checkpoint !== 'object' ||
+      body.checkpoint === null ||
+      typeof body.recovery !== 'object' ||
+      body.recovery === null
+    ) {
       return error('invalid_rotation', 400);
     }
+
     const revoked = new Set<string>();
     for (const value of body.revoke_device_ids) {
       if (!validId(value)) return error('invalid_rotation', 400);
       if (value === auth.device.device_id) return error('cannot_revoke_rotating_device', 400);
+      const target = this.device(value);
+      if (!target || target.revoked_ms !== null || target.activated_ms === null) return error('device_not_found', 404);
       revoked.add(value);
     }
 
-    const packages: Array<{ target_device_id: string; package_nonce: string; package_ciphertext: string }> = [];
+    const packages: Array<{
+      target_device_id: string;
+      ephemeral_public_key: string;
+      package_nonce: string;
+      package_ciphertext: string;
+    }> = [];
+    const seenTargets = new Set<string>();
     for (const raw of body.packages) {
       if (typeof raw !== 'object' || raw === null) return error('invalid_rotation', 400);
       const record = raw as Record<string, unknown>;
       const target = record['target_device_id'];
+      const ephemeralPublicKey = record['ephemeral_public_key'];
       const nonce = record['package_nonce'];
       const ciphertext = record['package_ciphertext'];
-      if (!validId(target) || !validBase64Url(nonce, 128) || !validBase64Url(ciphertext, 4096)) {
+      if (
+        !validId(target) ||
+        !validBase64Url(ephemeralPublicKey, 128) ||
+        decodeBase64Url(ephemeralPublicKey).byteLength !== 32 ||
+        !validBase64Url(nonce, 128) ||
+        decodeBase64Url(nonce).byteLength !== 24 ||
+        !validBase64Url(ciphertext, 4096)
+      ) {
         return error('invalid_rotation', 400);
       }
+      if (seenTargets.has(target)) return error('duplicate_rotation_target', 400);
+      seenTargets.add(target);
       if (revoked.has(target)) return error('rotation_targets_revoked_device', 400);
       const device = this.device(target);
-      if (!device || device.revoked_ms !== null) return error('rotation_targets_unknown_device', 400);
-      packages.push({ target_device_id: target, package_nonce: nonce, package_ciphertext: ciphertext });
+      if (!device || device.revoked_ms !== null || device.activated_ms === null) {
+        return error('rotation_targets_unknown_device', 400);
+      }
+      packages.push({
+        target_device_id: target,
+        ephemeral_public_key: ephemeralPublicKey,
+        package_nonce: nonce,
+        package_ciphertext: ciphertext,
+      });
     }
 
     const active = this.activeDeviceIds().filter((id) => !revoked.has(id)).sort();
-    const targets = [...new Set(packages.map((item) => item.target_device_id))].sort();
+    const targets = [...seenTargets].sort();
     if (active.length !== targets.length || active.some((value, index) => value !== targets[index])) {
       return error('rotation_missing_device_package', 400);
     }
+
+    const checkpoint = body.checkpoint as Record<string, unknown>;
+    const checkpointNonce = checkpoint['nonce'];
+    const checkpointCiphertext = checkpoint['ciphertext'];
+    if (
+      !validBase64Url(checkpointNonce, 128) ||
+      decodeBase64Url(checkpointNonce).byteLength !== 24 ||
+      !validBase64Url(checkpointCiphertext, Math.ceil((MAX_ROTATION_CHECKPOINT_BYTES * 4) / 3) + 8) ||
+      decodeBase64Url(checkpointCiphertext).byteLength > MAX_ROTATION_CHECKPOINT_BYTES
+    ) {
+      return error('invalid_rotation_checkpoint', 400);
+    }
+
+    const recovery = body.recovery as Record<string, unknown>;
+    const recoveryId = recovery['recovery_id'];
+    const recoverySigningPublicKey = recovery['recovery_signing_public_key'];
+    const recoveryWrapNonce = recovery['wrap_nonce'];
+    const wrappedVaultKey = recovery['wrapped_vault_key'];
+    if (
+      !validId(recoveryId) ||
+      !validBase64Url(recoverySigningPublicKey, 128) ||
+      decodeBase64Url(recoverySigningPublicKey).byteLength !== 32 ||
+      !validBase64Url(recoveryWrapNonce, 128) ||
+      decodeBase64Url(recoveryWrapNonce).byteLength !== 24 ||
+      !validBase64Url(wrappedVaultKey, 2048)
+    ) {
+      return error('invalid_rotation_recovery', 400);
+    }
+
+    // Rotation is only valid for an exact materialized prefix. There are no
+    // awaits after this check, so another request cannot insert an operation
+    // between this cursor check and the synchronous transaction below.
+    if (this.currentEpoch() !== current) return error('invalid_epoch', 409);
+    const cursorRow = this.sql.exec('SELECT COALESCE(MAX(cursor), 0) AS cursor FROM operations').toArray()[0] as
+      | { cursor: number }
+      | undefined;
+    if ((cursorRow?.cursor ?? 0) !== body.base_cursor) return error('rotation_stale_cursor', 409);
 
     const now = Date.now();
     this.ctx.storage.transactionSync(() => {
@@ -893,41 +996,84 @@ export class Vault extends DurableObject<Env> {
       }
       for (const item of packages) {
         this.sql.exec(
-          'INSERT INTO rotations(epoch, target_device_id, package_nonce, package_ciphertext, created_ms) VALUES (?, ?, ?, ?, ?)',
+          `INSERT INTO rotations(
+             epoch, target_device_id, source_device_id, ephemeral_public_key,
+             package_nonce, package_ciphertext, created_ms
+           ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
           body.new_epoch as number,
           item.target_device_id,
+          auth.device.device_id,
+          item.ephemeral_public_key,
           item.package_nonce,
           item.package_ciphertext,
           now,
         );
       }
+      this.sql.exec(
+        'INSERT INTO checkpoints(epoch, base_cursor, nonce, ciphertext, created_ms) VALUES (?, ?, ?, ?, ?)',
+        body.new_epoch as number,
+        body.base_cursor as number,
+        checkpointNonce,
+        checkpointCiphertext,
+        now,
+      );
+      this.sql.exec(
+        `INSERT INTO recovery(slot, recovery_id, recovery_signing_public_key, wrap_nonce, wrapped_vault_key, created_ms)
+         VALUES (1, ?, ?, ?, ?, ?)
+         ON CONFLICT(slot) DO UPDATE SET recovery_id = excluded.recovery_id,
+           recovery_signing_public_key = excluded.recovery_signing_public_key,
+           wrap_nonce = excluded.wrap_nonce,
+           wrapped_vault_key = excluded.wrapped_vault_key,
+           created_ms = excluded.created_ms`,
+        recoveryId,
+        recoverySigningPublicKey,
+        recoveryWrapNonce,
+        wrappedVaultKey,
+        now,
+      );
       this.sql.exec("UPDATE meta SET value = ? WHERE key = 'epoch'", String(body.new_epoch));
     });
 
-    return json({ rotated: true, epoch: body.new_epoch, revoked: [...revoked] });
+    return json({ rotated: true, epoch: body.new_epoch, base_cursor: body.base_cursor, revoked: [...revoked] });
   }
 
   private getRotation(deviceId: string, epoch: number): Response {
     if (!Number.isSafeInteger(epoch) || epoch < 2) return error('invalid_epoch', 400);
     const row = this.sql
       .exec(
-        'SELECT epoch, package_nonce, package_ciphertext, created_ms FROM rotations WHERE epoch = ? AND target_device_id = ?',
+        `SELECT epoch, target_device_id, source_device_id, ephemeral_public_key,
+                package_nonce, package_ciphertext, created_ms
+         FROM rotations WHERE epoch = ? AND target_device_id = ?`,
         epoch,
         deviceId,
       )
       .toArray()[0] as Record<string, unknown> | undefined;
-    if (!row) return error('rotation_not_found', 404);
+    if (!row || typeof row['source_device_id'] !== 'string' || typeof row['ephemeral_public_key'] !== 'string') {
+      return error('rotation_not_found', 404);
+    }
     return json(row);
   }
 
-  private revokeDevice(actorDeviceId: string, targetDeviceId: string): Response {
-    const target = this.device(targetDeviceId);
-    if (!target || target.revoked_ms !== null) return error('device_not_found', 404);
-    const active = this.activeDeviceIds();
-    if (active.length <= 1) return error('cannot_revoke_last_device', 409);
-    if (actorDeviceId === targetDeviceId && active.length === 1) return error('cannot_revoke_last_device', 409);
-    this.sql.exec('UPDATE devices SET revoked_ms = ? WHERE device_id = ?', Date.now(), targetDeviceId);
-    return json({ revoked: targetDeviceId, key_rotation_recommended: true });
+  private syncState(url: URL): Response {
+    const knownEpochRaw = url.searchParams.get('known_epoch') ?? '0';
+    const cursorRaw = url.searchParams.get('cursor') ?? '0';
+    if (!/^\d+$/.test(knownEpochRaw) || !/^\d+$/.test(cursorRaw)) return error('invalid_sync_state', 400);
+    const knownEpoch = Number(knownEpochRaw);
+    const cursor = Number(cursorRaw);
+    if (!Number.isSafeInteger(knownEpoch) || !Number.isSafeInteger(cursor) || knownEpoch < 0 || cursor < 0) {
+      return error('invalid_sync_state', 400);
+    }
+
+    const epoch = this.currentEpoch();
+    if (epoch < 2) return json({ epoch, checkpoint: null });
+    const checkpoint = this.sql
+      .exec('SELECT epoch, base_cursor, nonce, ciphertext, created_ms FROM checkpoints WHERE epoch = ?', epoch)
+      .toArray()[0] as Record<string, unknown> | undefined;
+    if (!checkpoint) return error('rotation_checkpoint_missing', 500);
+    const baseCursor = checkpoint['base_cursor'];
+    if (typeof baseCursor !== 'number') return error('rotation_checkpoint_invalid', 500);
+    if (knownEpoch === epoch && cursor >= baseCursor) return json({ epoch, checkpoint: null });
+    return json({ epoch, checkpoint });
   }
 
   private listDevices(): Response {

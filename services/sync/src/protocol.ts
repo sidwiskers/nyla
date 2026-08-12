@@ -6,6 +6,8 @@ export const MAX_OPERATION_BYTES = 64 * 1024;
 export const MAX_BATCH_OPERATIONS = 128;
 export const MAX_PULL_OPERATIONS = 256;
 export const DEFAULT_PULL_OPERATIONS = 100;
+export const MAX_ROTATION_BODY_BYTES = 12 * 1024 * 1024;
+export const MAX_ROTATION_CHECKPOINT_BYTES = 8 * 1024 * 1024 + 64;
 
 const encoder = new TextEncoder();
 const idPattern = /^[A-Za-z0-9_-]{16,64}$/;
