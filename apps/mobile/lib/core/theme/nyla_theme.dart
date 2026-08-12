@@ -1,51 +1,47 @@
 import 'package:flutter/material.dart';
 
 abstract final class NylaColors {
-  static const canvas = Color(0xFFFBF7F3);
-  static const paper = Color(0xFFFFFDF9);
-  static const cream = Color(0xFFFFFAF6);
+  static const canvas = Color(0xFFFBF8FC);
+  static const cream = Color(0xFFFFFCFA);
   static const surface = Color(0xFFFFFFFF);
+  static const ink = Color(0xFF2B2231);
+  static const mutedInk = Color(0xFF776D7D);
+  static const faintInk = Color(0xFFA79DAA);
 
-  static const ink = Color(0xFF24161D);
-  static const mutedInk = Color(0xFF716269);
-  static const faintInk = Color(0xFFA99AA0);
+  static const night = Color(0xFF302438);
+  static const wine = Color(0xFF5B405F);
+  static const violet = Color(0xFF8269AE);
+  static const iris = Color(0xFF9A83C0);
+  static const rose = Color(0xFFC86F8E);
+  static const coral = Color(0xFFE89A9A);
 
-  static const night = Color(0xFF28101D);
-  static const wine = Color(0xFF381426);
-  static const violet = Color(0xFF6F4C5F);
-  static const iris = Color(0xFF977286);
-  static const rose = Color(0xFFB76570);
-  static const coral = Color(0xFFDF8F86);
+  static const roseSoft = Color(0xFFF5D4DE);
+  static const roseWash = Color(0xFFFBECEF);
+  static const peach = Color(0xFFF2C3A7);
+  static const peachSoft = Color(0xFFFCEADF);
+  static const lavender = Color(0xFFD9CBEA);
+  static const lavenderSoft = Color(0xFFF0EAF8);
+  static const lavenderMist = Color(0xFFF8F4FB);
+  static const sage = Color(0xFFC6DCCF);
+  static const sageSoft = Color(0xFFEDF5F0);
+  static const butter = Color(0xFFF0DDA7);
 
-  static const roseSoft = Color(0xFFF1D0D5);
-  static const roseWash = Color(0xFFF8E9EB);
-  static const peach = Color(0xFFECC2A5);
-  static const peachSoft = Color(0xFFF9E9DC);
-  static const lavender = Color(0xFFD9D0E2);
-  static const lavenderSoft = Color(0xFFF0EBF4);
-  static const lavenderMist = Color(0xFFF7F3F7);
-  static const sage = Color(0xFFBBD3C6);
-  static const sageSoft = Color(0xFFE8F1EC);
-  static const butter = Color(0xFFEBD8A2);
-
-  static const outline = Color(0xFFE8DEDA);
-  static const outlineStrong = Color(0xFFD9CBC8);
-  static const shadow = Color(0xFF2A111E);
-  static const warning = Color(0xFF8D4B3C);
+  static const outline = Color(0xFFEDE5EF);
+  static const outlineStrong = Color(0xFFE2D8E5);
+  static const warning = Color(0xFF966455);
 }
 
 abstract final class NylaTheme {
-  static const _display = 'sans-serif';
   static const _rounded = 'sans-serif-rounded';
-  static const _fallback = <String>['Roboto', 'sans-serif'];
+  static const _fallback = <String>['sans-serif', 'Roboto'];
 
   static ThemeData get light {
     final scheme = ColorScheme.fromSeed(
-      seedColor: NylaColors.wine,
+      seedColor: NylaColors.violet,
       brightness: Brightness.light,
       surface: NylaColors.canvas,
     ).copyWith(
-      primary: NylaColors.wine,
+      primary: NylaColors.violet,
       onPrimary: Colors.white,
       secondary: NylaColors.rose,
       onSecondary: Colors.white,
@@ -65,28 +61,11 @@ abstract final class NylaTheme {
       fontFamilyFallback: _fallback,
     );
 
-    TextStyle display({
+    TextStyle rounded({
       required double size,
       required FontWeight weight,
       required Color color,
-      double height = 1.12,
-      double spacing = 0,
-    }) =>
-        TextStyle(
-          fontFamily: _display,
-          fontFamilyFallback: _fallback,
-          color: color,
-          fontSize: size,
-          height: height,
-          fontWeight: weight,
-          letterSpacing: spacing,
-        );
-
-    TextStyle body({
-      required double size,
-      required FontWeight weight,
-      required Color color,
-      double height = 1.45,
+      double height = 1.3,
       double spacing = 0,
     }) =>
         TextStyle(
@@ -101,52 +80,50 @@ abstract final class NylaTheme {
 
     return base.copyWith(
       textTheme: base.textTheme.copyWith(
-        displaySmall: display(
-          size: 38,
+        displaySmall: rounded(
+          size: 34,
           weight: FontWeight.w700,
           color: NylaColors.ink,
-          height: 1.02,
-          spacing: -1.15,
-        ),
-        headlineMedium: display(
-          size: 29,
-          weight: FontWeight.w700,
-          color: NylaColors.ink,
-          height: 1.08,
+          height: 1.05,
           spacing: -0.72,
         ),
-        titleLarge: display(
+        headlineMedium: rounded(
+          size: 27,
+          weight: FontWeight.w700,
+          color: NylaColors.ink,
+          height: 1.1,
+          spacing: -0.42,
+        ),
+        titleLarge: rounded(
           size: 20,
           weight: FontWeight.w700,
           color: NylaColors.ink,
-          height: 1.16,
-          spacing: -0.25,
+          height: 1.18,
+          spacing: -0.12,
         ),
-        titleMedium: body(
-          size: 16,
+        titleMedium: rounded(
+          size: 15.5,
           weight: FontWeight.w700,
           color: NylaColors.ink,
-          height: 1.2,
-          spacing: -0.04,
+          height: 1.24,
         ),
-        bodyLarge: body(
-          size: 16,
+        bodyLarge: rounded(
+          size: 15.5,
           weight: FontWeight.w400,
           color: NylaColors.ink,
-          height: 1.52,
-          spacing: -0.02,
+          height: 1.5,
         ),
-        bodyMedium: body(
-          size: 14,
+        bodyMedium: rounded(
+          size: 13.5,
           weight: FontWeight.w400,
           color: NylaColors.mutedInk,
-          height: 1.48,
+          height: 1.46,
         ),
-        labelLarge: body(
-          size: 14,
+        labelLarge: rounded(
+          size: 13.5,
           weight: FontWeight.w700,
           color: NylaColors.ink,
-          height: 1.12,
+          height: 1.15,
         ),
       ),
       appBarTheme: AppBarTheme(
@@ -155,32 +132,34 @@ abstract final class NylaTheme {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: display(
-          size: 21,
+        scrolledUnderElevation: 0,
+        titleTextStyle: rounded(
+          size: 20,
           weight: FontWeight.w700,
           color: NylaColors.ink,
-          height: 1.08,
-          spacing: -0.22,
+          height: 1.12,
         ),
       ),
       cardTheme: const CardThemeData(
-        color: NylaColors.paper,
+        color: NylaColors.surface,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(24)),
+          borderRadius: BorderRadius.all(Radius.circular(26)),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: NylaColors.wine,
+          backgroundColor: NylaColors.violet,
           foregroundColor: Colors.white,
-          minimumSize: const Size(0, 54),
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
-          shape: const StadiumBorder(),
-          textStyle: body(
-            size: 14,
+          minimumSize: const Size(0, 52),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          textStyle: rounded(
+            size: 13.5,
             weight: FontWeight.w700,
             color: Colors.white,
             height: 1.1,
@@ -190,12 +169,13 @@ abstract final class NylaTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: NylaColors.wine,
-          minimumSize: const Size(0, 52),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          minimumSize: const Size(0, 50),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+          elevation: 0,
           side: const BorderSide(color: NylaColors.outlineStrong),
-          shape: const StadiumBorder(),
-          textStyle: body(
-            size: 14,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          textStyle: rounded(
+            size: 13.5,
             weight: FontWeight.w700,
             color: NylaColors.wine,
             height: 1.1,
@@ -204,83 +184,97 @@ abstract final class NylaTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: NylaColors.wine,
-          textStyle: body(
-            size: 14,
+          foregroundColor: NylaColors.violet,
+          textStyle: rounded(
+            size: 13.5,
             weight: FontWeight.w700,
-            color: NylaColors.wine,
+            color: NylaColors.violet,
             height: 1.1,
           ),
         ),
       ),
       chipTheme: base.chipTheme.copyWith(
-        backgroundColor: NylaColors.paper,
-        selectedColor: NylaColors.wine,
-        secondarySelectedColor: NylaColors.wine,
-        labelStyle: body(
-          size: 12.5,
+        backgroundColor: Colors.white.withValues(alpha: 0.86),
+        selectedColor: NylaColors.lavenderSoft,
+        secondarySelectedColor: NylaColors.lavenderSoft,
+        labelStyle: rounded(
+          size: 12,
           weight: FontWeight.w600,
-          color: NylaColors.ink,
+          color: NylaColors.mutedInk,
           height: 1.05,
         ),
-        secondaryLabelStyle: body(
-          size: 12.5,
+        secondaryLabelStyle: rounded(
+          size: 12,
           weight: FontWeight.w700,
-          color: Colors.white,
+          color: NylaColors.wine,
           height: 1.05,
         ),
         side: const BorderSide(color: NylaColors.outline),
         shape: const StadiumBorder(),
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFFF1EDE9),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        hintStyle: body(
-          size: 14,
+        fillColor: Colors.white.withValues(alpha: 0.88),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 17, vertical: 15),
+        hintStyle: rounded(
+          size: 13.5,
           weight: FontWeight.w400,
           color: NylaColors.faintInk,
           height: 1.2,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: NylaColors.outline),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: const BorderSide(color: Color(0x00FFFFFF)),
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: NylaColors.outline),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: const BorderSide(color: NylaColors.rose, width: 1.4),
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: NylaColors.violet, width: 1.25),
         ),
       ),
+      switchTheme: SwitchThemeData(
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? NylaColors.lavender
+              : NylaColors.outlineStrong,
+        ),
+        thumbColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+      sliderTheme: base.sliderTheme.copyWith(
+        activeTrackColor: NylaColors.violet,
+        inactiveTrackColor: NylaColors.lavenderSoft,
+        thumbColor: NylaColors.violet,
+        overlayColor: NylaColors.lavenderSoft,
+      ),
       bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: NylaColors.paper,
+        backgroundColor: NylaColors.cream,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         showDragHandle: true,
       ),
       dialogTheme: const DialogThemeData(
-        backgroundColor: NylaColors.paper,
+        backgroundColor: NylaColors.cream,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(28)),
+          borderRadius: BorderRadius.all(Radius.circular(26)),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: NylaColors.night,
-        contentTextStyle: body(
-          size: 13.5,
+        contentTextStyle: rounded(
+          size: 13,
           weight: FontWeight.w600,
           color: Colors.white,
           height: 1.2,
         ),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       dividerColor: NylaColors.outline,
     );
