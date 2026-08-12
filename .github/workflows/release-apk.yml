@@ -69,64 +69,24 @@ jobs:
           import os
           from urllib.parse import urlparse
 
-          value = os.environ['NYLA_SYNC_BASE_URL']
+          value = os.environ['NYLA_SYNC_BASE_URL'].rstrip('/')
           parsed = urlparse(value)
           if parsed.scheme != 'https' or not parsed.netloc or parsed.query or parsed.fragment:
-              raise SystemExit('NYLA_SYNC_BASE_URL must be a clean HTTPS origin/base URL')
+              raise SystemExit('NYLA_SYNC_BASE_URL must be a clean HTTPS base URL')
+          if parsed.path not in ('', '/'):
+              raise SystemExit('NYLA_SYNC_BASE_URL must not contain a path; use the Worker origin/base URL')
           PY
 
-  deploy-sync:
-    name: Test and deploy encrypted sync relay
+  build-release:
+    name: Build and validate signed APK
     needs: preflight
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: services/sync
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      NYLA_SYNC_BASE_URL: ${{ secrets.NYLA_SYNC_BASE_URL }}
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: '22'
-
-      - name: Install relay dependencies
-        run: npm install --no-audit --no-fund
-
-      - name: Typecheck relay
-        run: npm run typecheck
-
-      - name: Test relay in workerd
-        run: npm test
-
-      - name: Deploy relay to Cloudflare
-        run: npm run deploy
-
-      - name: Verify deployed relay endpoint
-        shell: bash
-        working-directory: .
-        run: |
-          set -euo pipefail
-          endpoint="${NYLA_SYNC_BASE_URL%/}/health"
-          for _ in {1..10}; do
-            body="$(curl --fail --silent --show-error --max-time 10 "$endpoint" 2>/dev/null || true)"
-            if [[ "$body" == 'ok' ]]; then
-              exit 0
-            fi
-            sleep 2
-          done
-          echo '::error::The configured NYLA_SYNC_BASE_URL did not expose Nyla /health after deployment.'
-          exit 1
-
-  build-release:
-    name: Build signed release APK
-    needs: deploy-sync
-    runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      artifact_name: ${{ steps.release.outputs.artifact_name }}
+      apk_name: ${{ steps.release.outputs.apk_name }}
     env:
       NYLA_SYNC_BASE_URL: ${{ secrets.NYLA_SYNC_BASE_URL }}
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -157,7 +117,8 @@ jobs:
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "apk_name=Nyla-${version}.apk" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=nyla-$version" >> "$GITHUB_OUTPUT"
+          echo "apk_name=Nyla-$version.apk" >> "$GITHUB_OUTPUT"
 
       - name: Install pinned Flutter
         shell: bash
@@ -234,14 +195,13 @@ jobs:
             --build-number='${{ github.run_number }}' \
             --dart-define="NYLA_SYNC_BASE_URL=${NYLA_SYNC_BASE_URL%/}"
 
-      - name: Verify APK signature and checksum
-        id: package
+      - name: Verify signature and create checksum
         shell: bash
         run: |
           set -euo pipefail
           source_apk='apps/mobile/build/app/outputs/flutter-apk/app-release.apk'
-          final_apk="$RUNNER_TEMP/${{ steps.release.outputs.apk_name }}"
-          checksum="$final_apk.sha256"
+          mkdir -p dist
+          final_apk="dist/${{ steps.release.outputs.apk_name }}"
 
           test -s "$source_apk"
           cp "$source_apk" "$final_apk"
@@ -253,37 +213,121 @@ jobs:
           fi
           "$apksigner" verify --verbose --print-certs "$final_apk"
 
-          sha256sum "$final_apk" > "$checksum"
-          echo "apk=$final_apk" >> "$GITHUB_OUTPUT"
-          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+          (
+            cd dist
+            sha256sum '${{ steps.release.outputs.apk_name }}' > '${{ steps.release.outputs.apk_name }}.sha256'
+          )
 
-      - name: Upload signed APK artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload validated release package
+        uses: actions/upload-artifact@v7
         with:
-          name: nyla-${{ steps.release.outputs.version }}
+          name: ${{ steps.release.outputs.artifact_name }}
           path: |
-            ${{ steps.package.outputs.apk }}
-            ${{ steps.package.outputs.checksum }}
+            dist/${{ steps.release.outputs.apk_name }}
+            dist/${{ steps.release.outputs.apk_name }}.sha256
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish GitHub Release
-        if: github.ref_type == 'tag' || inputs.publish_github_release == true
+  validate-sync:
+    name: Validate encrypted sync relay
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/sync
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install relay dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck relay
+        run: npm run typecheck
+
+      - name: Test relay in workerd
+        run: npm test
+
+  deploy-sync:
+    name: Deploy encrypted sync relay
+    needs: [build-release, validate-sync]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/sync
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      NYLA_SYNC_BASE_URL: ${{ secrets.NYLA_SYNC_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install relay dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Deploy relay to Cloudflare
+        run: npm run deploy
+
+      - name: Verify deployed relay endpoint
+        shell: bash
+        working-directory: .
+        run: |
+          set -euo pipefail
+          endpoint="${NYLA_SYNC_BASE_URL%/}/health"
+          for _ in {1..10}; do
+            body="$(curl --fail --silent --show-error --max-time 10 "$endpoint" 2>/dev/null || true)"
+            if [[ "$body" == 'ok' ]]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo '::error::The configured NYLA_SYNC_BASE_URL did not expose Nyla /health after deployment.'
+          exit 1
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-release, deploy-sync]
+    if: github.ref_type == 'tag' || inputs.publish_github_release == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download validated APK
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.build-release.outputs.artifact_name }}
+          path: dist
+
+      - name: Publish or update release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.release.outputs.tag }}
-          VERSION: ${{ steps.release.outputs.version }}
-          APK: ${{ steps.package.outputs.apk }}
-          CHECKSUM: ${{ steps.package.outputs.checksum }}
+          TAG: ${{ needs.build-release.outputs.tag }}
+          VERSION: ${{ needs.build-release.outputs.version }}
+          APK_NAME: ${{ needs.build-release.outputs.apk_name }}
         run: |
           set -euo pipefail
+          apk="dist/$APK_NAME"
+          checksum="$apk.sha256"
+          test -s "$apk"
+          test -s "$checksum"
+
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" "$CHECKSUM" --clobber
+            gh release upload "$TAG" "$apk" "$checksum" --clobber
           else
             gh release create "$TAG" \
-              "$APK" \
-              "$CHECKSUM" \
+              "$apk" \
+              "$checksum" \
               --target "$GITHUB_SHA" \
               --title "Nyla $VERSION" \
               --generate-notes
