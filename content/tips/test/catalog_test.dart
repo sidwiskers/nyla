@@ -25,7 +25,17 @@ void main() {
         .expand((tip) => [tip.id, tip.title, tip.flash, ...tip.details, ...tip.tags])
         .join(' ')
         .toLowerCase();
-    for (final excluded in ['pregnancy mode', 'trying to conceive', 'masturbation', 'sexual coaching']) {
+    for (final excluded in [
+      'pregnancy',
+      'pregnant',
+      'trying to conceive',
+      'conception',
+      'fertility probability',
+      'fertile window',
+      'ovulation prediction',
+      'masturbation',
+      'sexual coaching',
+    ]) {
       expect(corpus.contains(excluded), isFalse);
     }
   });
