@@ -1,0 +1,89 @@
+name: Mobile CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/**'
+      - 'content/tips/**'
+      - '.github/workflows/mobile-ci.yml'
+  pull_request:
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/**'
+      - 'content/tips/**'
+      - '.github/workflows/mobile-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flutter stable
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch stable https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/flutter/bin/flutter" config --no-analytics
+          "$RUNNER_TEMP/flutter/bin/flutter" --version
+
+      - name: Bootstrap platform scaffolds for validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter create \
+            --org app.nyla \
+            --project-name nyla \
+            --platforms=android,ios \
+            "$RUNNER_TEMP/nyla-platform"
+          cp -R "$RUNNER_TEMP/nyla-platform/android" apps/mobile/
+          cp -R "$RUNNER_TEMP/nyla-platform/ios" apps/mobile/
+          cp "$RUNNER_TEMP/nyla-platform/.metadata" apps/mobile/.metadata
+
+      - name: Resolve dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Generate Drift code
+        working-directory: apps/mobile
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze app
+        working-directory: apps/mobile
+        run: flutter analyze --fatal-infos
+
+      - name: Run app tests
+        working-directory: apps/mobile
+        run: flutter test
+
+      - name: Test cycle engine
+        working-directory: packages/cycle_engine
+        run: dart test
+
+  sync-typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: services/sync
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: services/sync/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
