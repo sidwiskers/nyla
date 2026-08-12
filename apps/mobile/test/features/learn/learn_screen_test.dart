@@ -5,7 +5,7 @@ import 'package:nyla/core/theme/nyla_theme.dart';
 import 'package:nyla/features/learn/learn_screen.dart';
 
 void main() {
-  testWidgets('flashcard front is useful before opening references', (tester) async {
+  testWidgets('flashcard shows useful content before any source link', (tester) async {
     tester.view.physicalSize = const Size(360, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -23,12 +23,12 @@ void main() {
     expect(find.text(first.title).hitTestable(), findsOneWidget);
     expect(find.text(first.flash).hitTestable(), findsOneWidget);
     expect(find.text('THE TAKEAWAY').hitTestable(), findsOneWidget);
-    expect(find.text('Turn card').hitTestable(), findsOneWidget);
-    expect(find.textContaining('References · reviewed').hitTestable(), findsNothing);
+    expect(find.text('Read the full card').hitTestable(), findsOneWidget);
+    expect(find.text('Reviewed sources'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('turning a flashcard keeps the complete explanation in the deck', (tester) async {
+  testWidgets('opening a flashcard keeps the full explanation inside the card', (tester) async {
     tester.view.physicalSize = const Size(360, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -42,22 +42,21 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final turn = find.text('Turn card').hitTestable();
-    expect(turn, findsOneWidget);
-    await tester.tap(turn);
+    final open = find.text('Read the full card').hitTestable();
+    expect(open, findsOneWidget);
+    await tester.tap(open);
     await tester.pumpAndSettle();
 
     final first = healthTips.first;
-    expect(find.text(first.flash).hitTestable(), findsOneWidget);
+    expect(find.text(first.flash), findsOneWidget);
     for (final paragraph in first.details) {
       expect(find.text(paragraph), findsOneWidget);
     }
     expect(find.byIcon(Icons.close_rounded).hitTestable(), findsOneWidget);
-    expect(find.textContaining('References · reviewed'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('flashcard front remains immediately usable on a compact-height phone', (tester) async {
+  testWidgets('the deck remains readable and reachable on a compact-height phone', (tester) async {
     tester.view.physicalSize = const Size(360, 640);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -71,11 +70,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final first = healthTips.first;
-    expect(find.text(first.title).hitTestable(), findsOneWidget);
-    expect(find.text(first.flash).hitTestable(), findsOneWidget);
     expect(find.text('THE TAKEAWAY').hitTestable(), findsOneWidget);
-    expect(find.text('Turn card').hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -220));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Read the full card').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
