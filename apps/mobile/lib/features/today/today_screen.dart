@@ -218,49 +218,57 @@ class _CycleCardBody extends StatelessWidget {
     final phase = _phase(cycleDay, cycleLength);
     final range = estimate == null ? shortDay(lastStart) : rangeText(estimate!.earliestStart, estimate!.latestStart);
 
-    return NylaPaperSurface(
-      padding: const EdgeInsets.fromLTRB(17, 17, 16, 17),
-      radius: BorderRadius.circular(22),
-      child: Row(
-        children: [
-          _CycleRing(day: cycleDay, progress: progress),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Cycle Day $cycleDay',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  phase,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: NylaColors.violet,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  estimate == null ? 'Started $range' : 'Expected period $range',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.8),
-                ),
-              ],
+    return NylaPressable(
+      onTap: () {
+        NylaHaptics.select();
+        context.go('/calendar');
+      },
+      semanticsLabel: 'Open cycle calendar',
+      borderRadius: BorderRadius.circular(22),
+      child: NylaPaperSurface(
+        padding: const EdgeInsets.fromLTRB(17, 17, 16, 17),
+        radius: BorderRadius.circular(22),
+        child: Row(
+          children: [
+            _CycleRing(day: cycleDay, progress: progress),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Cycle Day $cycleDay',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    phase,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: NylaColors.violet,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    estimate == null ? 'Started $range' : 'Expected period $range',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.8),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const Icon(Icons.chevron_right_rounded, color: NylaColors.faintInk, size: 20),
-        ],
+            const Icon(Icons.chevron_right_rounded, color: NylaColors.faintInk, size: 20),
+          ],
+        ),
       ),
     );
   }
 
   String _phase(int day, int cycleLength) {
     if (day <= 5) return 'Menstrual phase';
-    final ovulation = math.max(10, cycleLength - 14);
-    if (day < ovulation - 1) return 'Follicular phase';
-    if ((day - ovulation).abs() <= 1) return 'Ovulation window';
-    return 'Luteal phase';
+    final position = day / math.max(cycleLength, 1);
+    if (position < 0.5) return 'Early cycle';
+    if (position < 0.75) return 'Mid-cycle';
+    return 'Later cycle';
   }
 }
 
