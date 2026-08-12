@@ -106,18 +106,18 @@ def configure_android_backup_rules() -> None:
     xml_dir = ANDROID / "app/src/main/res/xml"
     xml_dir.mkdir(parents=True, exist_ok=True)
     (xml_dir / "backup_rules.xml").write_text(
-        """<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
         "<full-backup-content>\n"
         "    <exclude domain=\"root\" path=\".\" />\n"
         "    <exclude domain=\"file\" path=\".\" />\n"
         "    <exclude domain=\"database\" path=\".\" />\n"
         "    <exclude domain=\"sharedpref\" path=\".\" />\n"
         "    <exclude domain=\"external\" path=\".\" />\n"
-        "</full-backup-content>\n""",
+        "</full-backup-content>\n",
         encoding="utf-8",
     )
     (xml_dir / "data_extraction_rules.xml").write_text(
-        """<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
         "<data-extraction-rules>\n"
         "    <cloud-backup disableIfNoEncryptionCapabilities=\"true\">\n"
         "        <exclude domain=\"root\" path=\".\" />\n"
@@ -133,7 +133,7 @@ def configure_android_backup_rules() -> None:
         "        <exclude domain=\"sharedpref\" path=\".\" />\n"
         "        <exclude domain=\"external\" path=\".\" />\n"
         "    </device-transfer>\n"
-        "</data-extraction-rules>\n""",
+        "</data-extraction-rules>\n",
         encoding="utf-8",
     )
 
