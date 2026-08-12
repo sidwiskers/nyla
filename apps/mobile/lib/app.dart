@@ -14,6 +14,10 @@ class NylaApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.listen(cyclePredictionProvider, (_, _) => unawaited(_refreshNotifications(ref)));
     ref.listen(notificationConfigProvider, (_, _) => unawaited(_refreshNotifications(ref)));
+    ref.listen(notificationNavigationProvider, (_, next) {
+      final route = next.value;
+      if (route != null && nylaRouter.state.uri.path != route) nylaRouter.go(route);
+    });
 
     return MaterialApp.router(
       title: 'Nyla',

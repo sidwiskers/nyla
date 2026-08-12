@@ -39,6 +39,12 @@ final notificationServiceProvider = FutureProvider<NotificationService>((ref) as
   await service.initialize();
   return service;
 });
+final notificationNavigationProvider = StreamProvider<String>((ref) async* {
+  final service = await ref.watch(notificationServiceProvider.future);
+  final initial = service.takeInitialLaunchRoute();
+  if (initial != null) yield initial;
+  yield* service.navigationRoutes;
+});
 
 final periodHistoryProvider = StreamProvider<List<PeriodEntry>>(
   (ref) => ref.watch(cycleRepositoryProvider).watchPeriods(),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cycle_engine/cycle_engine.dart';
@@ -16,9 +17,25 @@ class NotificationService {
   static const _windowStartsId = 41002;
   static const _dailyLogId = 41003;
   static const _channelId = 'nyla_reminders_v1';
+  static const _allowedRoutes = {'/calendar', '/log'};
 
   final FlutterLocalNotificationsPlugin _plugin;
+  final StreamController<String> _navigationController = StreamController<String>.broadcast();
   bool _initialized = false;
+  String? _initialLaunchRoute;
+
+  Stream<String> get navigationRoutes => _navigationController.stream;
+
+  String? takeInitialLaunchRoute() {
+    final route = _initialLaunchRoute;
+    _initialLaunchRoute = null;
+    return route;
+  }
+
+  static String? routeFromPayload(String? payload) {
+    if (payload == null || !_allowedRoutes.contains(payload)) return null;
+    return payload;
+  }
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -39,8 +56,19 @@ class NotificationService {
     );
     await _plugin.initialize(
       settings: const InitializationSettings(android: android, iOS: apple, macOS: apple),
+      onDidReceiveNotificationResponse: _onNotificationResponse,
     );
+
+    final launch = await _plugin.getNotificationAppLaunchDetails();
+    if (launch?.didNotificationLaunchApp == true) {
+      _initialLaunchRoute = routeFromPayload(launch?.notificationResponse?.payload);
+    }
     _initialized = true;
+  }
+
+  void _onNotificationResponse(NotificationResponse response) {
+    final route = routeFromPayload(response.payload);
+    if (route != null && !_navigationController.isClosed) _navigationController.add(route);
   }
 
   Future<bool> requestPermission() async {
