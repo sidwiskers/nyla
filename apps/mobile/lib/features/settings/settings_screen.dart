@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/notifications/notification_config.dart';
 import '../../core/theme/nyla_theme.dart';
@@ -142,9 +143,7 @@ class SettingsScreen extends ConsumerWidget {
                   title: const Text('Export'),
                   subtitle: const Text('Create a user-controlled copy of your history'),
                   trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Export format is being connected to the encrypted local store.')),
-                  ),
+                  onTap: () => context.push('/settings/export'),
                 ),
                 const Divider(height: 1, indent: 18, endIndent: 18),
                 const ListTile(
