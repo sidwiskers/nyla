@@ -1,0 +1,28 @@
+import 'package:cycle_engine/cycle_engine.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'core/storage/secure_vault.dart';
+import 'data/database/app_database.dart';
+import 'data/repositories/cycle_repository.dart';
+import 'data/repositories/day_log_repository.dart';
+
+final databaseProvider = Provider<AppDatabase>((ref) => throw StateError('Database has not been bootstrapped.'));
+final deviceIdProvider = Provider<String>((ref) => throw StateError('Device identity has not been bootstrapped.'));
+final secureVaultProvider = Provider<SecureVault>((ref) => const SecureVault());
+
+final cycleRepositoryProvider = Provider<CycleRepository>(
+  (ref) => CycleRepository(ref.watch(databaseProvider), ref.watch(deviceIdProvider)),
+);
+final dayLogRepositoryProvider = Provider<DayLogRepository>(
+  (ref) => DayLogRepository(ref.watch(databaseProvider), ref.watch(deviceIdProvider)),
+);
+
+final periodHistoryProvider = StreamProvider<List<PeriodEntry>>(
+  (ref) => ref.watch(cycleRepositoryProvider).watchPeriods(),
+);
+final cyclePredictionProvider = StreamProvider<PredictionResult>(
+  (ref) => ref.watch(cycleRepositoryProvider).watchPrediction(),
+);
+final dayValuesProvider = StreamProvider.family<List<DayValueEntry>, int>(
+  (ref, day) => ref.watch(dayLogRepositoryProvider).watchDay(day),
+);
