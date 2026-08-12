@@ -2,8 +2,10 @@ import 'package:cycle_engine/cycle_engine.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('calendar day is stable across DateTime offsets', () {
-    final a = LocalDay.fromDateTime(DateTime.parse('2026-08-12T00:30:00+05:30'));
+  test('calendar day uses the DateTime calendar components', () {
+    // LocalDay intentionally accepts the components it is given. Callers should
+    // pass a date-picker/local calendar value, not convert it to UTC first.
+    final a = LocalDay.fromDateTime(DateTime(2026, 8, 12, 23, 59));
     final b = LocalDay.parseIso('2026-08-12');
     expect(a, b);
   });

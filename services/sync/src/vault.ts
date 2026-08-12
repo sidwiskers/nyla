@@ -1,0 +1,745 @@
+import { DurableObject } from 'cloudflare:workers';
+
+import {
+  AUTH_NONCE_TTL_MS,
+  DEFAULT_PULL_OPERATIONS,
+  MAX_BATCH_OPERATIONS,
+  MAX_OPERATION_BYTES,
+  MAX_PULL_OPERATIONS,
+  PAIRING_TTL_MS,
+  PayloadTooLargeError,
+  bootstrapPayload,
+  clockIsFresh,
+  decodeBase64Url,
+  envelopePayload,
+  error,
+  httpAuthPayload,
+  json,
+  readJson,
+  recoveryEnrollmentPayload,
+  sha256Base64Url,
+  validBase64Url,
+  validId,
+  verifyEd25519,
+} from './protocol';
+
+interface Env {}
+
+interface DeviceRow {
+  device_id: string;
+  signing_public_key: string;
+  exchange_public_key: string;
+  revoked_ms: number | null;
+}
+
+interface MetaRow {
+  value: string;
+}
+
+interface OperationInput {
+  v: number;
+  op: string;
+  epoch: number;
+  nonce: string;
+  ciphertext: string;
+  signature: string;
+}
+
+interface OperationRow {
+  cursor: number;
+  op_id: string;
+  device_id: string;
+  epoch: number;
+  nonce: string;
+  ciphertext: string;
+  signature: string;
+  received_ms: number;
+}
+
+interface AuthContext {
+  device: DeviceRow;
+  body: Uint8Array;
+}
+
+export class Vault extends DurableObject<Env> {
+  private readonly sql: SqlStorage;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    this.sql = ctx.storage.sql;
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS devices (
+        device_id TEXT PRIMARY KEY,
+        signing_public_key TEXT NOT NULL,
+        exchange_public_key TEXT NOT NULL,
+        added_ms INTEGER NOT NULL,
+        revoked_ms INTEGER
+      );
+      CREATE TABLE IF NOT EXISTS operations (
+        cursor INTEGER PRIMARY KEY AUTOINCREMENT,
+        op_id TEXT NOT NULL UNIQUE,
+        device_id TEXT NOT NULL,
+        epoch INTEGER NOT NULL,
+        nonce TEXT NOT NULL,
+        ciphertext TEXT NOT NULL,
+        signature TEXT NOT NULL,
+        received_ms INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS auth_nonces (
+        device_id TEXT NOT NULL,
+        nonce TEXT NOT NULL,
+        expires_ms INTEGER NOT NULL,
+        PRIMARY KEY (device_id, nonce)
+      );
+      CREATE TABLE IF NOT EXISTS pairings (
+        pairing_id TEXT PRIMARY KEY,
+        target_device_id TEXT NOT NULL,
+        target_signing_public_key TEXT NOT NULL,
+        target_exchange_public_key TEXT NOT NULL,
+        ephemeral_public_key TEXT NOT NULL,
+        package_nonce TEXT NOT NULL,
+        package_ciphertext TEXT NOT NULL,
+        inviter_device_id TEXT NOT NULL,
+        created_ms INTEGER NOT NULL,
+        expires_ms INTEGER NOT NULL,
+        consumed_ms INTEGER
+      );
+      CREATE TABLE IF NOT EXISTS recovery (
+        slot INTEGER PRIMARY KEY CHECK (slot = 1),
+        recovery_id TEXT NOT NULL UNIQUE,
+        recovery_signing_public_key TEXT NOT NULL,
+        wrap_nonce TEXT NOT NULL,
+        wrapped_vault_key TEXT NOT NULL,
+        created_ms INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS recovery_attempts (
+        attempted_ms INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS rotations (
+        epoch INTEGER NOT NULL,
+        target_device_id TEXT NOT NULL,
+        package_nonce TEXT NOT NULL,
+        package_ciphertext TEXT NOT NULL,
+        created_ms INTEGER NOT NULL,
+        PRIMARY KEY (epoch, target_device_id)
+      );
+    `);
+  }
+
+  override async fetch(request: Request): Promise<Response> {
+    try {
+      return await this.route(request);
+    } catch (cause) {
+      if (cause instanceof PayloadTooLargeError) return error('payload_too_large', 413);
+      if (cause instanceof SyntaxError || cause instanceof TypeError) return error('invalid_request', 400);
+      console.error('nyla_sync_internal_error');
+      return error('internal_error', 500);
+    }
+  }
+
+  private async route(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    const path = url.pathname;
+    const vault = request.headers.get('x-nyla-vault');
+    const canonicalPath = request.headers.get('x-nyla-canonical-path');
+    if (!vault || !validId(vault) || !canonicalPath) return error('invalid_vault_route', 400);
+
+    if (request.method === 'POST' && path === '/bootstrap') {
+      return this.bootstrap(request, vault);
+    }
+
+    const recoveryGet = path.match(/^\/recovery\/([A-Za-z0-9_-]{16,64})$/);
+    if (request.method === 'GET' && recoveryGet) {
+      return this.getRecovery(recoveryGet[1]!);
+    }
+    const recoveryEnroll = path.match(/^\/recovery\/([A-Za-z0-9_-]{16,64})\/enroll$/);
+    if (request.method === 'POST' && recoveryEnroll) {
+      return this.recoverDevice(request, vault, recoveryEnroll[1]!);
+    }
+
+    const pairingGet = path.match(/^\/pairings\/([A-Za-z0-9_-]{16,64})$/);
+    if (request.method === 'GET' && pairingGet) {
+      return this.getPairing(pairingGet[1]!);
+    }
+
+    const auth = await this.authenticate(request, canonicalPath);
+    if (auth instanceof Response) return auth;
+
+    if (request.method === 'POST' && path === '/operations') {
+      return this.pushOperations(auth, vault);
+    }
+    if (request.method === 'GET' && path === '/operations') {
+      return this.pullOperations(url);
+    }
+    if (request.method === 'POST' && path === '/pairings/authorize') {
+      return this.authorizePairing(auth);
+    }
+    if (request.method === 'POST' && path === '/pairings/consume') {
+      return this.consumePairing(auth);
+    }
+    if (request.method === 'PUT' && path === '/recovery') {
+      return this.setRecovery(auth);
+    }
+    if (request.method === 'POST' && path === '/rotate') {
+      return this.rotateVault(auth);
+    }
+    const rotationGet = path.match(/^\/rotations\/(\d+)$/);
+    if (request.method === 'GET' && rotationGet) {
+      return this.getRotation(auth.device.device_id, Number(rotationGet[1]));
+    }
+    const revoke = path.match(/^\/devices\/([A-Za-z0-9_-]{16,64})\/revoke$/);
+    if (request.method === 'POST' && revoke) {
+      return this.revokeDevice(auth.device.device_id, revoke[1]!);
+    }
+    if (request.method === 'GET' && path === '/devices') {
+      return this.listDevices();
+    }
+    if (request.method === 'DELETE' && path === '/vault') {
+      await this.ctx.storage.deleteAll();
+      return json({ deleted: true });
+    }
+
+    return error('not_found', 404);
+  }
+
+  private async bootstrap(request: Request, vault: string): Promise<Response> {
+    if (this.hasVault()) return error('vault_exists', 409);
+
+    const { value } = await readJson<{
+      device_id?: unknown;
+      signing_public_key?: unknown;
+      exchange_public_key?: unknown;
+      timestamp?: unknown;
+      nonce?: unknown;
+      signature?: unknown;
+    }>(request, 16 * 1024);
+
+    const { device_id, signing_public_key, exchange_public_key, timestamp, nonce, signature } = value;
+    if (
+      !validId(device_id) ||
+      !validBase64Url(signing_public_key, 128) ||
+      !validBase64Url(exchange_public_key, 128) ||
+      !validId(nonce) ||
+      typeof timestamp !== 'string' ||
+      !clockIsFresh(timestamp) ||
+      !validBase64Url(signature, 256)
+    ) {
+      return error('invalid_bootstrap', 400);
+    }
+    if (decodeBase64Url(signing_public_key).byteLength !== 32) return error('invalid_signing_key', 400);
+    if (decodeBase64Url(exchange_public_key).byteLength !== 32) return error('invalid_exchange_key', 400);
+
+    const validSignature = await verifyEd25519(
+      signing_public_key,
+      signature,
+      bootstrapPayload({
+        vault,
+        device: device_id,
+        signingPublicKey: signing_public_key,
+        exchangePublicKey: exchange_public_key,
+        timestamp,
+        nonce,
+      }),
+    );
+    if (!validSignature) return error('invalid_signature', 401);
+
+    const now = Date.now();
+    this.ctx.storage.transactionSync(() => {
+      if (this.hasVault()) throw new Error('vault_race');
+      this.sql.exec("INSERT INTO meta(key, value) VALUES ('epoch', '1'), ('created_ms', ?)", String(now));
+      this.sql.exec(
+        'INSERT INTO devices(device_id, signing_public_key, exchange_public_key, added_ms) VALUES (?, ?, ?, ?)',
+        device_id,
+        signing_public_key,
+        exchange_public_key,
+        now,
+      );
+    });
+    return json({ created: true, epoch: 1 }, 201);
+  }
+
+  private async authenticate(request: Request, canonicalPath: string): Promise<AuthContext | Response> {
+    if (!this.hasVault()) return error('vault_not_found', 404);
+
+    const deviceId = request.headers.get('x-nyla-device');
+    const timestamp = request.headers.get('x-nyla-timestamp');
+    const nonce = request.headers.get('x-nyla-nonce');
+    const signature = request.headers.get('x-nyla-signature');
+    if (
+      !validId(deviceId) ||
+      !timestamp ||
+      !clockIsFresh(timestamp) ||
+      !validId(nonce) ||
+      !signature ||
+      !validBase64Url(signature, 256)
+    ) {
+      return error('authentication_required', 401);
+    }
+
+    const device = this.device(deviceId);
+    if (!device || device.revoked_ms !== null) return error('device_not_authorized', 401);
+
+    const body = new Uint8Array(await request.arrayBuffer());
+    if (body.byteLength > 512 * 1024) return error('payload_too_large', 413);
+    const bodyHash = await sha256Base64Url(body);
+    const validSignature = await verifyEd25519(
+      device.signing_public_key,
+      signature,
+      httpAuthPayload({
+        method: request.method,
+        path: canonicalPath,
+        timestamp,
+        nonce,
+        bodyHash,
+      }),
+    );
+    if (!validSignature) return error('invalid_signature', 401);
+
+    const now = Date.now();
+    this.cleanup(now);
+    try {
+      this.sql.exec(
+        'INSERT INTO auth_nonces(device_id, nonce, expires_ms) VALUES (?, ?, ?)',
+        deviceId,
+        nonce,
+        now + AUTH_NONCE_TTL_MS,
+      );
+    } catch {
+      return error('replayed_request', 409);
+    }
+
+    return { device, body };
+  }
+
+  private async pushOperations(auth: AuthContext, vault: string): Promise<Response> {
+    const parsed = JSON.parse(new TextDecoder().decode(auth.body)) as { operations?: unknown };
+    if (!Array.isArray(parsed.operations) || parsed.operations.length === 0) {
+      return error('operations_required', 400);
+    }
+    if (parsed.operations.length > MAX_BATCH_OPERATIONS) return error('too_many_operations', 413);
+
+    const epoch = this.currentEpoch();
+    const accepted: string[] = [];
+    const duplicate: string[] = [];
+    const validated: OperationInput[] = [];
+
+    for (const raw of parsed.operations) {
+      if (!this.isOperation(raw, epoch)) return error('invalid_operation', 400);
+      const bytes = decodeBase64Url(raw.ciphertext).byteLength;
+      if (bytes > MAX_OPERATION_BYTES) return error('operation_too_large', 413);
+      const validSignature = await verifyEd25519(
+        auth.device.signing_public_key,
+        raw.signature,
+        envelopePayload({
+          vault,
+          device: auth.device.device_id,
+          epoch: raw.epoch,
+          op: raw.op,
+          nonce: raw.nonce,
+          ciphertext: raw.ciphertext,
+        }),
+      );
+      if (!validSignature) return error('invalid_operation_signature', 401);
+      validated.push(raw);
+    }
+
+    const now = Date.now();
+    this.ctx.storage.transactionSync(() => {
+      for (const op of validated) {
+        const existing = this.sql.exec('SELECT cursor FROM operations WHERE op_id = ?', op.op).toArray();
+        if (existing.length !== 0) {
+          duplicate.push(op.op);
+          continue;
+        }
+        this.sql.exec(
+          `INSERT INTO operations(op_id, device_id, epoch, nonce, ciphertext, signature, received_ms)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          op.op,
+          auth.device.device_id,
+          op.epoch,
+          op.nonce,
+          op.ciphertext,
+          op.signature,
+          now,
+        );
+        accepted.push(op.op);
+      }
+    });
+
+    const cursorRow = this.sql.exec('SELECT COALESCE(MAX(cursor), 0) AS cursor FROM operations').toArray()[0] as
+      | { cursor: number }
+      | undefined;
+    return json({ accepted, duplicate, cursor: cursorRow?.cursor ?? 0 });
+  }
+
+  private pullOperations(url: URL): Response {
+    const sinceRaw = url.searchParams.get('since') ?? '0';
+    const limitRaw = url.searchParams.get('limit') ?? String(DEFAULT_PULL_OPERATIONS);
+    if (!/^\d+$/.test(sinceRaw) || !/^\d+$/.test(limitRaw)) return error('invalid_cursor', 400);
+    const since = Number(sinceRaw);
+    const limit = Math.min(Number(limitRaw), MAX_PULL_OPERATIONS);
+    if (!Number.isSafeInteger(since) || since < 0 || !Number.isSafeInteger(limit) || limit < 1) {
+      return error('invalid_cursor', 400);
+    }
+
+    const rows = this.sql
+      .exec(
+        `SELECT cursor, op_id, device_id, epoch, nonce, ciphertext, signature, received_ms
+         FROM operations WHERE cursor > ? ORDER BY cursor ASC LIMIT ?`,
+        since,
+        limit,
+      )
+      .toArray() as unknown as OperationRow[];
+    const latest = rows.length === 0 ? since : rows[rows.length - 1]!.cursor;
+    const hasMore = this.sql.exec('SELECT 1 AS present FROM operations WHERE cursor > ? LIMIT 1', latest).toArray().length > 0;
+
+    return json({ operations: rows, next_cursor: latest, has_more: hasMore, epoch: this.currentEpoch() });
+  }
+
+  private async authorizePairing(auth: AuthContext): Promise<Response> {
+    const body = JSON.parse(new TextDecoder().decode(auth.body)) as Record<string, unknown>;
+    const pairingId = body['pairing_id'];
+    const targetDeviceId = body['target_device_id'];
+    const signingPublicKey = body['signing_public_key'];
+    const exchangePublicKey = body['exchange_public_key'];
+    const ephemeralPublicKey = body['ephemeral_public_key'];
+    const packageNonce = body['package_nonce'];
+    const packageCiphertext = body['package_ciphertext'];
+    if (
+      !validId(pairingId) ||
+      !validId(targetDeviceId) ||
+      !validBase64Url(signingPublicKey, 128) ||
+      !validBase64Url(exchangePublicKey, 128) ||
+      !validBase64Url(ephemeralPublicKey, 128) ||
+      !validBase64Url(packageNonce, 128) ||
+      !validBase64Url(packageCiphertext, 16384)
+    ) {
+      return error('invalid_pairing', 400);
+    }
+    if (
+      decodeBase64Url(signingPublicKey).byteLength !== 32 ||
+      decodeBase64Url(exchangePublicKey).byteLength !== 32 ||
+      decodeBase64Url(ephemeralPublicKey).byteLength !== 32
+    ) {
+      return error('invalid_pairing_keys', 400);
+    }
+    if (this.device(targetDeviceId)) return error('device_exists', 409);
+
+    const now = Date.now();
+    try {
+      this.ctx.storage.transactionSync(() => {
+        this.sql.exec(
+          `INSERT INTO pairings(
+             pairing_id, target_device_id, target_signing_public_key, target_exchange_public_key,
+             ephemeral_public_key, package_nonce, package_ciphertext, inviter_device_id, created_ms, expires_ms
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          pairingId,
+          targetDeviceId,
+          signingPublicKey,
+          exchangePublicKey,
+          ephemeralPublicKey,
+          packageNonce,
+          packageCiphertext,
+          auth.device.device_id,
+          now,
+          now + PAIRING_TTL_MS,
+        );
+        this.sql.exec(
+          'INSERT INTO devices(device_id, signing_public_key, exchange_public_key, added_ms) VALUES (?, ?, ?, ?)',
+          targetDeviceId,
+          signingPublicKey,
+          exchangePublicKey,
+          now,
+        );
+      });
+    } catch {
+      return error('pairing_conflict', 409);
+    }
+    return json({ authorized: true, expires_ms: now + PAIRING_TTL_MS }, 201);
+  }
+
+  private getPairing(pairingId: string): Response {
+    this.cleanup(Date.now());
+    const row = this.sql
+      .exec(
+        `SELECT pairing_id, target_device_id, ephemeral_public_key, package_nonce, package_ciphertext,
+                inviter_device_id, expires_ms, consumed_ms
+         FROM pairings WHERE pairing_id = ?`,
+        pairingId,
+      )
+      .toArray()[0] as Record<string, unknown> | undefined;
+    if (!row || row['consumed_ms'] !== null) return error('pairing_not_found', 404);
+    return json(row);
+  }
+
+  private consumePairing(auth: AuthContext): Response {
+    const body = JSON.parse(new TextDecoder().decode(auth.body)) as { pairing_id?: unknown };
+    if (!validId(body.pairing_id)) return error('invalid_pairing', 400);
+    const row = this.sql
+      .exec('SELECT target_device_id, consumed_ms, expires_ms FROM pairings WHERE pairing_id = ?', body.pairing_id)
+      .toArray()[0] as { target_device_id: string; consumed_ms: number | null; expires_ms: number } | undefined;
+    if (
+      !row ||
+      row.target_device_id !== auth.device.device_id ||
+      row.consumed_ms !== null ||
+      row.expires_ms < Date.now()
+    ) {
+      return error('pairing_not_found', 404);
+    }
+    this.sql.exec('UPDATE pairings SET consumed_ms = ? WHERE pairing_id = ?', Date.now(), body.pairing_id);
+    return json({ consumed: true });
+  }
+
+  private setRecovery(auth: AuthContext): Response {
+    const body = JSON.parse(new TextDecoder().decode(auth.body)) as Record<string, unknown>;
+    const recoveryId = body['recovery_id'];
+    const recoverySigningPublicKey = body['recovery_signing_public_key'];
+    const wrapNonce = body['wrap_nonce'];
+    const wrappedVaultKey = body['wrapped_vault_key'];
+    if (
+      !validId(recoveryId) ||
+      !validBase64Url(recoverySigningPublicKey, 128) ||
+      !validBase64Url(wrapNonce, 128) ||
+      !validBase64Url(wrappedVaultKey, 2048)
+    ) {
+      return error('invalid_recovery_envelope', 400);
+    }
+    if (decodeBase64Url(recoverySigningPublicKey).byteLength !== 32) {
+      return error('invalid_recovery_key', 400);
+    }
+    this.sql.exec(
+      `INSERT INTO recovery(slot, recovery_id, recovery_signing_public_key, wrap_nonce, wrapped_vault_key, created_ms)
+       VALUES (1, ?, ?, ?, ?, ?)
+       ON CONFLICT(slot) DO UPDATE SET recovery_id = excluded.recovery_id,
+         recovery_signing_public_key = excluded.recovery_signing_public_key,
+         wrap_nonce = excluded.wrap_nonce,
+         wrapped_vault_key = excluded.wrapped_vault_key,
+         created_ms = excluded.created_ms`,
+      recoveryId,
+      recoverySigningPublicKey,
+      wrapNonce,
+      wrappedVaultKey,
+      Date.now(),
+    );
+    return json({ recovery_configured: true, by_device: auth.device.device_id });
+  }
+
+  private getRecovery(recoveryId: string): Response {
+    const row = this.sql
+      .exec(
+        'SELECT recovery_id, wrap_nonce, wrapped_vault_key, created_ms FROM recovery WHERE recovery_id = ?',
+        recoveryId,
+      )
+      .toArray()[0] as Record<string, unknown> | undefined;
+    if (!row) return error('recovery_not_found', 404);
+    return json(row);
+  }
+
+  private async recoverDevice(request: Request, vault: string, recoveryId: string): Promise<Response> {
+    this.limitRecoveryAttempts();
+    const { value } = await readJson<{
+      device_id?: unknown;
+      signing_public_key?: unknown;
+      exchange_public_key?: unknown;
+      timestamp?: unknown;
+      nonce?: unknown;
+      signature?: unknown;
+    }>(request, 16 * 1024);
+    const { device_id, signing_public_key, exchange_public_key, timestamp, nonce, signature } = value;
+    if (
+      !validId(device_id) ||
+      !validBase64Url(signing_public_key, 128) ||
+      !validBase64Url(exchange_public_key, 128) ||
+      typeof timestamp !== 'string' ||
+      !clockIsFresh(timestamp) ||
+      !validId(nonce) ||
+      !validBase64Url(signature, 256)
+    ) {
+      return error('invalid_recovery_enrollment', 400);
+    }
+    const recovery = this.sql
+      .exec('SELECT recovery_signing_public_key FROM recovery WHERE recovery_id = ?', recoveryId)
+      .toArray()[0] as { recovery_signing_public_key: string } | undefined;
+    if (!recovery) return error('recovery_not_found', 404);
+
+    const verified = await verifyEd25519(
+      recovery.recovery_signing_public_key,
+      signature,
+      recoveryEnrollmentPayload({
+        vault,
+        recoveryId,
+        device: device_id,
+        signingPublicKey: signing_public_key,
+        exchangePublicKey: exchange_public_key,
+        timestamp,
+        nonce,
+      }),
+    );
+    if (!verified) return error('invalid_recovery_signature', 401);
+
+    const now = Date.now();
+    this.sql.exec(
+      `INSERT INTO devices(device_id, signing_public_key, exchange_public_key, added_ms, revoked_ms)
+       VALUES (?, ?, ?, ?, NULL)
+       ON CONFLICT(device_id) DO UPDATE SET signing_public_key = excluded.signing_public_key,
+         exchange_public_key = excluded.exchange_public_key, added_ms = excluded.added_ms, revoked_ms = NULL`,
+      device_id,
+      signing_public_key,
+      exchange_public_key,
+      now,
+    );
+    return json({ enrolled: true, epoch: this.currentEpoch() }, 201);
+  }
+
+  private rotateVault(auth: AuthContext): Response {
+    const body = JSON.parse(new TextDecoder().decode(auth.body)) as {
+      new_epoch?: unknown;
+      revoke_device_ids?: unknown;
+      packages?: unknown;
+    };
+    const current = this.currentEpoch();
+    if (typeof body.new_epoch !== 'number' || body.new_epoch !== current + 1) {
+      return error('invalid_epoch', 409);
+    }
+    if (!Array.isArray(body.revoke_device_ids) || !Array.isArray(body.packages)) {
+      return error('invalid_rotation', 400);
+    }
+    const revoked = new Set<string>();
+    for (const value of body.revoke_device_ids) {
+      if (!validId(value)) return error('invalid_rotation', 400);
+      if (value === auth.device.device_id) return error('cannot_revoke_rotating_device', 400);
+      revoked.add(value);
+    }
+
+    const packages: Array<{ target_device_id: string; package_nonce: string; package_ciphertext: string }> = [];
+    for (const raw of body.packages) {
+      if (typeof raw !== 'object' || raw === null) return error('invalid_rotation', 400);
+      const record = raw as Record<string, unknown>;
+      const target = record['target_device_id'];
+      const nonce = record['package_nonce'];
+      const ciphertext = record['package_ciphertext'];
+      if (!validId(target) || !validBase64Url(nonce, 128) || !validBase64Url(ciphertext, 4096)) {
+        return error('invalid_rotation', 400);
+      }
+      if (revoked.has(target)) return error('rotation_targets_revoked_device', 400);
+      const device = this.device(target);
+      if (!device || device.revoked_ms !== null) return error('rotation_targets_unknown_device', 400);
+      packages.push({ target_device_id: target, package_nonce: nonce, package_ciphertext: ciphertext });
+    }
+
+    const active = this.activeDeviceIds().filter((id) => !revoked.has(id)).sort();
+    const targets = [...new Set(packages.map((item) => item.target_device_id))].sort();
+    if (active.length !== targets.length || active.some((value, index) => value !== targets[index])) {
+      return error('rotation_missing_device_package', 400);
+    }
+
+    const now = Date.now();
+    this.ctx.storage.transactionSync(() => {
+      for (const deviceId of revoked) {
+        this.sql.exec('UPDATE devices SET revoked_ms = ? WHERE device_id = ? AND revoked_ms IS NULL', now, deviceId);
+      }
+      for (const item of packages) {
+        this.sql.exec(
+          'INSERT INTO rotations(epoch, target_device_id, package_nonce, package_ciphertext, created_ms) VALUES (?, ?, ?, ?, ?)',
+          body.new_epoch as number,
+          item.target_device_id,
+          item.package_nonce,
+          item.package_ciphertext,
+          now,
+        );
+      }
+      this.sql.exec("UPDATE meta SET value = ? WHERE key = 'epoch'", String(body.new_epoch));
+    });
+
+    return json({ rotated: true, epoch: body.new_epoch, revoked: [...revoked] });
+  }
+
+  private getRotation(deviceId: string, epoch: number): Response {
+    if (!Number.isSafeInteger(epoch) || epoch < 2) return error('invalid_epoch', 400);
+    const row = this.sql
+      .exec(
+        'SELECT epoch, package_nonce, package_ciphertext, created_ms FROM rotations WHERE epoch = ? AND target_device_id = ?',
+        epoch,
+        deviceId,
+      )
+      .toArray()[0] as Record<string, unknown> | undefined;
+    if (!row) return error('rotation_not_found', 404);
+    return json(row);
+  }
+
+  private revokeDevice(actorDeviceId: string, targetDeviceId: string): Response {
+    const target = this.device(targetDeviceId);
+    if (!target || target.revoked_ms !== null) return error('device_not_found', 404);
+    const active = this.activeDeviceIds();
+    if (active.length <= 1) return error('cannot_revoke_last_device', 409);
+    if (actorDeviceId === targetDeviceId && active.length === 1) return error('cannot_revoke_last_device', 409);
+    this.sql.exec('UPDATE devices SET revoked_ms = ? WHERE device_id = ?', Date.now(), targetDeviceId);
+    return json({ revoked: targetDeviceId, key_rotation_recommended: true });
+  }
+
+  private listDevices(): Response {
+    const rows = this.sql
+      .exec('SELECT device_id, exchange_public_key, added_ms, revoked_ms FROM devices ORDER BY added_ms ASC')
+      .toArray();
+    return json({ devices: rows, epoch: this.currentEpoch() });
+  }
+
+  private hasVault(): boolean {
+    return this.sql.exec("SELECT 1 AS present FROM meta WHERE key = 'epoch' LIMIT 1").toArray().length !== 0;
+  }
+
+  private currentEpoch(): number {
+    const row = this.sql.exec("SELECT value FROM meta WHERE key = 'epoch'").toArray()[0] as MetaRow | undefined;
+    return row ? Number(row.value) : 0;
+  }
+
+  private device(deviceId: string): DeviceRow | undefined {
+    return this.sql
+      .exec(
+        'SELECT device_id, signing_public_key, exchange_public_key, revoked_ms FROM devices WHERE device_id = ?',
+        deviceId,
+      )
+      .toArray()[0] as DeviceRow | undefined;
+  }
+
+  private activeDeviceIds(): string[] {
+    return (
+      this.sql.exec('SELECT device_id FROM devices WHERE revoked_ms IS NULL').toArray() as Array<{ device_id: string }>
+    ).map((row) => row.device_id);
+  }
+
+  private cleanup(now: number): void {
+    this.sql.exec('DELETE FROM auth_nonces WHERE expires_ms < ?', now);
+    this.sql.exec('DELETE FROM pairings WHERE expires_ms < ?', now);
+    this.sql.exec('DELETE FROM recovery_attempts WHERE attempted_ms < ?', now - 60 * 60 * 1000);
+  }
+
+  private limitRecoveryAttempts(): void {
+    const now = Date.now();
+    this.cleanup(now);
+    const row = this.sql.exec('SELECT COUNT(*) AS count FROM recovery_attempts').toArray()[0] as
+      | { count: number }
+      | undefined;
+    if ((row?.count ?? 0) >= 5) throw new RecoveryRateLimitError();
+    this.sql.exec('INSERT INTO recovery_attempts(attempted_ms) VALUES (?)', now);
+  }
+
+  private isOperation(value: unknown, epoch: number): value is OperationInput {
+    if (typeof value !== 'object' || value === null) return false;
+    const op = value as Partial<OperationInput>;
+    return (
+      op.v === 1 &&
+      validId(op.op) &&
+      op.epoch === epoch &&
+      validBase64Url(op.nonce, 128) &&
+      validBase64Url(op.ciphertext, 131072) &&
+      validBase64Url(op.signature, 256)
+    );
+  }
+}
+
+class RecoveryRateLimitError extends Error {}
