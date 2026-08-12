@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -22,45 +20,46 @@ class NylaShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selected = _destinations.indexWhere((entry) => location.startsWith(entry.path)).clamp(0, 4);
+    final selected = _destinations
+        .indexWhere((entry) => location.startsWith(entry.path))
+        .clamp(0, _destinations.length - 1);
+
     return Scaffold(
       extendBody: true,
       body: child,
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-            child: Container(
-              height: 72,
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xEFFFFFFC),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.88)),
-                boxShadow: const [
-                  BoxShadow(color: Color(0x2233203E), blurRadius: 28, offset: Offset(0, 12)),
-                ],
+        child: Container(
+          height: 70,
+          padding: const EdgeInsets.symmetric(horizontal: 7),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFCFE).withValues(alpha: 0.96),
+            borderRadius: BorderRadius.circular(27),
+            border: Border.all(color: Colors.white),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x172B2231),
+                blurRadius: 22,
+                offset: Offset(0, 9),
               ),
-              child: Row(
-                children: [
-                  for (var i = 0; i < _destinations.length; i++)
-                    Expanded(
-                      child: _Destination(
-                        entry: _destinations[i],
-                        selected: i == selected,
-                        primary: _destinations[i].path == '/log',
-                        onTap: () {
-                          if (i == selected) return;
-                          NylaHaptics.select();
-                          context.go(_destinations[i].path);
-                        },
-                      ),
-                    ),
-                ],
-              ),
-            ),
+            ],
+          ),
+          child: Row(
+            children: [
+              for (var i = 0; i < _destinations.length; i++)
+                Expanded(
+                  child: _Destination(
+                    entry: _destinations[i],
+                    selected: i == selected,
+                    primary: _destinations[i].path == '/log',
+                    onTap: () {
+                      if (i == selected) return;
+                      NylaHaptics.select();
+                      context.go(_destinations[i].path);
+                    },
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -69,7 +68,12 @@ class NylaShell extends StatelessWidget {
 }
 
 class _Destination extends StatelessWidget {
-  const _Destination({required this.entry, required this.selected, required this.primary, required this.onTap});
+  const _Destination({
+    required this.entry,
+    required this.selected,
+    required this.primary,
+    required this.onTap,
+  });
 
   final ({String path, IconData icon, String label}) entry;
   final bool selected;
@@ -86,30 +90,25 @@ class _Destination extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                width: 43,
-                height: 43,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: selected
-                        ? const [NylaColors.violet, NylaColors.rose]
-                        : const [NylaColors.wine, NylaColors.violet],
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 170),
+              curve: Curves.easeOutCubic,
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: selected ? NylaColors.rose : NylaColors.violet,
+                shape: BoxShape.circle,
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x248269AE),
+                    blurRadius: 12,
+                    offset: Offset(0, 5),
                   ),
-                  shape: BoxShape.circle,
-                  boxShadow: const [
-                    BoxShadow(color: Color(0x337056A3), blurRadius: 16, offset: Offset(0, 7)),
-                  ],
-                ),
-                child: const Icon(Icons.add_rounded, color: Colors.white, size: 25),
+                ],
               ),
-            ],
+              child: const Icon(Icons.add_rounded, color: Colors.white, size: 25),
+            ),
           ),
         ),
       );
@@ -121,23 +120,23 @@ class _Destination extends StatelessWidget {
       label: entry.label,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
+              duration: const Duration(milliseconds: 170),
               curve: Curves.easeOutCubic,
-              width: selected ? 38 : 30,
-              height: 31,
+              width: selected ? 38 : 31,
+              height: 30,
               decoration: BoxDecoration(
                 color: selected ? NylaColors.lavenderSoft : Colors.transparent,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(13),
               ),
               alignment: Alignment.center,
               child: Icon(
                 entry.icon,
-                size: 20,
+                size: 19,
                 color: selected ? NylaColors.violet : NylaColors.mutedInk,
               ),
             ),
@@ -147,8 +146,8 @@ class _Destination extends StatelessWidget {
               maxLines: 1,
               style: TextStyle(
                 fontFamily: 'sans-serif-rounded',
-                fontSize: 9.5,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                fontSize: 9.4,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                 color: selected ? NylaColors.wine : NylaColors.mutedInk,
               ),
             ),
