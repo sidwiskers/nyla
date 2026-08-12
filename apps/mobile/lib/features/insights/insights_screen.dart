@@ -4,49 +4,61 @@ import 'package:cycle_engine/cycle_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/model/date_text.dart';
 import '../../core/theme/nyla_theme.dart';
 import '../../data/database/app_database.dart';
 import '../../providers.dart';
 import '../../widgets/nyla_page.dart';
 import '../../widgets/nyla_ui.dart';
 
-class InsightsScreen extends ConsumerWidget {
+class InsightsScreen extends ConsumerStatefulWidget {
   const InsightsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<InsightsScreen> createState() => _InsightsScreenState();
+}
+
+class _InsightsScreenState extends ConsumerState<InsightsScreen> {
+  int selected = 0;
+
+  @override
+  Widget build(BuildContext context) {
     final history = ref.watch(periodHistoryProvider);
     final prediction = ref.watch(cyclePredictionProvider);
     final patterns = ref.watch(symptomPatternsProvider);
 
     return NylaPage(
       title: 'Insights',
-      subtitle: 'Patterns with context, not conclusions.',
       child: history.when(
-        loading: () => const Center(
-          child: Padding(
-            padding: EdgeInsets.all(40),
-            child: CircularProgressIndicator(),
-          ),
+        loading: () => const Padding(
+          padding: EdgeInsets.all(40),
+          child: Center(child: CircularProgressIndicator()),
         ),
-        error: (_, _) => const _SoftMessage(
+        error: (_, _) => const NylaInlineNote(
           icon: Icons.refresh_rounded,
-          text: 'Your insights could not be loaded right now.',
+          title: 'Insights are taking a moment',
+          body: 'Your data is still here. Try again shortly.',
         ),
         data: (periods) {
           final stats = _stats(periods);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _RhythmCanvas(stats: stats),
-              const SizedBox(height: 28),
-              _PredictionNarrative(prediction: prediction),
-              const SizedBox(height: 32),
-              _PatternsSection(
-                patterns: patterns,
-                periodCount: periods.length,
+              NylaPillTabs(
+                labels: const ['Overview', 'Cycles', 'Symptoms'],
+                selectedIndex: selected,
+                onSelected: (value) => setState(() => selected = value),
               ),
-              const SizedBox(height: 92),
+              const SizedBox(height: 14),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: switch (selected) {
+                  0 => _Overview(key: const ValueKey(0), stats: stats, patterns: patterns),
+                  1 => _Cycles(key: const ValueKey(1), stats: stats, prediction: prediction),
+                  _ => _Symptoms(key: const ValueKey(2), patterns: patterns, periodCount: periods.length),
+                },
+              ),
+              const SizedBox(height: 88),
             ],
           );
         },
@@ -55,8 +67,7 @@ class InsightsScreen extends ConsumerWidget {
   }
 
   _CycleStats _stats(List<PeriodEntry> rows) {
-    final chronological = [...rows]
-      ..sort((a, b) => a.startDay.compareTo(b.startDay));
+    final chronological = [...rows]..sort((a, b) => a.startDay.compareTo(b.startDay));
     final intervals = <int>[];
     for (var i = 1; i < chronological.length; i++) {
       final interval = chronological[i].startDay - chronological[i - 1].startDay;
@@ -66,612 +77,420 @@ class InsightsScreen extends ConsumerWidget {
         .where((row) => row.endDay != null)
         .map((row) => row.endDay! - row.startDay + 1)
         .where((value) => value >= 1 && value <= 14)
-        .toList();
-
-    String medianText(List<int> values) =>
-        values.isEmpty ? '—' : median(values).round().toString();
+        .toList(growable: false);
 
     return _CycleStats(
-      typicalCycle: medianText(intervals),
-      typicalPeriod: medianText(durations),
-      shortest: intervals.isEmpty ? '—' : intervals.reduce(math.min).toString(),
-      longest: intervals.isEmpty ? '—' : intervals.reduce(math.max).toString(),
+      cycle: intervals.isEmpty ? null : median(intervals),
+      period: durations.isEmpty ? null : median(durations),
       intervals: intervals,
     );
   }
 }
 
-class _RhythmCanvas extends StatelessWidget {
-  const _RhythmCanvas({required this.stats});
+class _Overview extends StatelessWidget {
+  const _Overview({required this.stats, required this.patterns, super.key});
+
+  final _CycleStats stats;
+  final AsyncValue<List<SymptomPattern>> patterns;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _CycleChart(stats: stats),
+          const SizedBox(height: 14),
+          patterns.when(
+            loading: () => const _SmallLoadingCard(),
+            error: (_, _) => const NylaInlineNote(
+              icon: Icons.bar_chart_rounded,
+              title: 'Symptoms will appear here',
+              body: 'Nyla could not refresh them right now.',
+            ),
+            data: (items) => _TopSymptoms(items: items),
+          ),
+        ],
+      );
+}
+
+class _CycleChart extends StatelessWidget {
+  const _CycleChart({required this.stats});
 
   final _CycleStats stats;
 
   @override
   Widget build(BuildContext context) {
-    final hasRhythm = stats.intervals.length >= 2;
+    final average = stats.cycle?.round();
     return NylaPaperSurface(
-      padding: EdgeInsets.zero,
-      radius: const BorderRadius.only(
-        topLeft: Radius.circular(34),
-        topRight: Radius.circular(18),
-        bottomLeft: Radius.circular(18),
-        bottomRight: Radius.circular(34),
-      ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(34),
-          topRight: Radius.circular(18),
-          bottomLeft: Radius.circular(18),
-          bottomRight: Radius.circular(34),
-        ),
-        child: Stack(
-          children: [
-            const Positioned.fill(
-              child: IgnorePointer(child: _RhythmAtmosphere()),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const NylaOverline('Your rhythm'),
-                  const SizedBox(height: 9),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          hasRhythm
-                              ? 'Cycle length over time'
-                              : 'Still taking shape',
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineMedium
-                              ?.copyWith(fontSize: 27),
-                        ),
-                      ),
-                      if (stats.typicalCycle != '—')
-                        _BigMetric(
-                          value: stats.typicalCycle,
-                          suffix: 'days',
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    height: 170,
-                    child: hasRhythm
-                        ? CustomPaint(
-                            painter: _RhythmPainter(values: stats.intervals),
-                            child: const SizedBox.expand(),
-                          )
-                        : _EmptyRhythm(),
-                  ),
-                  const SizedBox(height: 18),
-                  const NylaHairline(),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _SmallMetric(
-                          value: stats.typicalPeriod,
-                          label: 'Typical period',
-                          suffix: 'days',
-                        ),
-                      ),
-                      Expanded(
-                        child: _SmallMetric(
-                          value: _range(stats),
-                          label: 'Observed range',
-                          suffix: 'days',
-                        ),
-                      ),
-                      Expanded(
-                        child: _SmallMetric(
-                          value: '${stats.intervals.length}',
-                          label: 'Intervals used',
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _range(_CycleStats value) {
-    if (value.shortest == '—' || value.longest == '—') return '—';
-    return '${value.shortest}–${value.longest}';
-  }
-}
-
-class _BigMetric extends StatelessWidget {
-  const _BigMetric({required this.value, required this.suffix});
-
-  final String value;
-  final String suffix;
-
-  @override
-  Widget build(BuildContext context) => Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            value,
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  color: NylaColors.wine,
-                  fontSize: 42,
-                  height: 0.92,
-                ),
-          ),
-          const SizedBox(width: 5),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Text(
-              suffix,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-          ),
-        ],
-      );
-}
-
-class _SmallMetric extends StatelessWidget {
-  const _SmallMetric({
-    required this.value,
-    required this.label,
-    this.suffix,
-  });
-
-  final String value;
-  final String label;
-  final String? suffix;
-
-  @override
-  Widget build(BuildContext context) => Column(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 15),
+      radius: BorderRadius.circular(20),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text('Average Cycle Length', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5)),
+          const SizedBox(height: 2),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Flexible(
-                child: Text(
-                  value,
-                  maxLines: 1,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: NylaColors.wine,
-                        fontSize: 19,
-                      ),
-                ),
+              Text(
+                average == null ? '—' : '$average',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 25),
               ),
-              if (suffix != null && value != '—')
+              if (average != null)
                 Padding(
-                  padding: const EdgeInsets.only(left: 3, bottom: 1),
-                  child: Text(
-                    suffix!,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(fontSize: 9.5),
-                  ),
+                  padding: const EdgeInsets.only(left: 4, bottom: 3),
+                  child: Text('Days', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 10.5)),
                 ),
             ],
           ),
-          const SizedBox(height: 5),
-          Text(
-            label,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(fontSize: 10.5),
+          const SizedBox(height: 13),
+          SizedBox(
+            height: 130,
+            child: stats.intervals.length < 2
+                ? Center(
+                    child: Text(
+                      'Your cycle chart will grow here.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  )
+                : CustomPaint(
+                    painter: _LinePainter(stats.intervals),
+                    child: const SizedBox.expand(),
+                  ),
           ),
         ],
-      );
+      ),
+    );
+  }
 }
 
-class _RhythmPainter extends CustomPainter {
-  const _RhythmPainter({required this.values});
+class _LinePainter extends CustomPainter {
+  const _LinePainter(this.values);
 
   final List<int> values;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (values.length < 2) return;
-
-    final minValue = values.reduce(math.min).toDouble();
-    final maxValue = values.reduce(math.max).toDouble();
-    final spread = math.max(4.0, maxValue - minValue);
-    final low = minValue - 2;
-    final high = minValue + spread + 2;
-
     final grid = Paint()
-      ..color = NylaColors.outline.withValues(alpha: 0.72)
+      ..color = NylaColors.outline
       ..strokeWidth = 1;
     for (var i = 1; i < 4; i++) {
       final y = size.height * i / 4;
       canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
     }
 
+    final minValue = values.reduce(math.min).toDouble();
+    final maxValue = values.reduce(math.max).toDouble();
+    final spread = math.max(4.0, maxValue - minValue);
+
     Offset point(int index) {
       final x = size.width * index / (values.length - 1);
-      final normalized =
-          ((values[index] - low) / (high - low)).clamp(0.0, 1.0);
-      final y =
-          size.height - (normalized * size.height * 0.72) - size.height * 0.14;
-      return Offset(x, y);
+      final normalized = ((values[index] - (minValue - 2)) / (spread + 4)).clamp(0.0, 1.0);
+      return Offset(x, size.height - (normalized * size.height * 0.75) - size.height * 0.12);
     }
 
-    final line = Path()..moveTo(point(0).dx, point(0).dy);
+    final path = Path()..moveTo(point(0).dx, point(0).dy);
     for (var i = 1; i < values.length; i++) {
-      final previous = point(i - 1);
-      final current = point(i);
-      final midX = (previous.dx + current.dx) / 2;
-      line.cubicTo(
-        midX,
-        previous.dy,
-        midX,
-        current.dy,
-        current.dx,
-        current.dy,
-      );
+      path.lineTo(point(i).dx, point(i).dy);
     }
-
-    final fill = Path.from(line)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
     canvas.drawPath(
-      fill,
+      path,
       Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0x38B76570), Color(0x00B76570)],
-        ).createShader(Offset.zero & size),
-    );
-
-    canvas.drawPath(
-      line,
-      Paint()
-        ..shader = const LinearGradient(
-          colors: [NylaColors.rose, NylaColors.wine],
-        ).createShader(Offset.zero & size)
+        ..color = NylaColors.violet
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.5
-        ..strokeCap = StrokeCap.round,
+        ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
     );
-
     for (var i = 0; i < values.length; i++) {
       final p = point(i);
-      canvas.drawCircle(
-        p,
-        6,
-        Paint()..color = NylaColors.paper,
-      );
-      canvas.drawCircle(
-        p,
-        3,
-        Paint()..color = NylaColors.rose,
-      );
+      canvas.drawCircle(p, 5, Paint()..color = NylaColors.paper);
+      canvas.drawCircle(p, 3, Paint()..color = NylaColors.violet);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _RhythmPainter oldDelegate) =>
-      oldDelegate.values != values;
+  bool shouldRepaint(covariant _LinePainter oldDelegate) => oldDelegate.values != values;
 }
 
-class _EmptyRhythm extends StatelessWidget {
+class _TopSymptoms extends StatelessWidget {
+  const _TopSymptoms({required this.items});
+
+  final List<SymptomPattern> items;
+
   @override
-  Widget build(BuildContext context) => Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 300),
-          child: Text(
-            'Once a few cycles are complete, this space will show how your cycle length moves over time.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const NylaInlineNote(
+        icon: Icons.favorite_outline_rounded,
+        title: 'Your patterns will show up here',
+        body: 'Keep logging only what feels useful. Nyla will connect the dots over time.',
+        accent: NylaColors.rose,
+      );
+    }
+    final visible = [...items]
+      ..sort((a, b) => b.occurrenceRate.compareTo(a.occurrenceRate));
+    final top = visible.take(4).toList(growable: false);
+    return NylaPaperSurface(
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
+      shadow: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Top Symptoms', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 13),
+          for (var i = 0; i < top.length; i++) ...[
+            _SymptomBar(
+              label: _symptomLabel(top[i].key),
+              value: top[i].occurrenceRate.clamp(0, 1).toDouble(),
+            ),
+            if (i != top.length - 1) const SizedBox(height: 11),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SymptomBar extends StatelessWidget {
+  const _SymptomBar({required this.label, required this.value});
+
+  final String label;
+  final double value;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          SizedBox(
+            width: 82,
+            child: Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5)),
           ),
-        ),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: LinearProgressIndicator(
+                value: value,
+                minHeight: 5,
+                backgroundColor: NylaColors.lavenderSoft,
+                valueColor: const AlwaysStoppedAnimation(NylaColors.iris),
+              ),
+            ),
+          ),
+          const SizedBox(width: 9),
+          SizedBox(
+            width: 30,
+            child: Text(
+              '${(value * 100).round()}%',
+              textAlign: TextAlign.right,
+              style: const TextStyle(color: NylaColors.mutedInk, fontSize: 9.8, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
       );
 }
 
-class _PredictionNarrative extends StatelessWidget {
-  const _PredictionNarrative({required this.prediction});
+class _Cycles extends StatelessWidget {
+  const _Cycles({required this.stats, required this.prediction, super.key});
 
+  final _CycleStats stats;
   final AsyncValue<PredictionResult> prediction;
 
   @override
-  Widget build(BuildContext context) => prediction.when(
-        loading: () => const _SoftMessage(
-          icon: Icons.blur_on_rounded,
-          text: 'Updating prediction context…',
+  Widget build(BuildContext context) {
+    final shortest = stats.intervals.isEmpty ? null : stats.intervals.reduce(math.min);
+    final longest = stats.intervals.isEmpty ? null : stats.intervals.reduce(math.max);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(child: _Metric(value: stats.cycle?.round(), label: 'Typical cycle')),
+            const SizedBox(width: 9),
+            Expanded(child: _Metric(value: stats.period?.round(), label: 'Typical period')),
+          ],
         ),
-        error: (_, _) => const _SoftMessage(
-          icon: Icons.blur_off_rounded,
-          text: 'Prediction context is unavailable right now.',
+        const SizedBox(height: 9),
+        NylaPaperSurface(
+          padding: const EdgeInsets.all(16),
+          shadow: false,
+          child: Row(
+            children: [
+              const NylaIconToken(icon: Icons.timeline_rounded, background: NylaColors.sageSoft),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Observed range', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 13.5)),
+                    const SizedBox(height: 2),
+                    Text(
+                      shortest == null ? 'A little more history will fill this in.' : '$shortest–$longest days across your completed cycles.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        data: (result) {
-          final value = result.prediction;
-          if (value == null) {
-            return const NylaInlineNote(
-              icon: Icons.auto_awesome_rounded,
-              title: 'Still learning your rhythm',
+        const SizedBox(height: 14),
+        prediction.when(
+          loading: () => const _SmallLoadingCard(),
+          error: (_, _) => const NylaInlineNote(
+            icon: Icons.calendar_month_outlined,
+            title: 'Your next estimate is unavailable',
+            body: 'Try again in a moment.',
+          ),
+          data: (result) {
+            final value = result.prediction;
+            if (value == null) {
+              return const NylaInlineNote(
+                icon: Icons.auto_awesome_rounded,
+                title: 'Still learning your rhythm',
+                body: 'Once you have a few completed cycles, Nyla can show a personal range.',
+              );
+            }
+            return NylaInlineNote(
+              icon: Icons.calendar_month_outlined,
+              title: 'Expected ${rangeText(value.earliestStart, value.latestStart)}',
               body:
-                  'A personal estimate needs completed cycle intervals. Nyla will not invent certainty before there is enough history.',
+                  'Based on ${value.completedCyclesUsed} recent completed cycle${value.completedCyclesUsed == 1 ? '' : 's'}. Recent variation is about ${value.variabilityDays.toStringAsFixed(1)} days, so Nyla keeps this as a range rather than one exact date.',
               accent: NylaColors.violet,
             );
-          }
-
-          return NylaInlineNote(
-            icon: Icons.blur_on_rounded,
-            title: _confidenceTitle(value.confidence),
-            body:
-                'This estimate uses ${value.completedCyclesUsed} recent cycle${value.completedCyclesUsed == 1 ? '' : 's'}. Recent variation is about ${value.variabilityDays.toStringAsFixed(1)} days, so your calendar shows a range instead of one exact date.',
-            accent: NylaColors.violet,
-          );
-        },
-      );
-
-  String _confidenceTitle(PredictionConfidence confidence) =>
-      switch (confidence) {
-        PredictionConfidence.high => 'Your recent cycles are fairly consistent',
-        PredictionConfidence.medium => 'There is a usable pattern',
-        PredictionConfidence.low => 'Your cycles have meaningful variation',
-        PredictionConfidence.insufficient => 'Still learning your rhythm',
-      };
+          },
+        ),
+      ],
+    );
+  }
 }
 
-class _PatternsSection extends StatelessWidget {
-  const _PatternsSection({
-    required this.patterns,
-    required this.periodCount,
-  });
+class _Metric extends StatelessWidget {
+  const _Metric({required this.value, required this.label});
+
+  final int? value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => NylaPaperSurface(
+        padding: const EdgeInsets.all(15),
+        shadow: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value == null ? '—' : '$value',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 25, color: NylaColors.wine),
+            ),
+            const SizedBox(height: 2),
+            Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 10.8)),
+          ],
+        ),
+      );
+}
+
+class _Symptoms extends StatelessWidget {
+  const _Symptoms({required this.patterns, required this.periodCount, super.key});
 
   final AsyncValue<List<SymptomPattern>> patterns;
   final int periodCount;
 
   @override
   Widget build(BuildContext context) => patterns.when(
-        loading: () => const _SoftMessage(
-          icon: Icons.scatter_plot_rounded,
-          text: 'Looking for repeated patterns…',
-        ),
-        error: (_, _) => const _SoftMessage(
-          icon: Icons.scatter_plot_rounded,
-          text: 'Personal symptom patterns could not be calculated.',
+        loading: () => const _SmallLoadingCard(),
+        error: (_, _) => const NylaInlineNote(
+          icon: Icons.favorite_outline_rounded,
+          title: 'Symptoms are taking a moment',
+          body: 'Try again shortly.',
         ),
         data: (items) {
           if (items.isEmpty) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const NylaSectionHeader(
-                  title: 'Patterns in your logs',
-                  subtitle: 'Only repeated observations appear here.',
-                ),
-                const SizedBox(height: 14),
-                NylaInlineNote(
-                  icon: Icons.scatter_plot_rounded,
-                  title: 'No strong repeated pattern yet',
-                  body: periodCount < 4
-                      ? 'A repeated pattern needs observations across at least four periods. Keep logging only what matters to you.'
-                      : 'Nyla has not found a well-supported repeated symptom pattern yet. Missing days remain unknown rather than becoming “no symptom.”',
-                  accent: const Color(0xFF4C7565),
-                ),
-              ],
+            return NylaInlineNote(
+              icon: Icons.favorite_outline_rounded,
+              title: 'No clear pattern yet',
+              body: periodCount < 4
+                  ? 'A few more cycles will make this space more useful.'
+                  : 'Your recent logs do not show a strong repeated pattern, and that is useful too.',
+              accent: NylaColors.rose,
             );
           }
-
-          final visible = items.take(4).toList(growable: false);
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              NylaSectionHeader(
-                title: 'Patterns in your logs',
-                subtitle:
-                    '${items.length} repeated pattern${items.length == 1 ? '' : 's'} with enough coverage.',
-              ),
-              const SizedBox(height: 17),
-              for (var i = 0; i < visible.length; i++)
-                _PatternRow(
-                  pattern: visible[i],
-                  last: i == visible.length - 1,
-                ),
-              const SizedBox(height: 18),
-              Text(
-                'These describe your own logs. They do not establish a cause or diagnosis.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontSize: 11.5,
-                      color: NylaColors.faintInk,
-                    ),
-              ),
-            ],
+          return NylaPaperSurface(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            shadow: false,
+            child: Column(
+              children: [
+                for (var i = 0; i < items.length && i < 6; i++) ...[
+                  _PatternRow(pattern: items[i]),
+                  if (i != items.length - 1 && i != 5) const NylaHairline(margin: EdgeInsets.only(left: 48)),
+                ],
+              ],
+            ),
           );
         },
       );
 }
 
 class _PatternRow extends StatelessWidget {
-  const _PatternRow({
-    required this.pattern,
-    required this.last,
-  });
+  const _PatternRow({required this.pattern});
 
   final SymptomPattern pattern;
-  final bool last;
 
   @override
   Widget build(BuildContext context) {
-    final label = _symptomLabel(pattern.key);
-    final timing = switch (pattern.window) {
-      CycleWindow.beforePeriod => 'in the three days before your period',
-      CycleWindow.periodStart => 'during the first two days of your period',
-    };
     final percent = (pattern.occurrenceRate * 100).round();
-
-    return IntrinsicHeight(
+    final timing = switch (pattern.window) {
+      CycleWindow.beforePeriod => 'before your period',
+      CycleWindow.periodStart => 'at the start of your period',
+    };
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 11),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            width: 44,
+          const NylaIconToken(icon: Icons.favorite_outline_rounded, size: 38, background: NylaColors.roseWash),
+          const SizedBox(width: 11),
+          Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: NylaColors.sageSoft,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '$percent',
-                    style: const TextStyle(
-                      color: NylaColors.wine,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
+                Text(_symptomLabel(pattern.key), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 13.5)),
+                const SizedBox(height: 2),
+                Text(
+                  '${pattern.cyclesPresent} of ${pattern.cyclesObserved} well-observed cycles · $timing · at least ${pattern.coverageRequiredPerCycle} logged days each.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 10.8),
                 ),
-                if (!last)
-                  Expanded(
-                    child: Container(
-                      width: 1,
-                      color: NylaColors.outlineStrong,
-                    ),
-                  ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(bottom: last ? 0 : 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '$label tends to repeat',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'You logged $label $timing in ${pattern.cyclesPresent} of ${pattern.cyclesObserved} adequately observed cycles.',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    'At least ${pattern.coverageRequiredPerCycle} logged days were required in each counted cycle.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontSize: 10.8,
-                          color: NylaColors.faintInk,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          Text('$percent%', style: const TextStyle(color: NylaColors.violet, fontSize: 11, fontWeight: FontWeight.w700)),
         ],
       ),
     );
   }
-
-  String _symptomLabel(String key) => switch (key) {
-        'cramps' => 'Cramps',
-        'headache' => 'Headaches',
-        'bloating' => 'Bloating',
-        'nausea' => 'Nausea',
-        'dizziness' => 'Dizziness',
-        'back_pain' => 'Back pain',
-        'breast_tenderness' => 'Breast tenderness',
-        _ => key.replaceAll('_', ' '),
-      };
 }
 
-class _RhythmAtmosphere extends StatelessWidget {
-  const _RhythmAtmosphere();
+class _SmallLoadingCard extends StatelessWidget {
+  const _SmallLoadingCard();
 
   @override
-  Widget build(BuildContext context) => Stack(
-        fit: StackFit.expand,
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(1.12, -1.0),
-                radius: 0.95,
-                colors: [
-                  NylaColors.roseSoft.withValues(alpha: 0.56),
-                  Colors.transparent,
-                ],
-              ),
-            ),
-          ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(-1.0, 1.1),
-                radius: 0.88,
-                colors: [
-                  NylaColors.sageSoft.withValues(alpha: 0.72),
-                  Colors.transparent,
-                ],
-              ),
-            ),
-          ),
-        ],
-      );
-}
-
-class _SoftMessage extends StatelessWidget {
-  const _SoftMessage({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => NylaPaperSurface(
-        child: Row(
-          children: [
-            NylaIconToken(
-              icon: icon,
-              background: NylaColors.lavenderSoft,
-              foreground: NylaColors.violet,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                text,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: NylaColors.ink,
-                    ),
-              ),
-            ),
-          ],
-        ),
+  Widget build(BuildContext context) => const NylaPaperSurface(
+        child: SizedBox(height: 70, child: Center(child: CircularProgressIndicator())),
       );
 }
 
 class _CycleStats {
-  const _CycleStats({
-    required this.typicalCycle,
-    required this.typicalPeriod,
-    required this.shortest,
-    required this.longest,
-    required this.intervals,
-  });
+  const _CycleStats({required this.cycle, required this.period, required this.intervals});
 
-  final String typicalCycle;
-  final String typicalPeriod;
-  final String shortest;
-  final String longest;
+  final double? cycle;
+  final double? period;
   final List<int> intervals;
 }
+
+String _symptomLabel(String key) => switch (key) {
+      'cramps' => 'Cramps',
+      'headache' => 'Headache',
+      'bloating' => 'Bloating',
+      'nausea' => 'Nausea',
+      'dizziness' => 'Dizziness',
+      'back_pain' => 'Back pain',
+      'breast_tenderness' => 'Breast tenderness',
+      _ => key.replaceAll('_', ' '),
+    };

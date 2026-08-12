@@ -7,6 +7,7 @@ import '../features/calendar/period_history_screen.dart';
 import '../features/insights/insights_screen.dart';
 import '../features/learn/learn_screen.dart';
 import '../features/log/log_screen.dart';
+import '../features/more/more_screen.dart';
 import '../features/settings/custom_logs_screen.dart';
 import '../features/settings/export_screen.dart';
 import '../features/settings/settings_screen.dart';
@@ -38,9 +39,10 @@ final nylaRouter = GoRouter(
           },
         ),
         GoRoute(path: '/insights', builder: (context, state) => const InsightsScreen()),
-        GoRoute(path: '/learn', builder: (context, state) => const LearnScreen()),
+        GoRoute(path: '/more', builder: (context, state) => const MoreScreen()),
       ],
     ),
+    GoRoute(path: '/learn', builder: (context, state) => const LearnScreen()),
     GoRoute(path: '/periods', builder: (context, state) => const PeriodHistoryScreen()),
     GoRoute(
       path: '/settings',
@@ -49,17 +51,8 @@ final nylaRouter = GoRouter(
         child: const SettingsScreen(),
       ),
     ),
-    GoRoute(
-      path: '/settings/logs',
-      builder: (context, state) => const CustomLogsScreen(),
-    ),
-    GoRoute(
-      path: '/settings/export',
-      builder: (context, state) => const ExportScreen(),
-    ),
-    GoRoute(
-      path: '/settings/sync',
-      builder: (context, state) => const SyncScreen(),
-    ),
+    GoRoute(path: '/settings/logs', builder: (context, state) => const CustomLogsScreen()),
+    GoRoute(path: '/settings/export', builder: (context, state) => const ExportScreen()),
+    GoRoute(path: '/settings/sync', builder: (context, state) => const SyncScreen()),
   ],
 );
