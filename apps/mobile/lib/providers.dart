@@ -41,6 +41,37 @@ final cyclePredictionProvider = StreamProvider<PredictionResult>(
 final dayValuesProvider = StreamProvider.family<List<DayValueEntry>, int>(
   (ref, day) => ref.watch(dayLogRepositoryProvider).watchDay(day),
 );
+final allDayValuesProvider = StreamProvider<List<DayValueEntry>>(
+  (ref) => ref.watch(dayLogRepositoryProvider).watchAll(),
+);
+final symptomPatternsProvider = Provider<AsyncValue<List<SymptomPattern>>>((ref) {
+  final periods = ref.watch(periodHistoryProvider);
+  final values = ref.watch(allDayValuesProvider);
+  if (periods.isLoading || values.isLoading) return const AsyncLoading();
+  if (periods.hasError) return AsyncError(periods.error!, periods.stackTrace!);
+  if (values.hasError) return AsyncError(values.error!, values.stackTrace!);
+
+  const eligibleKeys = {
+    'cramps',
+    'headache',
+    'bloating',
+    'skin',
+    'breast_tenderness',
+  };
+  final observations = <BinaryObservation>[];
+  for (final row in values.value ?? const <DayValueEntry>[]) {
+    if (!eligibleKeys.contains(row.key) || row.severity == null) continue;
+    observations.add(
+      BinaryObservation(day: LocalDay(row.day), key: row.key, present: row.severity! > 0),
+    );
+  }
+  final starts = (periods.value ?? const <PeriodEntry>[])
+      .map((row) => LocalDay(row.startDay))
+      .toList(growable: false);
+  return AsyncData(
+    const SymptomPatternAnalyzer().analyze(periodStarts: starts, observations: observations),
+  );
+});
 final notificationConfigProvider = StreamProvider<NotificationConfig>(
   (ref) => ref.watch(preferencesRepositoryProvider).watchNotificationConfig(),
 );

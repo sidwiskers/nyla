@@ -14,6 +14,8 @@ class DayLogRepository {
 
   Stream<List<DayValueEntry>> watchDay(int epochDay) => database.watchDay(epochDay);
 
+  Stream<List<DayValueEntry>> watchAll() => database.watchAllDayValues();
+
   Future<void> setValue({
     required int epochDay,
     required String key,

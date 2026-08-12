@@ -149,6 +149,8 @@ class AppDatabase extends _$AppDatabase {
   Stream<List<DayValueEntry>> watchDay(int epochDay) =>
       (select(dayValues)..where((row) => row.day.equals(epochDay))).watch();
 
+  Stream<List<DayValueEntry>> watchAllDayValues() => select(dayValues).watch();
+
   Future<String?> preference(String key) async =>
       (await (select(preferences)..where((row) => row.key.equals(key))).getSingleOrNull())?.value;
 
