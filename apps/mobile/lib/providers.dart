@@ -7,6 +7,7 @@ import 'core/storage/secure_vault.dart';
 import 'core/sync/hlc_service.dart';
 import 'core/sync/sync_service.dart';
 import 'data/database/app_database.dart';
+import 'data/repositories/custom_log_repository.dart';
 import 'data/repositories/cycle_repository.dart';
 import 'data/repositories/day_log_repository.dart';
 import 'data/repositories/preferences_repository.dart';
@@ -23,6 +24,9 @@ final cycleRepositoryProvider = Provider<CycleRepository>(
 );
 final dayLogRepositoryProvider = Provider<DayLogRepository>(
   (ref) => DayLogRepository(ref.watch(databaseProvider), ref.watch(hlcServiceProvider)),
+);
+final customLogRepositoryProvider = Provider<CustomLogRepository>(
+  (ref) => CustomLogRepository(ref.watch(databaseProvider), ref.watch(hlcServiceProvider)),
 );
 final syncServiceProvider = Provider<SyncService>(
   (ref) => SyncService(
@@ -57,6 +61,9 @@ final dayValuesProvider = StreamProvider.family<List<DayValueEntry>, int>(
 );
 final allDayValuesProvider = StreamProvider<List<DayValueEntry>>(
   (ref) => ref.watch(dayLogRepositoryProvider).watchAll(),
+);
+final customLogsProvider = StreamProvider<List<CustomLogEntry>>(
+  (ref) => ref.watch(customLogRepositoryProvider).watchAll(),
 );
 final symptomPatternsProvider = Provider<AsyncValue<List<SymptomPattern>>>((ref) {
   final periods = ref.watch(periodHistoryProvider);

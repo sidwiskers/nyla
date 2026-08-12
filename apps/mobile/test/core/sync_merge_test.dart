@@ -95,6 +95,46 @@ void main() {
     expect(await database.watchDay(21000).first, isEmpty);
   });
 
+  test('custom log definitions materialize field by field in causal order', () async {
+    final operations = [
+      const SyncPlainOperation(
+        opId: 'custom-label-01',
+        entityId: 'custom_example_01',
+        entityType: 'custom_log',
+        field: 'label',
+        hlc: '1000:0:remote-device-01',
+        kind: 'set',
+        value: 'Leg aches',
+      ),
+      const SyncPlainOperation(
+        opId: 'custom-archived-01',
+        entityId: 'custom_example_01',
+        entityType: 'custom_log',
+        field: 'archived',
+        hlc: '1000:1:remote-device-01',
+        kind: 'set',
+        value: false,
+      ),
+      const SyncPlainOperation(
+        opId: 'custom-order-01',
+        entityId: 'custom_example_01',
+        entityType: 'custom_log',
+        field: 'order_index',
+        hlc: '1000:2:remote-device-01',
+        kind: 'set',
+        value: 3,
+      ),
+    ];
+
+    for (final operation in operations) {
+      expect(await merge.apply(operation), isTrue);
+    }
+    final row = await database.select(database.customLogs).getSingle();
+    expect(row.label, 'Leg aches');
+    expect(row.archived, isFalse);
+    expect(row.orderIndex, 3);
+  });
+
   test('a field operation newer than a tombstone deterministically restores the entity', () async {
     final deletion = SyncPlainOperation(
       opId: 'operation-delete-02',

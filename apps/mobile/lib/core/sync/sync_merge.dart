@@ -46,6 +46,8 @@ final class SyncMergeEngine {
           await _applyDay(operation);
         case 'period':
           await _applyPeriod(operation);
+        case 'custom_log':
+          await _applyCustomLog(operation);
         default:
           throw SyncMergeException('Unknown entity type: ${operation.entityType}');
       }
@@ -179,6 +181,64 @@ final class SyncMergeEngine {
     }
   }
 
+  Future<void> _applyCustomLog(SyncPlainOperation operation) async {
+    if (!operation.entityId.startsWith('custom_')) {
+      throw const SyncMergeException('Malformed custom-log entity ID.');
+    }
+    if (operation.kind != 'set') throw const SyncMergeException('Unsupported custom-log operation.');
+    final current = await (database.select(database.customLogs)
+          ..where((row) => row.key.equals(operation.entityId)))
+        .getSingleOrNull();
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    switch (operation.field) {
+      case 'label':
+        if (operation.value is! String || (operation.value! as String).trim().isEmpty) {
+          throw const SyncMergeException('Invalid custom-log label.');
+        }
+        final label = (operation.value! as String).trim();
+        if (current == null) {
+          await database.into(database.customLogs).insert(
+                CustomLogsCompanion.insert(
+                  key: operation.entityId,
+                  label: label,
+                  orderIndex: 0,
+                  updatedHlc: operation.hlc,
+                  updatedMs: now,
+                ),
+              );
+        } else {
+          await (database.update(database.customLogs)..where((row) => row.key.equals(operation.entityId))).write(
+            CustomLogsCompanion(label: Value(label), updatedHlc: Value(operation.hlc), updatedMs: Value(now)),
+          );
+        }
+      case 'archived':
+        if (operation.value is! bool || current == null) {
+          throw const SyncMergeException('Invalid custom-log archive operation.');
+        }
+        await (database.update(database.customLogs)..where((row) => row.key.equals(operation.entityId))).write(
+          CustomLogsCompanion(
+            archived: Value(operation.value! as bool),
+            updatedHlc: Value(operation.hlc),
+            updatedMs: Value(now),
+          ),
+        );
+      case 'order_index':
+        if (operation.value is! int || current == null) {
+          throw const SyncMergeException('Invalid custom-log order operation.');
+        }
+        await (database.update(database.customLogs)..where((row) => row.key.equals(operation.entityId))).write(
+          CustomLogsCompanion(
+            orderIndex: Value(operation.value! as int),
+            updatedHlc: Value(operation.hlc),
+            updatedMs: Value(now),
+          ),
+        );
+      default:
+        throw SyncMergeException('Unknown custom-log field: ${operation.field}');
+    }
+  }
+
   Future<void> _deleteEntity(SyncPlainOperation operation) async {
     switch (operation.entityType) {
       case 'day':
@@ -189,6 +249,8 @@ final class SyncMergeEngine {
         await (database.delete(database.dayNotes)..where((row) => row.day.equals(day))).go();
       case 'period':
         await (database.delete(database.periods)..where((row) => row.id.equals(operation.entityId))).go();
+      case 'custom_log':
+        await (database.delete(database.customLogs)..where((row) => row.key.equals(operation.entityId))).go();
       default:
         throw SyncMergeException('Unknown entity type: ${operation.entityType}');
     }

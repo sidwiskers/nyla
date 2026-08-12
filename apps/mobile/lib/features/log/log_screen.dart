@@ -1,6 +1,7 @@
 import 'package:cycle_engine/cycle_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/model/date_text.dart';
 import '../../core/model/log_catalog.dart';
@@ -33,6 +34,9 @@ class _LogScreenState extends ConsumerState<LogScreen> {
   Widget build(BuildContext context) {
     final valuesAsync = ref.watch(dayValuesProvider(day.epochDay));
     final values = {for (final value in valuesAsync.value ?? const <DayValueEntry>[]) value.key: value};
+    final customLogs = (ref.watch(customLogsProvider).value ?? const <CustomLogEntry>[])
+        .where((entry) => !entry.archived)
+        .toList(growable: false);
     _loadNoteOnce();
 
     return NylaPage(
@@ -74,6 +78,48 @@ class _LogScreenState extends ConsumerState<LogScreen> {
               );
             },
           ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              if (customLogs.isNotEmpty)
+                Expanded(child: Text('Your logs', style: Theme.of(context).textTheme.titleLarge))
+              else
+                const Spacer(),
+              TextButton.icon(
+                onPressed: () => context.push('/settings/logs'),
+                icon: Icon(customLogs.isEmpty ? Icons.add_rounded : Icons.tune_rounded, size: 18),
+                label: Text(customLogs.isEmpty ? 'Add your own log' : 'Manage'),
+              ),
+            ],
+          ),
+          if (customLogs.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: customLogs.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 2.05,
+              ),
+              itemBuilder: (context, index) {
+                final custom = customLogs[index];
+                final definition = LogDefinition(
+                  key: custom.key,
+                  label: custom.label,
+                  icon: Icons.favorite_outline_rounded,
+                  tint: NylaColors.lavender,
+                );
+                return _LogTile(
+                  definition: definition,
+                  summary: _summary(definition, values),
+                  onTap: () => _edit(definition, values),
+                );
+              },
+            ),
+          ],
           const SizedBox(height: 20),
           Text('A note, if you want', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 9),

@@ -137,6 +137,14 @@ class SettingsScreen extends ConsumerWidget {
             child: Column(
               children: [
                 ListTile(
+                  leading: const _IconBox(icon: Icons.tune_rounded, tint: NylaColors.lavender),
+                  title: const Text('Custom logs'),
+                  subtitle: const Text('Add or archive things that matter to you'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push('/settings/logs'),
+                ),
+                const Divider(height: 1, indent: 18, endIndent: 18),
+                ListTile(
                   leading: const _IconBox(icon: Icons.ios_share_rounded, tint: NylaColors.peach),
                   title: const Text('Export'),
                   subtitle: const Text('Create a user-controlled copy of your history'),

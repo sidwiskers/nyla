@@ -7,6 +7,7 @@ import '../features/calendar/period_history_screen.dart';
 import '../features/insights/insights_screen.dart';
 import '../features/learn/learn_screen.dart';
 import '../features/log/log_screen.dart';
+import '../features/settings/custom_logs_screen.dart';
 import '../features/settings/export_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/sync_screen.dart';
@@ -47,6 +48,10 @@ final nylaRouter = GoRouter(
         fullscreenDialog: true,
         child: const SettingsScreen(),
       ),
+    ),
+    GoRoute(
+      path: '/settings/logs',
+      builder: (context, state) => const CustomLogsScreen(),
     ),
     GoRoute(
       path: '/settings/export',
