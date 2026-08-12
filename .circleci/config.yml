@@ -82,16 +82,11 @@ jobs:
           name: Resolve Cloudflare sync address
           command: |
             set -euo pipefail
-            worker_name="$(python3 - <<'PY'
-            import re
-            from pathlib import Path
-            text = Path('services/sync/wrangler.jsonc').read_text()
-            match = re.search(r'"name"\s*:\s*"([^"]+)"', text)
-            if match is None:
-                raise SystemExit('services/sync/wrangler.jsonc must define a Worker name')
-            print(match.group(1))
-            PY
-            )"
+            worker_name="$(sed -nE 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' services/sync/wrangler.jsonc | head -n 1)"
+            if [[ -z "$worker_name" ]]; then
+              echo "services/sync/wrangler.jsonc must define a Worker name"
+              exit 1
+            fi
 
             api="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"
             response="$(curl --silent --show-error --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$api")"
