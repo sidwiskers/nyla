@@ -178,7 +178,12 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                 child: Column(
                   children: [
                     for (var i = 0; i < devices.length; i++) ...[
-                      _DeviceTile(device: devices[i]),
+                      _DeviceTile(
+                        device: devices[i],
+                        onRemove: devices[i].active && !devices[i].isCurrent
+                            ? () => _removeDevice(devices[i])
+                            : null,
+                      ),
                       if (i != devices.length - 1) const Divider(height: 1, indent: 18, endIndent: 18),
                     ],
                   ],
@@ -301,6 +306,38 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         });
         _refresh();
       }
+    });
+  }
+
+  Future<void> _removeDevice(SyncDevice device) async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Remove this device?'),
+            content: const Text(
+              'Nyla will revoke the device and rotate your vault encryption key. The removed device cannot sync new health data after this completes. You will receive a new recovery code.',
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remove securely')),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed || !mounted) return;
+
+    await _guard(() async {
+      final result = await _service.rotateAndRevoke(device.deviceId);
+      if (!mounted) return;
+      final saved = await _showRecoveryVerification(result.recoveryCode);
+      if (saved) await _service.confirmRecoveryCodeSaved();
+      if (!mounted) return;
+      setState(() {
+        _devices = _service.devices();
+        _message = saved
+            ? 'Device removed. Your vault key and recovery code were rotated.'
+            : 'Device removed and vault key rotated. Save the new recovery code before relying on recovery.';
+      });
     });
   }
 
@@ -728,9 +765,10 @@ class _PairingScannerScreenState extends State<_PairingScannerScreen> {
 }
 
 class _DeviceTile extends StatelessWidget {
-  const _DeviceTile({required this.device});
+  const _DeviceTile({required this.device, required this.onRemove});
 
   final SyncDevice device;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -751,7 +789,15 @@ class _DeviceTile extends StatelessWidget {
       ),
       title: Text(label),
       subtitle: Text('$id${device.revokedMs == null ? '' : ' · revoked'}'),
-      trailing: device.isCurrent ? const Icon(Icons.check_circle_rounded, color: NylaColors.rose) : null,
+      trailing: device.isCurrent
+          ? const Icon(Icons.check_circle_rounded, color: NylaColors.rose)
+          : onRemove == null
+              ? null
+              : IconButton(
+                  tooltip: 'Remove device',
+                  onPressed: onRemove,
+                  icon: const Icon(Icons.remove_circle_outline_rounded),
+                ),
     );
   }
 }
