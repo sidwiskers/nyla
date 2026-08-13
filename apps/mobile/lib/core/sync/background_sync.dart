@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'package:workmanager/workmanager.dart';
 
@@ -19,20 +20,33 @@ final class NylaBackgroundSync {
   static const _uniqueName = 'nyla-private-sync-v1';
   static const _taskName = 'nyla.private_sync';
 
+  static Future<void>? _initializing;
+
   static bool get supported => Platform.isAndroid;
 
-  static Future<void> initialize() async {
-    if (!supported) return;
-    await Workmanager().initialize(nylaSyncCallbackDispatcher);
+  static Future<void> initialize() {
+    if (!supported) return Future.value();
+    return _initializing ??= _initializeOnce();
   }
 
-  /// Queue a durable reconciliation request.
+  static Future<void> _initializeOnce() async {
+    try {
+      await Workmanager().initialize(nylaSyncCallbackDispatcher);
+    } catch (_) {
+      // A failed attempt must remain retryable on the next foreground trigger.
+      _initializing = null;
+      rethrow;
+    }
+  }
+
+  /// Queue one durable reconciliation request.
   ///
-  /// `update` maps to WorkManager's APPEND_OR_REPLACE behavior. If a worker is
-  /// already running, a later request is not lost behind it; the next request
-  /// remains eligible after the active one completes.
+  /// Unique work coalesces repeated edits while retaining a request across app
+  /// process death. Network availability is an Android constraint: if the phone
+  /// is offline, the worker becomes eligible only after connectivity returns.
   static Future<void> schedule({Duration delay = const Duration(seconds: 8)}) async {
     if (!supported || !SyncEndpoint.isConfigured) return;
+    await initialize();
     await Workmanager().registerOneOffTask(
       _uniqueName,
       _taskName,
@@ -46,6 +60,7 @@ final class NylaBackgroundSync {
 
   static Future<void> cancelPending() async {
     if (!supported) return;
+    await initialize();
     await Workmanager().cancelByUniqueName(_uniqueName);
   }
 
@@ -57,9 +72,13 @@ void nylaSyncCallbackDispatcher() {
   Workmanager().executeTask((taskName, _) async {
     if (!NylaBackgroundSync.isTask(taskName)) return true;
 
-    // Local erase and every sync-capable foreground operation use the same
-    // cross-isolate guard. Re-check all secrets after acquiring it so a stale
-    // queued worker can never resurrect data after the user erased Nyla.
+    // Plugins used by this background isolate need a binary messenger before
+    // secure storage/path-provider/database access.
+    WidgetsFlutterBinding.ensureInitialized();
+
+    // Local erase and foreground synchronization use the same cross-isolate
+    // guard. Re-check all secrets after acquiring it so a stale queued worker
+    // can never resurrect data after the user erased Nyla.
     return SyncRunLock().synchronized(() async {
       const vault = SecureVault();
       if (!SyncEndpoint.isConfigured || await vault.readSyncIdentity() == null) return true;
@@ -81,7 +100,7 @@ void nylaSyncCallbackDispatcher() {
       } catch (error) {
         // `false` asks Android WorkManager to retry with exponential backoff.
         // Protocol/authentication failures fail closed instead of becoming an
-        // endless background loop that can only be fixed by user action.
+        // endless background loop that only explicit user action can repair.
         return !_retryableBackgroundFailure(error);
       } finally {
         await database?.close();
