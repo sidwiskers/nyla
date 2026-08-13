@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:local_auth/local_auth.dart';
 
 import '../../core/haptics/nyla_haptics.dart';
 import '../../core/notifications/notification_config.dart';
+import '../../core/security/app_lock_service.dart';
 import '../../core/theme/nyla_theme.dart';
 import '../../providers.dart';
 
@@ -791,59 +791,53 @@ class _AppLockTileState extends ConsumerState<_AppLockTile> {
   }
 
   Future<void> _load() async {
-    final value = await ref.read(secureVaultProvider).isAppLockEnabled();
+    final value = await ref.read(appLockServiceProvider).isEnabled();
     if (mounted) setState(() => enabled = value);
   }
 
   Future<void> _change(bool next) async {
     if (_busy) return;
-    await NylaHaptics.select();
+    NylaHaptics.select();
     setState(() => _busy = true);
 
+    final appLock = ref.read(appLockServiceProvider);
     if (next) {
-      final auth = LocalAuthentication();
-      if (!await auth.isDeviceSupported()) {
-        if (mounted) {
+      final result = await appLock.authenticate(
+        localizedReason: 'Turn on Nyla app lock',
+      );
+      if (!mounted) return;
+
+      switch (result) {
+        case AppLockAuthResult.success:
+          break;
+        case AppLockAuthResult.cancelled:
           setState(() => _busy = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Set up a phone screen lock first.'),
-            ),
-          );
-        }
-        return;
-      }
-      try {
-        final verified = await auth.authenticate(
-          localizedReason: 'Turn on Nyla app lock',
-          persistAcrossBackgrounding: true,
-        );
-        if (!verified) {
-          if (mounted) setState(() => _busy = false);
           return;
-        }
-      } on LocalAuthException {
-        if (mounted) {
+        case AppLockAuthResult.unsupported:
           setState(() => _busy = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Couldn’t confirm your phone lock.'),
-            ),
+            const SnackBar(content: Text('Set up a phone screen lock first.')),
           );
-        }
-        return;
+          return;
+        case AppLockAuthResult.failed:
+          setState(() => _busy = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Couldn’t confirm your phone lock.')),
+          );
+          return;
       }
     }
 
-    await ref.read(secureVaultProvider).setAppLockEnabled(next);
-    final stored = await ref.read(secureVaultProvider).isAppLockEnabled();
+    final saved = await appLock.setEnabled(next);
+    final stored = await appLock.isEnabled();
     if (!mounted) return;
+
     setState(() {
       enabled = stored;
       _busy = false;
     });
-    if (stored == next) {
-      await NylaHaptics.confirm();
+    if (saved && stored == next) {
+      NylaHaptics.confirm();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('App lock could not be saved.')),
