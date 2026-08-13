@@ -41,9 +41,9 @@ final class NylaBackgroundSync {
 
   /// Queue one durable reconciliation request.
   ///
-  /// Unique work coalesces repeated edits while retaining a request across app
-  /// process death. Network availability is an Android constraint: if the phone
-  /// is offline, the worker becomes eligible only after connectivity returns.
+  /// One unique pending worker is enough to mean "this installation needs a
+  /// reconciliation". Repeated edits/open events coalesce into that signal
+  /// instead of growing a chain of redundant jobs while the phone is offline.
   static Future<void> schedule({Duration delay = const Duration(seconds: 8)}) async {
     if (!supported || !SyncEndpoint.isConfigured) return;
     await initialize();
@@ -52,7 +52,7 @@ final class NylaBackgroundSync {
       _taskName,
       initialDelay: delay,
       constraints: Constraints(networkType: NetworkType.connected),
-      existingWorkPolicy: ExistingWorkPolicy.update,
+      existingWorkPolicy: ExistingWorkPolicy.keep,
       backoffPolicy: BackoffPolicy.exponential,
       backoffPolicyDelay: const Duration(seconds: 30),
     );
@@ -95,8 +95,11 @@ void nylaSyncCallbackDispatcher() {
           deviceId: deviceId,
           secureVault: vault,
         );
-        await service.syncNow();
-        return true;
+        final result = await service.syncNow();
+        // A mutation can commit after `_pushAll` observes an empty outbox but
+        // before this run finishes pulling. Retry in that narrow race rather
+        // than relying on a second unique WorkRequest being accepted mid-run.
+        return result.pending == 0;
       } catch (error) {
         // `false` asks Android WorkManager to retry with exponential backoff.
         // Protocol/authentication failures fail closed instead of becoming an
