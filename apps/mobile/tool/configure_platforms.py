@@ -9,6 +9,7 @@ script is the single idempotent patch layer used by CI and release builds.
 from __future__ import annotations
 
 import plistlib
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -233,6 +234,19 @@ val nylaReleaseSigningConfigured = listOf(
     path.write_text(text, encoding="utf-8")
 
 
+def configure_ios_deployment_target() -> None:
+    path = require(IOS / "Runner.xcodeproj/project.pbxproj")
+    text = path.read_text(encoding="utf-8")
+    text, replacements = re.subn(
+        r"IPHONEOS_DEPLOYMENT_TARGET\s*=\s*[^;]+;",
+        "IPHONEOS_DEPLOYMENT_TARGET = 14.0;",
+        text,
+    )
+    if replacements == 0:
+        fail("could not set the generated iOS deployment target")
+    path.write_text(text, encoding="utf-8")
+
+
 def configure_ios_info() -> None:
     path = require(IOS / "Runner/Info.plist")
     with path.open("rb") as handle:
@@ -276,6 +290,7 @@ def main() -> None:
     configure_android_activity()
     configure_android_theme()
     configure_android_gradle()
+    configure_ios_deployment_target()
     configure_ios_info()
     configure_ios_keychain()
     print("Nyla native platform configuration applied.")
