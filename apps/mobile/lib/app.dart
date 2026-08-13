@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/haptics/nyla_haptics.dart';
 import 'core/security/app_lock_service.dart';
+import 'core/sync/sync_coordinator.dart';
 import 'core/theme/nyla_theme.dart';
 import 'navigation/router.dart';
 import 'providers.dart';
@@ -27,7 +28,9 @@ class NylaApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: NylaTheme.light,
       routerConfig: nylaRouter,
-      builder: (context, child) => _PrivacyGate(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => _PrivacyGate(
+        child: _SyncLifecycle(child: child ?? const SizedBox.shrink()),
+      ),
     );
   }
 
@@ -37,6 +40,53 @@ class NylaApp extends ConsumerWidget {
     final prediction = ref.read(cyclePredictionProvider).value?.prediction;
     final service = await ref.read(notificationServiceProvider.future);
     await service.reschedule(config: config, prediction: prediction);
+  }
+}
+
+/// Exists only while Nyla's private foreground is visible.
+///
+/// `_PrivacyGate` removes this subtree when the app backgrounds or is locked,
+/// so mounting naturally represents an app-open/resume event after privacy
+/// checks have succeeded.
+class _SyncLifecycle extends ConsumerStatefulWidget {
+  const _SyncLifecycle({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_SyncLifecycle> createState() => _SyncLifecycleState();
+}
+
+class _SyncLifecycleState extends ConsumerState<_SyncLifecycle> {
+  late final SyncCoordinator _coordinator;
+
+  @override
+  void initState() {
+    super.initState();
+    _coordinator = ref.read(syncCoordinatorProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_coordinator.onForeground());
+    });
+  }
+
+  @override
+  void dispose() {
+    unawaited(_coordinator.onBackground());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(pendingSyncMutationCountProvider, (previous, next) {
+      final before = previous?.value ?? 0;
+      final current = next.value;
+      // Only outbox growth is a new local edit. Upload acknowledgements reduce
+      // this count and must not themselves schedule another sync.
+      if (current != null && current > before) {
+        unawaited(_coordinator.onLocalMutation());
+      }
+    });
+    return widget.child;
   }
 }
 
