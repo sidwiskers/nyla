@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/haptics/nyla_haptics.dart';
 import 'core/security/app_lock_service.dart';
 import 'core/sync/sync_coordinator.dart';
+import 'core/theme/nyla_appearance.dart';
 import 'core/theme/nyla_theme.dart';
 import 'navigation/router.dart';
 import 'providers.dart';
@@ -23,14 +25,36 @@ class NylaApp extends ConsumerWidget {
       if (route != null && nylaRouter.state.uri.path != route) nylaRouter.go(route);
     });
 
+    final appearance = ref.watch(appearanceProvider).value ??
+        ref.watch(initialAppearanceProvider);
+
     return MaterialApp.router(
       title: 'Nyla',
       debugShowCheckedModeBanner: false,
       theme: NylaTheme.light,
+      darkTheme: NylaTheme.dark,
+      themeMode: appearance.themeMode,
+      themeAnimationDuration: const Duration(milliseconds: 420),
+      themeAnimationCurve: Curves.easeOutCubic,
       routerConfig: nylaRouter,
-      builder: (context, child) => _PrivacyGate(
-        child: _SyncLifecycle(child: child ?? const SizedBox.shrink()),
-      ),
+      builder: (context, child) {
+        final palette = context.nyla;
+        final dark = Theme.of(context).brightness == Brightness.dark;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+            statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+            systemNavigationBarColor: palette.systemBar,
+            systemNavigationBarIconBrightness:
+                dark ? Brightness.light : Brightness.dark,
+            systemNavigationBarDividerColor: Colors.transparent,
+          ),
+          child: _PrivacyGate(
+            child: _SyncLifecycle(child: child ?? const SizedBox.shrink()),
+          ),
+        );
+      },
     );
   }
 
