@@ -4,11 +4,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
 import 'core/security/app_lock_service.dart';
 import 'core/storage/secure_vault.dart';
+import 'core/sync/background_sync.dart';
+import 'core/sync/sync_run_lock.dart';
 import 'data/database/app_database.dart';
 import 'providers.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Background scheduling is an availability enhancement, never a condition
+  // for opening a local-first health app. Foreground/manual sync remains usable
+  // if an OEM or platform rejects scheduler initialization.
+  try {
+    await NylaBackgroundSync.initialize();
+  } catch (_) {}
   runApp(const NylaBootstrap());
 }
 
@@ -21,6 +29,7 @@ class NylaBootstrap extends StatefulWidget {
 
 class _NylaBootstrapState extends State<NylaBootstrap> {
   final SecureVault _vault = const SecureVault();
+  final SyncRunLock _syncRunLock = SyncRunLock();
   late final AppLockService _appLock;
   Future<_BootstrapResult>? _bootstrap;
   AppDatabase? _activeDatabase;
@@ -64,13 +73,20 @@ class _NylaBootstrapState extends State<NylaBootstrap> {
     final database = _activeDatabase;
     _activeDatabase = null;
     try {
-      if (database != null) await database.close();
+      // A queued/running WorkManager isolate must never race local erasure.
+      // Once this lock is ours, cancel future work, destroy key material first,
+      // then remove SQLCipher files. A stale worker that wakes later re-checks
+      // secure storage under the same lock and exits without recreating data.
+      await _syncRunLock.synchronized(() async {
+        await NylaBackgroundSync.cancelPending();
+        if (database != null) await database.close();
 
-      // Destroy the encryption key first. Even if filesystem cleanup is
-      // interrupted, remaining SQLCipher pages are cryptographically useless.
-      await _vault.clearAll();
-      _appLock.lockSession();
-      await AppDatabase.deleteLocalFiles();
+        // Destroy the encryption key first. Even if filesystem cleanup is
+        // interrupted, remaining SQLCipher pages are cryptographically useless.
+        await _vault.clearAll();
+        _appLock.lockSession();
+        await AppDatabase.deleteLocalFiles();
+      });
     } catch (error, stackTrace) {
       if (!mounted) rethrow;
       setState(() {
