@@ -25,8 +25,7 @@ class NylaApp extends ConsumerWidget {
       if (route != null && nylaRouter.state.uri.path != route) nylaRouter.go(route);
     });
 
-    final appearance = ref.watch(appearanceProvider).value ??
-        ref.watch(initialAppearanceProvider);
+    final appearance = ref.watch(effectiveAppearanceProvider);
 
     return MaterialApp.router(
       title: 'Nyla',
