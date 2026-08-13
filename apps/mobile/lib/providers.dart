@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/notifications/notification_config.dart';
 import 'core/notifications/notification_service.dart';
+import 'core/security/app_lock_service.dart';
 import 'core/storage/secure_vault.dart';
 import 'core/sync/hlc_service.dart';
 import 'core/sync/sync_service.dart';
@@ -15,6 +16,9 @@ import 'data/repositories/preferences_repository.dart';
 final databaseProvider = Provider<AppDatabase>((ref) => throw StateError('Database has not been bootstrapped.'));
 final deviceIdProvider = Provider<String>((ref) => throw StateError('Device identity has not been bootstrapped.'));
 final secureVaultProvider = Provider<SecureVault>((ref) => const SecureVault());
+final appLockServiceProvider = Provider<AppLockService>(
+  (ref) => AppLockService(vault: ref.watch(secureVaultProvider)),
+);
 final resetLocalDataProvider = Provider<Future<void> Function()>(
   (ref) => throw StateError('Local reset has not been bootstrapped.'),
 );
