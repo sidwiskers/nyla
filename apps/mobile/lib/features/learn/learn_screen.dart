@@ -50,6 +50,7 @@ class _LearnScreenState extends State<LearnScreen> {
     final deckHeight = (MediaQuery.sizeOf(context).height * 0.62)
         .clamp(440.0, 620.0)
         .toDouble();
+    final nyla = context.nyla;
 
     return NylaPage(
       title: 'Learn',
@@ -97,9 +98,9 @@ class _LearnScreenState extends State<LearnScreen> {
                     bottom: 11,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: NylaColors.lavenderSoft,
+                        color: nyla.lavenderSoft,
                         borderRadius: BorderRadius.circular(31),
-                        border: Border.all(color: Colors.white),
+                        border: Border.all(color: nyla.glassBorder),
                       ),
                     ),
                   ),
@@ -110,9 +111,9 @@ class _LearnScreenState extends State<LearnScreen> {
                     bottom: 17,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: NylaColors.roseWash,
+                        color: nyla.roseWash,
                         borderRadius: BorderRadius.circular(31),
-                        border: Border.all(color: Colors.white),
+                        border: Border.all(color: nyla.glassBorder),
                       ),
                     ),
                   ),
@@ -169,11 +170,11 @@ class _SearchField extends StatelessWidget {
         child: TextField(
           onChanged: onChanged,
           textInputAction: TextInputAction.search,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: 'Search cramps, flow, products…',
             prefixIcon: Icon(
               Icons.search_rounded,
-              color: NylaColors.violet,
+              color: context.nyla.violet,
               size: 20,
             ),
           ),
@@ -225,23 +226,20 @@ class _DeckHeader extends StatelessWidget {
             Text(
               '${index + 1} of $total',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: NylaColors.wine,
+                    color: context.nyla.wine,
                     fontSize: 13.5,
                   ),
             ),
             const Spacer(),
-            const Icon(
+            Icon(
               Icons.swipe_rounded,
               size: 17,
-              color: NylaColors.violet,
+              color: context.nyla.violet,
             ),
             const SizedBox(width: 5),
             Text(
               'Swipe',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontSize: 11.5),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
             ),
           ],
         ),
@@ -281,7 +279,7 @@ class _KnowledgeCardState extends State<_KnowledgeCard>
 
   @override
   Widget build(BuildContext context) {
-    final palette = _paletteFor(widget.tip.category);
+    final palette = _paletteFor(context, widget.tip.category);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -303,7 +301,9 @@ class _KnowledgeCardState extends State<_KnowledgeCard>
                   )
                 : _FrontCard(tip: widget.tip, palette: palette);
             return Semantics(
-              label: back ? 'Card details. Tap to flip back.' : 'Tap for card details.',
+              label: back
+                  ? 'Card details. Tap to flip back.'
+                  : 'Tap for card details.',
               child: Transform(
                 alignment: Alignment.center,
                 transform: Matrix4.identity()
@@ -334,12 +334,12 @@ class _FrontCard extends StatelessWidget {
             colors: [palette.start, palette.end],
           ),
           borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: Colors.white, width: 1.2),
-          boxShadow: const [
+          border: Border.all(color: context.nyla.glassBorder, width: 1.2),
+          boxShadow: [
             BoxShadow(
-              color: Color(0x142B2231),
+              color: context.nyla.shadow,
               blurRadius: 20,
-              offset: Offset(0, 9),
+              offset: const Offset(0, 9),
             ),
           ],
         ),
@@ -358,16 +358,13 @@ class _FrontCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      _CardLabel(
-                        text: _cardLabel(tip.category),
-                        palette: palette,
-                      ),
+                      _CardLabel(text: _cardLabel(tip.category), palette: palette),
                       const Spacer(),
                       Container(
                         width: compact ? 37 : 42,
                         height: compact ? 37 : 42,
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.58),
+                          color: context.nyla.glass.withValues(alpha: 0.74),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         alignment: Alignment.center,
@@ -397,10 +394,7 @@ class _FrontCard extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontFamily: 'sans-serif-rounded',
-                                  fontFamilyFallback: const [
-                                    'sans-serif',
-                                    'Roboto',
-                                  ],
+                                  fontFamilyFallback: const ['sans-serif', 'Roboto'],
                                   color: palette.ink,
                                   fontSize: compact ? 27 : 31,
                                   height: 1.06,
@@ -413,10 +407,7 @@ class _FrontCard extends StatelessWidget {
                                 tip.flash,
                                 maxLines: 5,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyLarge
-                                    ?.copyWith(
+                                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                       color: palette.ink,
                                       fontSize: compact ? 15 : 16,
                                       fontWeight: FontWeight.w500,
@@ -429,10 +420,7 @@ class _FrontCard extends StatelessWidget {
                                   tip.details.first,
                                   maxLines: 3,
                                   overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                         color: palette.ink.withValues(alpha: 0.76),
                                         height: 1.42,
                                       ),
@@ -455,11 +443,7 @@ class _FrontCard extends StatelessWidget {
                           shape: BoxShape.circle,
                         ),
                         alignment: Alignment.center,
-                        child: Icon(
-                          Icons.flip_rounded,
-                          color: palette.ink,
-                          size: 16,
-                        ),
+                        child: Icon(Icons.flip_rounded, color: palette.ink, size: 16),
                       ),
                       const SizedBox(width: 9),
                       Expanded(
@@ -471,11 +455,7 @@ class _FrontCard extends StatelessWidget {
                               ),
                         ),
                       ),
-                      Icon(
-                        Icons.arrow_forward_rounded,
-                        color: palette.ink,
-                        size: 18,
-                      ),
+                      Icon(Icons.arrow_forward_rounded, color: palette.ink, size: 18),
                     ],
                   ),
                 ],
@@ -506,21 +486,22 @@ class _BackCard extends StatelessWidget {
                 ? 14.0
                 : 14.7;
     final spacing = contentLength > 900 ? 10.0 : 13.0;
+    final nyla = context.nyla;
 
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [palette.end, NylaColors.cream],
+          colors: [palette.end, nyla.cream],
         ),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.white, width: 1.2),
-        boxShadow: const [
+        border: Border.all(color: nyla.glassBorder, width: 1.2),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x142B2231),
+            color: nyla.shadow,
             blurRadius: 20,
-            offset: Offset(0, 9),
+            offset: const Offset(0, 9),
           ),
         ],
       ),
@@ -600,15 +581,12 @@ class _BackCard extends StatelessWidget {
                       SizedBox(height: spacing),
                     ],
                     if (tip.seekCare.isNotEmpty) ...[
-                      _InlineHeading(
-                        text: 'Get medical advice if',
-                        color: NylaColors.warning,
-                      ),
+                      _InlineHeading(text: 'Get medical advice if', color: nyla.warning),
                       const SizedBox(height: 7),
                       for (final item in tip.seekCare)
                         _Bullet(
                           text: item,
-                          color: NylaColors.warning,
+                          color: nyla.warning,
                           fontSize: bodySize,
                         ),
                     ],
@@ -641,11 +619,7 @@ class _InlineHeading extends StatelessWidget {
 }
 
 class _Bullet extends StatelessWidget {
-  const _Bullet({
-    required this.text,
-    required this.color,
-    required this.fontSize,
-  });
+  const _Bullet({required this.text, required this.color, required this.fontSize});
 
   final String text;
   final Color color;
@@ -670,7 +644,7 @@ class _Bullet extends StatelessWidget {
               child: Text(
                 text,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: NylaColors.ink,
+                      color: color,
                       fontSize: fontSize,
                       height: 1.48,
                     ),
@@ -691,7 +665,7 @@ class _CardLabel extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.58),
+          color: context.nyla.glass.withValues(alpha: 0.74),
           borderRadius: BorderRadius.circular(99),
         ),
         child: Text(
@@ -724,7 +698,7 @@ class _DeckProgress extends StatelessWidget {
             width: i == selected ? 24 : 7,
             height: 7,
             decoration: BoxDecoration(
-              color: i == selected ? NylaColors.violet : NylaColors.lavender,
+              color: i == selected ? context.nyla.violet : context.nyla.lavender,
               borderRadius: BorderRadius.circular(99),
             ),
           ),
@@ -742,86 +716,121 @@ class _EmptyDeck extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          color: NylaColors.lavenderMist,
+          color: context.nyla.lavenderMist,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: NylaColors.outline),
+          border: Border.all(color: context.nyla.outline),
         ),
         child: Column(
           children: [
-            const Icon(
-              Icons.search_off_rounded,
-              color: NylaColors.violet,
-              size: 28,
-            ),
+            Icon(Icons.search_off_rounded, color: context.nyla.violet, size: 28),
             const SizedBox(height: 9),
-            Text(
-              'No cards found',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text('No cards found', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),
-            Text(
-              'Try another search.',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+            Text('Try another search.', style: Theme.of(context).textTheme.bodyMedium),
           ],
         ),
       );
 }
 
 class _CardPalette {
-  const _CardPalette({
-    required this.start,
-    required this.end,
-    required this.ink,
-  });
+  const _CardPalette({required this.start, required this.end, required this.ink});
 
   final Color start;
   final Color end;
   final Color ink;
 }
 
-_CardPalette _paletteFor(TipCategory category) => switch (category) {
-      TipCategory.cycle => const _CardPalette(
-          start: Color(0xFFF8DCE5),
-          end: Color(0xFFF7EAF3),
-          ink: Color(0xFF6E4357),
+_CardPalette _paletteFor(BuildContext context, TipCategory category) {
+  final dark = Theme.of(context).brightness == Brightness.dark;
+  final p = context.nyla;
+  if (dark) {
+    return switch (category) {
+      TipCategory.cycle => _CardPalette(
+          start: p.roseSoft,
+          end: const Color(0xFF352635),
+          ink: p.ink,
         ),
-      TipCategory.understanding => const _CardPalette(
-          start: Color(0xFFECE4F7),
-          end: Color(0xFFF6F1FA),
-          ink: Color(0xFF58456D),
+      TipCategory.understanding => _CardPalette(
+          start: p.lavender,
+          end: p.lavenderSoft,
+          ink: p.ink,
         ),
-      TipCategory.body => const _CardPalette(
-          start: Color(0xFFF5ECDC),
-          end: Color(0xFFFBF6ED),
-          ink: Color(0xFF665745),
+      TipCategory.body => _CardPalette(
+          start: const Color(0xFF3B3328),
+          end: const Color(0xFF29231F),
+          ink: p.ink,
         ),
-      TipCategory.care => const _CardPalette(
-          start: Color(0xFFE1F0E8),
-          end: Color(0xFFF0F6F2),
-          ink: Color(0xFF49695B),
+      TipCategory.care => _CardPalette(
+          start: p.sage,
+          end: p.sageSoft,
+          ink: p.ink,
         ),
-      TipCategory.products => const _CardPalette(
-          start: Color(0xFFF9E4D9),
-          end: Color(0xFFFCF1EA),
-          ink: Color(0xFF765343),
+      TipCategory.products => _CardPalette(
+          start: p.peach,
+          end: p.peachSoft,
+          ink: p.ink,
         ),
-      TipCategory.comfort => const _CardPalette(
-          start: Color(0xFFF8EED2),
-          end: Color(0xFFFCF7EA),
-          ink: Color(0xFF725E3B),
+      TipCategory.comfort => _CardPalette(
+          start: p.butter,
+          end: const Color(0xFF342F22),
+          ink: p.ink,
         ),
-      TipCategory.symptoms => const _CardPalette(
-          start: Color(0xFFE8E4F5),
-          end: Color(0xFFF4F1FA),
-          ink: Color(0xFF5F5274),
+      TipCategory.symptoms => _CardPalette(
+          start: const Color(0xFF423653),
+          end: p.lavenderSoft,
+          ink: p.ink,
         ),
-      TipCategory.seekCare => const _CardPalette(
-          start: Color(0xFFF6E2DF),
-          end: Color(0xFFFBF0ED),
-          ink: Color(0xFF79554C),
+      TipCategory.seekCare => _CardPalette(
+          start: const Color(0xFF49302E),
+          end: p.roseWash,
+          ink: p.ink,
         ),
     };
+  }
+
+  return switch (category) {
+    TipCategory.cycle => const _CardPalette(
+        start: Color(0xFFF8DCE5),
+        end: Color(0xFFF7EAF3),
+        ink: Color(0xFF6E4357),
+      ),
+    TipCategory.understanding => const _CardPalette(
+        start: Color(0xFFECE4F7),
+        end: Color(0xFFF6F1FA),
+        ink: Color(0xFF58456D),
+      ),
+    TipCategory.body => const _CardPalette(
+        start: Color(0xFFF5ECDC),
+        end: Color(0xFFFBF6ED),
+        ink: Color(0xFF665745),
+      ),
+    TipCategory.care => const _CardPalette(
+        start: Color(0xFFE1F0E8),
+        end: Color(0xFFF0F6F2),
+        ink: Color(0xFF49695B),
+      ),
+    TipCategory.products => const _CardPalette(
+        start: Color(0xFFF9E4D9),
+        end: Color(0xFFFCF1EA),
+        ink: Color(0xFF765343),
+      ),
+    TipCategory.comfort => const _CardPalette(
+        start: Color(0xFFF8EED2),
+        end: Color(0xFFFCF7EA),
+        ink: Color(0xFF725E3B),
+      ),
+    TipCategory.symptoms => const _CardPalette(
+        start: Color(0xFFE8E4F5),
+        end: Color(0xFFF4F1FA),
+        ink: Color(0xFF5F5274),
+      ),
+    TipCategory.seekCare => const _CardPalette(
+        start: Color(0xFFF6E2DF),
+        end: Color(0xFFFBF0ED),
+        ink: Color(0xFF79554C),
+      ),
+  };
+}
 
 String _cardLabel(TipCategory category) => switch (category) {
       TipCategory.cycle => 'Cycle',
