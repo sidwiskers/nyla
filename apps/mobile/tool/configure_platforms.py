@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import plistlib
 import re
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -38,6 +39,13 @@ def require(path: Path) -> Path:
 def indent_and_write(tree: ET.ElementTree, path: Path) -> None:
     ET.indent(tree, space="    ")
     tree.write(path, encoding="utf-8", xml_declaration=True)
+
+
+def prepare_typography() -> None:
+    subprocess.run(
+        [sys.executable, str(ROOT / "tool/fetch_fonts.py")],
+        check=True,
+    )
 
 
 def configure_android_manifest() -> None:
@@ -283,6 +291,7 @@ def _append_xcconfig(path: Path, line: str) -> None:
 
 
 def main() -> None:
+    prepare_typography()
     if not ANDROID.is_dir() or not IOS.is_dir():
         fail("generate Android and iOS scaffolds with the pinned Flutter SDK first")
     configure_android_manifest()
