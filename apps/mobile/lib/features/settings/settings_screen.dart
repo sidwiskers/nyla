@@ -33,102 +33,115 @@ class SettingsScreen extends ConsumerWidget {
         ),
         child: SafeArea(
           top: false,
-          child: ListView(
-            physics: const BouncingScrollPhysics(),
-            padding: EdgeInsets.fromLTRB(18, MediaQuery.paddingOf(context).top + kToolbarHeight + 8, 18, 42),
-            children: [
-              _PrivacyPanel(
-                privacy: config.privacy,
-                onPrivacyChanged: (value) async {
-                  await NylaHaptics.select();
-                  await _save(ref, config.copyWith(privacy: value));
-                },
-              ),
-              const SizedBox(height: 24),
-              const _SectionHeader(
-                eyebrow: 'REMINDERS',
-                title: 'Only when useful',
-                subtitle: 'Choose what deserves your attention. Everything else stays quiet.',
-              ),
-              const SizedBox(height: 12),
-              _ReminderPanel(
-                config: config,
-                onPeriodApproaching: (enabled) => _toggleWithPermission(
-                  context,
-                  ref,
-                  enabled,
-                  config.copyWith(periodApproaching: enabled),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final side = constraints.maxWidth > 796
+                  ? (constraints.maxWidth - 760) / 2
+                  : 18.0;
+              return ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(
+                  side,
+                  MediaQuery.paddingOf(context).top + kToolbarHeight + 8,
+                  side,
+                  42,
                 ),
-                onExpectedWindow: (enabled) => _toggleWithPermission(
-                  context,
-                  ref,
-                  enabled,
-                  config.copyWith(expectedWindowStarts: enabled),
-                ),
-                onDailyLog: (enabled) => _toggleWithPermission(
-                  context,
-                  ref,
-                  enabled,
-                  config.copyWith(dailyLogReminder: enabled),
-                ),
-                onLeadTime: (value) => _save(ref, config.copyWith(periodDaysBefore: value)),
-                onPickTime: () => _pickTime(context, ref, config),
-                timeText: _timeText(config.dailyHour, config.dailyMinute),
-              ),
-              const SizedBox(height: 24),
-              const _SectionHeader(
-                eyebrow: 'YOUR SPACE',
-                title: 'Data & devices',
-                subtitle: 'Your history stays yours. These are the tools around it.',
-              ),
-              const SizedBox(height: 12),
-              Row(
                 children: [
-                  Expanded(
-                    child: _ActionTile(
-                      icon: Icons.devices_rounded,
-                      tint: NylaColors.lavenderSoft,
-                      title: 'Devices',
-                      subtitle: 'Private sync',
-                      onTap: () {
-                        NylaHaptics.select();
-                        context.push('/settings/sync');
-                      },
-                    ),
+                  _PrivacyPanel(
+                    privacy: config.privacy,
+                    onPrivacyChanged: (value) async {
+                      await NylaHaptics.select();
+                      await _save(ref, config.copyWith(privacy: value));
+                    },
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _ActionTile(
-                      icon: Icons.tune_rounded,
-                      tint: NylaColors.sageSoft,
-                      title: 'Your logs',
-                      subtitle: 'Customize tracking',
-                      onTap: () {
-                        NylaHaptics.select();
-                        context.push('/settings/logs');
-                      },
-                    ),
+                  const SizedBox(height: 24),
+                  const _SectionHeader(
+                    eyebrow: 'REMINDERS',
+                    title: 'Reminders',
+                    subtitle: 'Period and check-in alerts.',
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _ActionTile(
-                      icon: Icons.ios_share_rounded,
-                      tint: NylaColors.peachSoft,
-                      title: 'Export',
-                      subtitle: 'Make a copy',
-                      onTap: () {
-                        NylaHaptics.select();
-                        context.push('/settings/export');
-                      },
+                  const SizedBox(height: 12),
+                  _ReminderPanel(
+                    config: config,
+                    onPeriodApproaching: (enabled) => _toggleWithPermission(
+                      context,
+                      ref,
+                      enabled,
+                      config.copyWith(periodApproaching: enabled),
                     ),
+                    onExpectedWindow: (enabled) => _toggleWithPermission(
+                      context,
+                      ref,
+                      enabled,
+                      config.copyWith(expectedWindowStarts: enabled),
+                    ),
+                    onDailyLog: (enabled) => _toggleWithPermission(
+                      context,
+                      ref,
+                      enabled,
+                      config.copyWith(dailyLogReminder: enabled),
+                    ),
+                    onLeadTime: (value) => _save(
+                      ref,
+                      config.copyWith(periodDaysBefore: value),
+                    ),
+                    onPickTime: () => _pickTime(context, ref, config),
+                    timeText: _timeText(config.dailyHour, config.dailyMinute),
                   ),
+                  const SizedBox(height: 24),
+                  const _SectionHeader(
+                    eyebrow: 'YOUR SPACE',
+                    title: 'Data & devices',
+                    subtitle: 'Sync, tracking and export.',
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ActionTile(
+                          icon: Icons.devices_rounded,
+                          tint: NylaColors.lavenderSoft,
+                          title: 'Devices',
+                          subtitle: 'Private sync',
+                          onTap: () {
+                            NylaHaptics.select();
+                            context.push('/settings/sync');
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _ActionTile(
+                          icon: Icons.tune_rounded,
+                          tint: NylaColors.sageSoft,
+                          title: 'Your logs',
+                          subtitle: 'Tracking options',
+                          onTap: () {
+                            NylaHaptics.select();
+                            context.push('/settings/logs');
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _ActionTile(
+                          icon: Icons.ios_share_rounded,
+                          tint: NylaColors.peachSoft,
+                          title: 'Export',
+                          subtitle: 'Make a copy',
+                          onTap: () {
+                            NylaHaptics.select();
+                            context.push('/settings/export');
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  const _EraseDataTile(),
                 ],
-              ),
-              const SizedBox(height: 14),
-              const _HealthNote(),
-              const SizedBox(height: 18),
-              const _EraseDataTile(),
-            ],
+              );
+            },
           ),
         ),
       ),
@@ -148,7 +161,9 @@ class SettingsScreen extends ConsumerWidget {
       if (!granted) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Notifications are off for Nyla. You can allow them in your phone settings.')),
+            const SnackBar(
+              content: Text('Allow notifications in your phone settings first.'),
+            ),
           );
         }
         return;
@@ -157,14 +172,21 @@ class SettingsScreen extends ConsumerWidget {
     await _save(ref, next);
   }
 
-  Future<void> _pickTime(BuildContext context, WidgetRef ref, NotificationConfig config) async {
+  Future<void> _pickTime(
+    BuildContext context,
+    WidgetRef ref,
+    NotificationConfig config,
+  ) async {
     final picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay(hour: config.dailyHour, minute: config.dailyMinute),
     );
     if (picked != null) {
       await NylaHaptics.select();
-      await _save(ref, config.copyWith(dailyHour: picked.hour, dailyMinute: picked.minute));
+      await _save(
+        ref,
+        config.copyWith(dailyHour: picked.hour, dailyMinute: picked.minute),
+      );
     }
   }
 
@@ -195,7 +217,11 @@ class _PrivacyPanel extends StatelessWidget {
           ),
           borderRadius: BorderRadius.circular(34),
           boxShadow: const [
-            BoxShadow(color: Color(0x3433203E), blurRadius: 34, offset: Offset(0, 16)),
+            BoxShadow(
+              color: Color(0x3433203E),
+              blurRadius: 34,
+              offset: Offset(0, 16),
+            ),
           ],
         ),
         child: Column(
@@ -206,8 +232,15 @@ class _PrivacyPanel extends StatelessWidget {
                 Container(
                   width: 47,
                   height: 47,
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.11), borderRadius: BorderRadius.circular(16)),
-                  child: const Icon(Icons.shield_rounded, color: Colors.white, size: 23),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.11),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.shield_rounded,
+                    color: Colors.white,
+                    size: 23,
+                  ),
                 ),
                 const SizedBox(width: 13),
                 Expanded(
@@ -216,12 +249,20 @@ class _PrivacyPanel extends StatelessWidget {
                     children: [
                       const Text(
                         'PRIVACY',
-                        style: TextStyle(color: Color(0xFFD8CBE0), fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1),
+                        style: TextStyle(
+                          color: Color(0xFFD8CBE0),
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Keep Nyla yours',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontSize: 22),
+                        'Privacy',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: Colors.white,
+                              fontSize: 22,
+                            ),
                       ),
                     ],
                   ),
@@ -230,49 +271,103 @@ class _PrivacyPanel extends StatelessWidget {
             ),
             const SizedBox(height: 19),
             const _AppLockTile(),
-            const SizedBox(height: 11),
-            Container(
-              padding: const EdgeInsets.fromLTRB(14, 11, 9, 11),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.085),
-                borderRadius: BorderRadius.circular(19),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.075)),
+            const SizedBox(height: 10),
+            _PrivacyRow(
+              icon: Icons.visibility_off_rounded,
+              title: 'Lock-screen text',
+              subtitle: privacy == NotificationPrivacy.private
+                  ? 'Hide period details'
+                  : 'Show reminder details',
+              trailing: DropdownButtonHideUnderline(
+                child: DropdownButton<NotificationPrivacy>(
+                  value: privacy,
+                  dropdownColor: NylaColors.night,
+                  iconEnabledColor: Colors.white,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: NotificationPrivacy.private,
+                      child: Text('Private'),
+                    ),
+                    DropdownMenuItem(
+                      value: NotificationPrivacy.contextual,
+                      child: Text('Detailed'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) onPrivacyChanged(value);
+                  },
+                ),
               ),
-              child: Row(
+            ),
+          ],
+        ),
+      );
+}
+
+class _PrivacyRow extends StatelessWidget {
+  const _PrivacyRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget trailing;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(13, 11, 9, 11),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.085),
+          borderRadius: BorderRadius.circular(19),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.075)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 39,
+              height: 39,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, color: const Color(0xFFE2D6E8), size: 19),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.visibility_off_rounded, color: Color(0xFFE2D6E8), size: 20),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Lock-screen wording', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13.5)),
-                        const SizedBox(height: 2),
-                        Text(
-                          privacy == NotificationPrivacy.private ? 'Keep period details hidden' : 'Show reminder context',
-                          style: const TextStyle(color: Color(0xFFD4C6DA), fontSize: 11.5),
-                        ),
-                      ],
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13.5,
                     ),
                   ),
-                  DropdownButtonHideUnderline(
-                    child: DropdownButton<NotificationPrivacy>(
-                      value: privacy,
-                      dropdownColor: NylaColors.night,
-                      iconEnabledColor: Colors.white,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
-                      items: const [
-                        DropdownMenuItem(value: NotificationPrivacy.private, child: Text('Private')),
-                        DropdownMenuItem(value: NotificationPrivacy.contextual, child: Text('Detailed')),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) onPrivacyChanged(value);
-                      },
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: Color(0xFFD4C6DA),
+                      fontSize: 11.5,
                     ),
                   ),
                 ],
               ),
             ),
+            const SizedBox(width: 6),
+            trailing,
           ],
         ),
       );
@@ -307,11 +402,13 @@ class _ReminderPanel extends StatelessWidget {
         ),
         child: Column(
           children: [
+            const _NotificationAccessTile(),
+            const _SoftDivider(),
             _ReminderRow(
               icon: Icons.upcoming_rounded,
               tint: NylaColors.roseWash,
               title: 'Period approaching',
-              subtitle: '${config.periodDaysBefore} days before your earliest expected day',
+              subtitle: '${config.periodDaysBefore} days before the expected window',
               value: config.periodApproaching,
               onChanged: onPeriodApproaching,
             ),
@@ -320,7 +417,14 @@ class _ReminderPanel extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(54, 0, 5, 8),
                 child: Row(
                   children: [
-                    const Text('1d', style: TextStyle(color: NylaColors.faintInk, fontSize: 10.5, fontWeight: FontWeight.w700)),
+                    const Text(
+                      '1d',
+                      style: TextStyle(
+                        color: NylaColors.faintInk,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     Expanded(
                       child: Slider(
                         min: 1,
@@ -331,7 +435,14 @@ class _ReminderPanel extends StatelessWidget {
                         onChanged: (value) => onLeadTime(value.round()),
                       ),
                     ),
-                    const Text('7d', style: TextStyle(color: NylaColors.faintInk, fontSize: 10.5, fontWeight: FontWeight.w700)),
+                    const Text(
+                      '7d',
+                      style: TextStyle(
+                        color: NylaColors.faintInk,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -340,7 +451,7 @@ class _ReminderPanel extends StatelessWidget {
               icon: Icons.blur_on_rounded,
               tint: NylaColors.lavenderSoft,
               title: 'Expected window',
-              subtitle: 'A gentle note when the predicted range begins',
+              subtitle: 'When the predicted range begins',
               value: config.expectedWindowStarts,
               onChanged: onExpectedWindow,
             ),
@@ -361,13 +472,125 @@ class _ReminderPanel extends StatelessWidget {
                   child: TextButton.icon(
                     onPressed: onPickTime,
                     icon: const Icon(Icons.schedule_rounded, size: 17),
-                    label: Text('Change time · $timeText'),
+                    label: Text('Time · $timeText'),
                   ),
                 ),
               ),
           ],
         ),
       );
+}
+
+class _NotificationAccessTile extends ConsumerStatefulWidget {
+  const _NotificationAccessTile();
+
+  @override
+  ConsumerState<_NotificationAccessTile> createState() =>
+      _NotificationAccessTileState();
+}
+
+class _NotificationAccessTileState
+    extends ConsumerState<_NotificationAccessTile> {
+  bool? _enabled;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final service = await ref.read(notificationServiceProvider.future);
+    final enabled = await service.notificationsEnabled();
+    if (mounted) setState(() => _enabled = enabled ?? true);
+  }
+
+  Future<void> _request() async {
+    if (_busy) return;
+    await NylaHaptics.select();
+    setState(() => _busy = true);
+    final service = await ref.read(notificationServiceProvider.future);
+    final granted = await service.requestPermission();
+    final enabled = await service.notificationsEnabled();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _enabled = enabled ?? granted;
+    });
+    if (!granted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Allow notifications in your phone settings first.'),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ready = _enabled == true;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: NylaColors.peachSoft,
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: const Icon(
+              Icons.notifications_none_rounded,
+              color: NylaColors.violet,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Notification access',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontSize: 14.5),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _enabled == null
+                      ? 'Checking…'
+                      : ready
+                          ? 'Allowed'
+                          : 'Permission needed',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontSize: 11.2),
+                ),
+              ],
+            ),
+          ),
+          if (_busy)
+            const SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else if (ready)
+            const Icon(
+              Icons.check_circle_rounded,
+              color: Color(0xFF6F9B82),
+              size: 22,
+            )
+          else
+            TextButton(onPressed: _request, child: const Text('Allow')),
+        ],
+      ),
+    );
+  }
 }
 
 class _ReminderRow extends StatelessWidget {
@@ -395,7 +618,10 @@ class _ReminderRow extends StatelessWidget {
             Container(
               width: 42,
               height: 42,
-              decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(15)),
+              decoration: BoxDecoration(
+                color: tint,
+                borderRadius: BorderRadius.circular(15),
+              ),
               child: Icon(icon, color: NylaColors.violet, size: 20),
             ),
             const SizedBox(width: 12),
@@ -403,20 +629,41 @@ class _ReminderRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 14.5)),
+                  Text(
+                    title,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontSize: 14.5),
+                  ),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.2)),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(fontSize: 11.2),
+                  ),
                 ],
               ),
             ),
-            Switch.adaptive(value: value, onChanged: onChanged),
+            Transform.scale(
+              scale: 0.9,
+              child: Switch.adaptive(value: value, onChanged: onChanged),
+            ),
           ],
         ),
       );
 }
 
 class _ActionTile extends StatelessWidget {
-  const _ActionTile({required this.icon, required this.tint, required this.title, required this.subtitle, required this.onTap});
+  const _ActionTile({
+    required this.icon,
+    required this.tint,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
   final IconData icon;
   final Color tint;
@@ -443,13 +690,30 @@ class _ActionTile extends StatelessWidget {
                 Container(
                   width: 39,
                   height: 39,
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.72), borderRadius: BorderRadius.circular(14)),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.72),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   child: Icon(icon, color: NylaColors.violet, size: 19),
                 ),
                 const SizedBox(height: 14),
-                Text(title, maxLines: 1, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 13.8)),
+                Text(
+                  title,
+                  maxLines: 1,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontSize: 13.8),
+                ),
                 const SizedBox(height: 3),
-                Text(subtitle, maxLines: 2, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 10.5, height: 1.25)),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 10.5,
+                        height: 1.25,
+                      ),
+                ),
               ],
             ),
           ),
@@ -457,41 +721,12 @@ class _ActionTile extends StatelessWidget {
       );
 }
 
-class _HealthNote extends StatelessWidget {
-  const _HealthNote();
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(17, 16, 17, 17),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [NylaColors.sageSoft, NylaColors.lavenderSoft]),
-          borderRadius: BorderRadius.circular(25),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.bookmark_rounded, color: NylaColors.violet, size: 20),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Health guidance', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 3),
-                  Text(
-                    'Nyla’s learning cards are curated with trusted medical sources and review dates.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.8, color: NylaColors.ink),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-}
-
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.eyebrow, required this.title, required this.subtitle});
+  const _SectionHeader({
+    required this.eyebrow,
+    required this.title,
+    required this.subtitle,
+  });
 
   final String eyebrow;
   final String title;
@@ -505,12 +740,23 @@ class _SectionHeader extends StatelessWidget {
           children: [
             Text(
               eyebrow,
-              style: const TextStyle(color: NylaColors.violet, fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1.05),
+              style: const TextStyle(
+                color: NylaColors.violet,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.05,
+              ),
             ),
             const SizedBox(height: 5),
             Text(title, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 3),
-            Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12)),
+            Text(
+              subtitle,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(fontSize: 12),
+            ),
           ],
         ),
       );
@@ -536,6 +782,7 @@ class _AppLockTile extends ConsumerStatefulWidget {
 
 class _AppLockTileState extends ConsumerState<_AppLockTile> {
   bool? enabled;
+  bool _busy = false;
 
   @override
   void initState() {
@@ -549,59 +796,86 @@ class _AppLockTileState extends ConsumerState<_AppLockTile> {
   }
 
   Future<void> _change(bool next) async {
+    if (_busy) return;
     await NylaHaptics.select();
+    setState(() => _busy = true);
+
     if (next) {
       final auth = LocalAuthentication();
       if (!await auth.isDeviceSupported()) {
         if (mounted) {
+          setState(() => _busy = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Set up a screen lock on your phone before turning on Nyla lock.')),
+            const SnackBar(
+              content: Text('Set up a phone screen lock first.'),
+            ),
           );
         }
         return;
       }
       try {
-        final verified = await auth.authenticate(localizedReason: 'Unlock Nyla to confirm');
-        if (!verified) return;
+        final verified = await auth.authenticate(
+          localizedReason: 'Turn on Nyla app lock',
+          persistAcrossBackgrounding: true,
+        );
+        if (!verified) {
+          if (mounted) setState(() => _busy = false);
+          return;
+        }
       } on LocalAuthException {
+        if (mounted) {
+          setState(() => _busy = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Couldn’t confirm your phone lock.'),
+            ),
+          );
+        }
         return;
       }
     }
+
     await ref.read(secureVaultProvider).setAppLockEnabled(next);
-    await NylaHaptics.confirm();
-    if (mounted) setState(() => enabled = next);
+    final stored = await ref.read(secureVaultProvider).isAppLockEnabled();
+    if (!mounted) return;
+    setState(() {
+      enabled = stored;
+      _busy = false;
+    });
+    if (stored == next) {
+      await NylaHaptics.confirm();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('App lock could not be saved.')),
+      );
+    }
   }
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(14, 11, 9, 11),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.085),
-          borderRadius: BorderRadius.circular(19),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.075)),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.lock_rounded, color: Color(0xFFE2D6E8), size: 20),
-            const SizedBox(width: 11),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('App lock', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13.5)),
-                  SizedBox(height: 2),
-                  Text('Use your phone lock when Nyla opens', style: TextStyle(color: Color(0xFFD4C6DA), fontSize: 11.5)),
-                ],
+  Widget build(BuildContext context) => _PrivacyRow(
+        icon: Icons.lock_rounded,
+        title: 'App lock',
+        subtitle: enabled == true ? 'On' : 'Use your phone lock',
+        trailing: _busy
+            ? const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 14),
+                child: SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+              )
+            : Transform.scale(
+                scale: 0.88,
+                child: Switch.adaptive(
+                  value: enabled ?? false,
+                  onChanged: enabled == null ? null : _change,
+                  activeTrackColor: NylaColors.lavender,
+                  activeThumbColor: Colors.white,
+                ),
               ),
-            ),
-            Switch.adaptive(
-              value: enabled ?? false,
-              onChanged: enabled == null ? null : _change,
-              activeTrackColor: NylaColors.lavender,
-              activeThumbColor: Colors.white,
-            ),
-          ],
-        ),
       );
 }
 
@@ -634,14 +908,18 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
               : 'This permanently removes your Nyla history and private access information from this device.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, _EraseScope.local),
             child: const Text('This device only'),
           ),
           if (hasSync)
             FilledButton(
-              onPressed: () => Navigator.pop(context, _EraseScope.cloudAndLocal),
+              onPressed: () =>
+                  Navigator.pop(context, _EraseScope.cloudAndLocal),
               child: const Text('Synced copy + this device'),
             ),
         ],
@@ -671,7 +949,9 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
       final message = error.toString().contains('device_not_authorized')
           ? 'This device can no longer remove the shared sync copy. You can still erase this device only.'
           : 'Nyla could not finish that safely, so your local data was kept.';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
     }
   }
 
@@ -681,8 +961,16 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            icon: const Icon(Icons.delete_sweep_rounded, color: NylaColors.warning, size: 28),
-            title: Text(scope == _EraseScope.cloudAndLocal ? 'Remove the synced copy too?' : 'Erase this device?'),
+            icon: const Icon(
+              Icons.delete_sweep_rounded,
+              color: NylaColors.warning,
+              size: 28,
+            ),
+            title: Text(
+              scope == _EraseScope.cloudAndLocal
+                  ? 'Remove the synced copy too?'
+                  : 'Erase this device?',
+            ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -693,7 +981,10 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
                       : 'This removes everything stored by Nyla on this device. Your shared sync copy and other devices are left alone.',
                 ),
                 const SizedBox(height: 16),
-                Text('Type ERASE to confirm.', style: Theme.of(context).textTheme.labelLarge),
+                Text(
+                  'Type ERASE to confirm.',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: controller,
@@ -706,10 +997,16 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
               ],
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
               FilledButton(
-                onPressed: () => Navigator.pop(context, controller.text.trim() == 'ERASE'),
-                style: FilledButton.styleFrom(backgroundColor: NylaColors.warning),
+                onPressed: () =>
+                    Navigator.pop(context, controller.text.trim() == 'ERASE'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: NylaColors.warning,
+                ),
                 child: const Text('Erase permanently'),
               ),
             ],
@@ -731,31 +1028,59 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.58),
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: NylaColors.outline.withValues(alpha: 0.82)),
+              border: Border.all(
+                color: NylaColors.outline.withValues(alpha: 0.82),
+              ),
             ),
             child: Row(
               children: [
                 Container(
                   width: 38,
                   height: 38,
-                  decoration: BoxDecoration(color: NylaColors.peachSoft, borderRadius: BorderRadius.circular(13)),
-                  child: const Icon(Icons.delete_outline_rounded, color: NylaColors.warning, size: 19),
+                  decoration: BoxDecoration(
+                    color: NylaColors.peachSoft,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: NylaColors.warning,
+                    size: 19,
+                  ),
                 ),
                 const SizedBox(width: 11),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Erase data', style: TextStyle(color: NylaColors.warning, fontWeight: FontWeight.w700, fontSize: 13.5)),
+                      const Text(
+                        'Erase data',
+                        style: TextStyle(
+                          color: NylaColors.warning,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13.5,
+                        ),
+                      ),
                       const SizedBox(height: 2),
-                      Text('Permanent removal controls', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 10.8)),
+                      Text(
+                        'Permanent removal',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(fontSize: 10.8),
+                      ),
                     ],
                   ),
                 ),
                 if (_busy)
-                  const SizedBox.square(dimension: 19, child: CircularProgressIndicator(strokeWidth: 2))
+                  const SizedBox.square(
+                    dimension: 19,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 else
-                  const Icon(Icons.chevron_right_rounded, color: NylaColors.faintInk),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: NylaColors.faintInk,
+                  ),
               ],
             ),
           ),
