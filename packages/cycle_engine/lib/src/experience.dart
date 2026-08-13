@@ -61,7 +61,9 @@ final class CycleExperienceEngine {
     required List<PeriodRecord> records,
     CyclePrediction? prediction,
   }) {
-    final started = records.where((record) => record.start.compareTo(today) <= 0).toList()
+    final started = records
+        .where((record) => record.start.compareTo(today) <= 0)
+        .toList()
       ..sort((a, b) => a.start.compareTo(b.start));
     if (started.isEmpty) return null;
 
@@ -85,13 +87,13 @@ final class CycleExperienceEngine {
     // This is intentionally close to the existing likely-period estimate. PMS
     // can begin earlier for some people, but a wider calendar trigger would make
     // Nyla sound more certain about physiology than its date prediction allows.
-    if (prediction != null &&
-        daysUntilLikely! >= -1 &&
+    if (daysUntilLikely != null &&
+        daysUntilLikely >= -1 &&
         daysUntilLikely <= approachingPeriodDays) {
       return CycleExperience(
         window: CycleExperienceWindow.approachingPeriod,
         cycleDay: cycleDay,
-        predictedCycleLength: prediction.predictedCycleLength,
+        predictedCycleLength: prediction!.predictedCycleLength,
         daysUntilLikelyPeriod: daysUntilLikely,
         predictionConfidence: prediction.confidence,
       );
@@ -108,7 +110,11 @@ final class CycleExperienceEngine {
       );
     }
 
-    if (prediction == null || daysUntilLikely! < -1) return null;
+    if (prediction == null ||
+        daysUntilLikely == null ||
+        daysUntilLikely < -1) {
+      return null;
+    }
 
     final progress = cycleDay / prediction.predictedCycleLength;
     if (progress >= middleCycleStart &&
