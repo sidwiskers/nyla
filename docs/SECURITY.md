@@ -32,6 +32,7 @@ The design specifically considers:
 - accidental OS backup or device-transfer leakage
 - lock-screen notification disclosure
 - accidental destructive actions
+- a stale background worker racing local erasure
 
 No mobile application can protect readable data from a fully compromised operating system while the user has unlocked the application. Nyla does not claim otherwise.
 
@@ -53,6 +54,8 @@ The optional app lock uses device authentication through the platform local-auth
 
 This also prevents the application-switcher snapshot from casually displaying the previous menstrual screen while Nyla is backgrounded.
 
+App lock is a foreground presentation/access-control boundary, not a requirement to display biometric UI for every operating-system background wake-up. On Android, a WorkManager sync may use this installation's already device-protected SQLCipher key and sync identity while the health UI remains locked. It executes the same E2E-encrypted protocol as foreground sync: readable health values are decrypted only on the device and never sent to Cloudflare in plaintext.
+
 ## Notification privacy
 
 Reminders are local notifications. Users can choose private wording that does not put menstrual details on the lock screen.
@@ -66,12 +69,14 @@ Notification payload navigation is allowlisted to Nyla-owned routes; arbitrary p
 The reset sequence:
 
 1. removes the active provider scope so repository streams stop
-2. closes the SQLCipher database
-3. deletes secure-storage material first, cryptographically destroying the database key, sync identity and pending recovery/rotation secrets
-4. deletes the database plus WAL, SHM and journal sidecars
-5. starts a fresh installation identity
+2. acquires the cross-isolate sync/erasure lock
+3. best-effort cancels the unique pending Android sync worker
+4. closes the SQLCipher database
+5. deletes secure-storage material first, cryptographically destroying the database key, sync identity and pending recovery/rotation secrets
+6. deletes the database plus WAL, SHM and journal sidecars
+7. releases the lock and starts a fresh installation identity
 
-Destroying key material before filesystem cleanup means a crash during physical deletion does not leave a usable encrypted database key behind.
+Destroying key material before filesystem cleanup means a crash during physical deletion does not leave a usable encrypted database key behind. Cancellation is not trusted as the sole safety mechanism: if a stale worker wakes after cancellation, it must acquire the same lock and re-read existing secure material. With the identity/key gone it exits instead of generating replacements or reopening erased data.
 
 ## Sync encryption
 
