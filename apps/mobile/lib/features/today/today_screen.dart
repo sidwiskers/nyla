@@ -20,6 +20,8 @@ class TodayScreen extends ConsumerWidget {
     final periods = ref.watch(periodHistoryProvider);
     final prediction = ref.watch(cyclePredictionProvider);
     final dayValues = ref.watch(dayValuesProvider(today.epochDay));
+    final experience = ref.watch(cycleExperienceProvider(today.epochDay));
+    final patterns = ref.watch(symptomPatternsProvider);
 
     return NylaPage(
       title: _greeting(),
@@ -30,6 +32,21 @@ class TodayScreen extends ConsumerWidget {
           _CycleDashboard(today: today, periods: periods, prediction: prediction),
           const SizedBox(height: 16),
           _QuickRow(today: today, values: dayValues),
+          if (experience.value case final current?) ...[
+            const SizedBox(height: 16),
+            _CycleCompanionCard(
+              experience: current,
+              tip: _experienceTip(current.window),
+              pattern: _matchingPattern(
+                current,
+                patterns.value ?? const <SymptomPattern>[],
+              ),
+              onTap: () {
+                NylaHaptics.select();
+                context.go('/learn');
+              },
+            ),
+          ],
           const SizedBox(height: 16),
           _TodayCard(
             tip: _recommendedTip(dayValues.value ?? const <DayValueEntry>[]),
@@ -73,7 +90,8 @@ class TodayScreen extends ConsumerWidget {
         .where(
           (tip) =>
               tip.category != TipCategory.seekCare &&
-              tip.id != 'tampon-metals-2026',
+              tip.id != 'tampon-metals-2026' &&
+              !tip.id.startsWith('cycle-now-'),
         )
         .toList(growable: false);
     final index = DateTime.now()
@@ -82,6 +100,31 @@ class TodayScreen extends ConsumerWidget {
             .abs() %
         safeGeneral.length;
     return safeGeneral[index];
+  }
+
+  HealthTip _experienceTip(CycleExperienceWindow window) => switch (window) {
+        CycleExperienceWindow.periodStart => _tip('cycle-now-period-start'),
+        CycleExperienceWindow.earlyCycle => _tip('cycle-now-early'),
+        CycleExperienceWindow.middleCycle => _tip('cycle-now-middle'),
+        CycleExperienceWindow.approachingPeriod =>
+          _tip('cycle-now-before-period'),
+      };
+
+  SymptomPattern? _matchingPattern(
+    CycleExperience experience,
+    List<SymptomPattern> patterns,
+  ) {
+    final target = switch (experience.window) {
+      CycleExperienceWindow.periodStart => CycleWindow.periodStart,
+      CycleExperienceWindow.approachingPeriod => CycleWindow.beforePeriod,
+      CycleExperienceWindow.earlyCycle || CycleExperienceWindow.middleCycle =>
+        null,
+    };
+    if (target == null) return null;
+    for (final pattern in patterns) {
+      if (pattern.window == target) return pattern;
+    }
+    return null;
   }
 
   HealthTip _tip(String id) => healthTips.firstWhere((tip) => tip.id == id);
@@ -516,6 +559,260 @@ class _QuickAction extends StatelessWidget {
         ),
       );
 }
+
+class _CycleCompanionCard extends StatelessWidget {
+  const _CycleCompanionCard({
+    required this.experience,
+    required this.tip,
+    required this.pattern,
+    required this.onTap,
+  });
+
+  final CycleExperience experience;
+  final HealthTip tip;
+  final SymptomPattern? pattern;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = switch (experience.window) {
+      CycleExperienceWindow.periodStart => 'Your period has just started',
+      CycleExperienceWindow.earlyCycle => 'The early days are still shifting',
+      CycleExperienceWindow.middleCycle => 'Around the middle of your cycle',
+      CycleExperienceWindow.approachingPeriod =>
+        'Your next period may be getting closer',
+    };
+    final eyebrow = switch (experience.window) {
+      CycleExperienceWindow.periodStart => 'FIRST DAYS',
+      CycleExperienceWindow.earlyCycle => 'EARLY CYCLE',
+      CycleExperienceWindow.middleCycle => 'AROUND THIS POINT',
+      CycleExperienceWindow.approachingPeriod => 'PERIOD APPROACHING',
+    };
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(30),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                NylaColors.night,
+                Color(0xFF392A50),
+                Color(0xFF614A73),
+              ],
+              stops: [0, 0.58, 1],
+            ),
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x242A1D34),
+                blurRadius: 28,
+                offset: Offset(0, 13),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(21, 20, 21, 19),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      eyebrow,
+                      style: const TextStyle(
+                        color: Color(0xFFDCCDE4),
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.15,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Text(
+                        'Day ${experience.cycleDay}',
+                        style: const TextStyle(
+                          color: Color(0xFFF5EBF7),
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 15),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        color: Colors.white,
+                        fontSize: 24,
+                        height: 1.1,
+                      ),
+                ),
+                const SizedBox(height: 9),
+                Text(
+                  tip.flash,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: const Color(0xFFF2E9F4),
+                        height: 1.42,
+                      ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(15, 13, 15, 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.085),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'WHY',
+                        style: TextStyle(
+                          color: Color(0xFFCDB9D6),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.05,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        tip.details.first,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: const Color(0xFFF1E8F3),
+                              height: 1.42,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (pattern case final personal?) ...[
+                  const SizedBox(height: 11),
+                  _PersonalPatternNote(pattern: personal),
+                ],
+                const SizedBox(height: 14),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        experience.usesPrediction
+                            ? 'Timing is estimated from your cycle history.'
+                            : 'Timed from your recorded period start.',
+                        style: const TextStyle(
+                          color: Color(0xFFCDBFD2),
+                          fontSize: 10.5,
+                          height: 1.3,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Explore',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PersonalPatternNote extends StatelessWidget {
+  const _PersonalPatternNote({required this.pattern});
+
+  final SymptomPattern pattern;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = _symptomLabel(pattern.key);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(13, 11, 13, 11),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8B8CB).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xFFF2D4E0).withValues(alpha: 0.11),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.auto_awesome_rounded,
+            color: Color(0xFFF0C7D8),
+            size: 17,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              'Your logs · $label showed up around this point in '
+              '${pattern.cyclesPresent} of ${pattern.cyclesObserved} '
+              'well-observed cycles.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFFF4E8EE),
+                    fontSize: 11.5,
+                    height: 1.38,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _symptomLabel(String key) => switch (key) {
+      'cramps' => 'Cramps',
+      'headache' => 'Headaches',
+      'bloating' => 'Bloating',
+      'nausea' => 'Nausea',
+      'dizziness' => 'Dizziness',
+      'back_pain' => 'Back pain',
+      'breast_tenderness' => 'Breast tenderness',
+      _ => key.replaceAll('_', ' '),
+    };
 
 class _TodayCard extends StatelessWidget {
   const _TodayCard({required this.tip, required this.onTap});
