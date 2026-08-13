@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/haptics/nyla_haptics.dart';
 import '../core/theme/nyla_theme.dart';
+import '../core/theme/nyla_typography.dart';
 
 class NylaPage extends StatelessWidget {
   const NylaPage({
@@ -74,13 +75,17 @@ class NylaPage extends StatelessWidget {
                                   const SizedBox(height: 12),
                                   Text(
                                     title,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .headlineMedium
-                                        ?.copyWith(fontSize: 32),
+                                    style: NylaTypography.display(
+                                      Theme.of(context).textTheme.headlineMedium,
+                                      size: 33,
+                                      opticalSize: 38,
+                                      weight: FontWeight.w600,
+                                      height: 1.03,
+                                      letterSpacing: -0.38,
+                                    ),
                                   ),
                                   if (subtitle != null) ...[
-                                    const SizedBox(height: 6),
+                                    const SizedBox(height: 7),
                                     ConstrainedBox(
                                       constraints: const BoxConstraints(maxWidth: 380),
                                       child: Text(
