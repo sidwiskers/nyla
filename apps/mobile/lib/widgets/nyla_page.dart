@@ -18,31 +18,28 @@ class NylaPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.nyla;
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFF0E8F8),
-            NylaColors.canvas,
-            Color(0xFFFFF4EE),
-          ],
-          stops: [0, 0.46, 1],
+          colors: [palette.pageTop, palette.canvas, palette.pageBottom],
+          stops: const [0, 0.46, 1],
         ),
       ),
       child: Stack(
         fit: StackFit.expand,
         children: [
-          const Positioned(
+          Positioned(
             right: -88,
             top: -72,
-            child: _PageOrb(size: 238, color: Color(0x1A8B6FC0)),
+            child: _PageOrb(size: 238, color: palette.orbViolet),
           ),
-          const Positioned(
+          Positioned(
             left: -96,
             top: 230,
-            child: _PageOrb(size: 208, color: Color(0x12E27E83)),
+            child: _PageOrb(size: 208, color: palette.orbRose),
           ),
           SafeArea(
             bottom: false,
@@ -68,11 +65,8 @@ class NylaPage extends StatelessWidget {
                                     width: 38,
                                     height: 5,
                                     decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        colors: [
-                                          NylaColors.violet,
-                                          NylaColors.rose,
-                                        ],
+                                      gradient: LinearGradient(
+                                        colors: [palette.violet, palette.rose],
                                       ),
                                       borderRadius: BorderRadius.circular(99),
                                     ),
@@ -88,15 +82,14 @@ class NylaPage extends StatelessWidget {
                                   if (subtitle != null) ...[
                                     const SizedBox(height: 6),
                                     ConstrainedBox(
-                                      constraints:
-                                          const BoxConstraints(maxWidth: 380),
+                                      constraints: const BoxConstraints(maxWidth: 380),
                                       child: Text(
                                         subtitle!,
                                         style: Theme.of(context)
                                             .textTheme
                                             .bodyMedium
                                             ?.copyWith(
-                                              color: NylaColors.mutedInk,
+                                              color: palette.mutedInk,
                                               height: 1.4,
                                             ),
                                       ),
@@ -108,16 +101,14 @@ class NylaPage extends StatelessWidget {
                             const SizedBox(width: 12),
                             DecoratedBox(
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.78),
+                                color: palette.glass,
                                 shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.78),
-                                ),
-                                boxShadow: const [
+                                border: Border.all(color: palette.glassBorder),
+                                boxShadow: [
                                   BoxShadow(
-                                    color: Color(0x10542B3C),
+                                    color: palette.shadow,
                                     blurRadius: 18,
-                                    offset: Offset(0, 7),
+                                    offset: const Offset(0, 7),
                                   ),
                                 ],
                               ),
@@ -128,7 +119,7 @@ class NylaPage extends StatelessWidget {
                                   context.push('/settings');
                                 },
                                 icon: const Icon(Icons.tune_rounded, size: 20),
-                                color: NylaColors.wine,
+                                color: palette.wine,
                               ),
                             ),
                           ],
