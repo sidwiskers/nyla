@@ -3,9 +3,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:local_auth/local_auth.dart';
 
 import 'core/haptics/nyla_haptics.dart';
+import 'core/security/app_lock_service.dart';
 import 'core/theme/nyla_theme.dart';
 import 'navigation/router.dart';
 import 'providers.dart';
@@ -70,10 +70,18 @@ class _PrivacyGateState extends ConsumerState<_PrivacyGate> with WidgetsBindingO
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final appLock = ref.read(appLockServiceProvider);
+
+    // The Android PIN/pattern/password UI can pause and resume our activity.
+    // That is part of the authentication already in progress, not a reason to
+    // start a second lock cycle.
+    if (appLock.authenticationInProgress) return;
+
     switch (state) {
       case AppLifecycleState.inactive:
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
+        appLock.lockSession();
         if (mounted && !_concealed) setState(() => _concealed = true);
         return;
       case AppLifecycleState.resumed:
@@ -85,24 +93,32 @@ class _PrivacyGateState extends ConsumerState<_PrivacyGate> with WidgetsBindingO
   }
 
   Future<void> _checkInitialLock() async {
-    final enabled = await ref.read(secureVaultProvider).isAppLockEnabled();
+    final appLock = ref.read(appLockServiceProvider);
+    final enabled = await appLock.isEnabled();
     if (!mounted) return;
-    if (!enabled) {
+
+    // Bootstrap authenticates before opening the encrypted database. Reuse
+    // that successful foreground session instead of prompting a second time.
+    if (!enabled || appLock.sessionUnlocked) {
       setState(() {
         _checking = false;
         _concealed = false;
       });
       return;
     }
+
     setState(() => _checking = false);
     await _unlock();
   }
 
   Future<void> _resume() async {
     if (_authenticating || _checking || !mounted) return;
-    final lockEnabled = await ref.read(secureVaultProvider).isAppLockEnabled();
+    final appLock = ref.read(appLockServiceProvider);
+    if (appLock.authenticationInProgress) return;
+
+    final enabled = await appLock.isEnabled();
     if (!mounted) return;
-    if (!lockEnabled) {
+    if (!enabled || appLock.sessionUnlocked) {
       if (_concealed) setState(() => _concealed = false);
       return;
     }
@@ -116,20 +132,21 @@ class _PrivacyGateState extends ConsumerState<_PrivacyGate> with WidgetsBindingO
       _concealed = true;
       _message = null;
     });
-    var unlocked = false;
-    try {
-      unlocked = await LocalAuthentication().authenticate(
-        localizedReason: 'Unlock Nyla',
-        persistAcrossBackgrounding: true,
-      );
-    } on LocalAuthException {
-      unlocked = false;
-    }
+
+    final result = await ref.read(appLockServiceProvider).authenticate(
+          localizedReason: 'Unlock Nyla',
+        );
     if (!mounted) return;
+
+    final unlocked = result == AppLockAuthResult.success;
     setState(() {
       _authenticating = false;
       _concealed = !unlocked;
-      _message = unlocked ? null : 'Still locked';
+      _message = switch (result) {
+        AppLockAuthResult.success => null,
+        AppLockAuthResult.unsupported => 'Phone lock unavailable',
+        AppLockAuthResult.cancelled || AppLockAuthResult.failed => 'Still locked',
+      };
     });
   }
 
