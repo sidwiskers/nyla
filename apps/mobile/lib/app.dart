@@ -50,7 +50,8 @@ class _PrivacyGate extends ConsumerStatefulWidget {
 }
 
 class _PrivacyGateState extends ConsumerState<_PrivacyGate> with WidgetsBindingObserver {
-  bool _concealed = false;
+  bool _concealed = true;
+  bool _checking = true;
   bool _authenticating = false;
   String? _message;
 
@@ -58,6 +59,7 @@ class _PrivacyGateState extends ConsumerState<_PrivacyGate> with WidgetsBindingO
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_checkInitialLock()));
   }
 
   @override
@@ -75,15 +77,29 @@ class _PrivacyGateState extends ConsumerState<_PrivacyGate> with WidgetsBindingO
         if (mounted && !_concealed) setState(() => _concealed = true);
         return;
       case AppLifecycleState.resumed:
-        unawaited(_resume());
+        if (!_checking) unawaited(_resume());
         return;
       case AppLifecycleState.detached:
         return;
     }
   }
 
+  Future<void> _checkInitialLock() async {
+    final enabled = await ref.read(secureVaultProvider).isAppLockEnabled();
+    if (!mounted) return;
+    if (!enabled) {
+      setState(() {
+        _checking = false;
+        _concealed = false;
+      });
+      return;
+    }
+    setState(() => _checking = false);
+    await _unlock();
+  }
+
   Future<void> _resume() async {
-    if (_authenticating || !mounted) return;
+    if (_authenticating || _checking || !mounted) return;
     final lockEnabled = await ref.read(secureVaultProvider).isAppLockEnabled();
     if (!mounted) return;
     if (!lockEnabled) {
@@ -127,7 +143,7 @@ class _PrivacyGateState extends ConsumerState<_PrivacyGate> with WidgetsBindingO
 
   Widget _buildPrivacyContent(BuildContext context) {
     return Semantics(
-      label: 'Nyla is locked',
+      label: _checking ? 'Nyla is opening' : 'Nyla is locked',
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 380),
         child: Padding(
@@ -149,8 +165,12 @@ class _PrivacyGateState extends ConsumerState<_PrivacyGate> with WidgetsBindingO
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 180),
                 child: Text(
-                  _authenticating ? 'Unlocking…' : (_message ?? 'Locked'),
-                  key: ValueKey((_authenticating, _message)),
+                  _checking
+                      ? 'Opening…'
+                      : _authenticating
+                          ? 'Unlocking…'
+                          : (_message ?? 'Locked'),
+                  key: ValueKey((_checking, _authenticating, _message)),
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: const Color(0xFFE6D9ED),
                         fontWeight: FontWeight.w600,
@@ -158,7 +178,7 @@ class _PrivacyGateState extends ConsumerState<_PrivacyGate> with WidgetsBindingO
                 ),
               ),
               const SizedBox(height: 26),
-              if (_authenticating)
+              if (_checking || _authenticating)
                 const SizedBox(
                   width: 28,
                   height: 28,
