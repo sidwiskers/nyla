@@ -75,6 +75,32 @@ final periodHistoryProvider = StreamProvider<List<PeriodEntry>>(
 final cyclePredictionProvider = StreamProvider<PredictionResult>(
   (ref) => ref.watch(cycleRepositoryProvider).watchPrediction(),
 );
+final cycleExperienceProvider = Provider.family<AsyncValue<CycleExperience?>, int>(
+  (ref, epochDay) {
+    final periods = ref.watch(periodHistoryProvider);
+    final prediction = ref.watch(cyclePredictionProvider);
+    if (periods.isLoading) return const AsyncLoading();
+    if (periods.hasError) return AsyncError(periods.error!, periods.stackTrace!);
+
+    final records = (periods.value ?? const <PeriodEntry>[])
+        .map(
+          (row) => PeriodRecord(
+            start: LocalDay(row.startDay),
+            end: row.endDay == null ? null : LocalDay(row.endDay!),
+            excludeFromPrediction: row.excludeFromPrediction,
+          ),
+        )
+        .toList(growable: false);
+
+    return AsyncData(
+      const CycleExperienceEngine().describe(
+        today: LocalDay(epochDay),
+        records: records,
+        prediction: prediction.value?.prediction,
+      ),
+    );
+  },
+);
 final dayValuesProvider = StreamProvider.family<List<DayValueEntry>, int>(
   (ref, day) => ref.watch(dayLogRepositoryProvider).watchDay(day),
 );
