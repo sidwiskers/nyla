@@ -6,9 +6,9 @@ import 'package:path_provider/path_provider.dart';
 /// Cross-isolate/process guard for work that must not overlap a sync run.
 ///
 /// WorkManager executes Dart in a separate isolate, so an in-memory mutex is
-/// insufficient. A tiny advisory lock file keeps foreground sync, background
-/// sync, device-key rotation and local erasure mutually exclusive without
-/// holding a SQLite transaction open across network I/O.
+/// insufficient. A tiny advisory lock file keeps automatic foreground sync,
+/// background sync and local erasure mutually exclusive without holding a
+/// SQLite transaction open across network I/O.
 final class SyncRunLock {
   SyncRunLock({Future<Directory> Function()? directoryProvider})
       : _directoryProvider = directoryProvider ?? getApplicationSupportDirectory;
@@ -24,14 +24,16 @@ final class SyncRunLock {
     final directory = await _directoryProvider();
     await directory.create(recursive: true);
     final handle = await File('${directory.path}/nyla.sync.lock').open(mode: FileMode.append);
-    await handle.lock(FileLock.exclusive);
+    var locked = false;
     try {
+      await handle.lock(FileLock.exclusive);
+      locked = true;
       return await runZoned<Future<T>>(
         action,
         zoneValues: <Object, Object>{_zoneKey: true},
       );
     } finally {
-      await handle.unlock();
+      if (locked) await handle.unlock();
       await handle.close();
     }
   }
