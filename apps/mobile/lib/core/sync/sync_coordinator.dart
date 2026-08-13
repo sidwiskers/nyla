@@ -36,7 +36,6 @@ final class SyncCoordinator {
 
   Timer? _editTimer;
   Future<SyncRunResult>? _activeRun;
-  bool _durableQueued = false;
 
   /// Called when the unlocked app becomes usable.
   ///
@@ -44,7 +43,7 @@ final class SyncCoordinator {
   /// reconciliation. A scheduler failure never blocks the direct sync attempt.
   Future<void> onForeground() async {
     if (!await _canSync()) return;
-    await _tryEnsureDurable(delay: _foregroundSafetyDelay, force: true);
+    await _tryEnsureDurable(delay: _foregroundSafetyDelay);
     unawaited(_runAutomatic());
   }
 
@@ -67,7 +66,7 @@ final class SyncCoordinator {
     _editTimer = null;
     if (!await _canSync()) return;
     if (hadDebouncedAttempt || await database.pendingMutationCount() > 0) {
-      await _tryEnsureDurable(force: true);
+      await _tryEnsureDurable();
     }
   }
 
@@ -107,23 +106,17 @@ final class SyncCoordinator {
 
   Future<void> _tryEnsureDurable({
     Duration delay = const Duration(seconds: 8),
-    bool force = false,
   }) async {
     try {
-      await _ensureDurable(delay: delay, force: force);
+      // WorkManager's unique KEEP policy is the durable source of truth. It is
+      // deliberately safe to request the same work repeatedly: Android keeps a
+      // single unfinished worker and a completed worker never leaves stale
+      // in-memory state that could suppress a later request.
+      await _scheduleBackground(delay: delay);
     } catch (_) {
       // Android/OEM scheduler failures degrade to foreground/manual sync only;
       // they must never surface as a failed health-data edit.
     }
-  }
-
-  Future<void> _ensureDurable({
-    Duration delay = const Duration(seconds: 8),
-    bool force = false,
-  }) async {
-    if (_durableQueued && !force) return;
-    await _scheduleBackground(delay: delay);
-    _durableQueued = true;
   }
 
   Future<void> _settleDurableRequest() async {
@@ -132,7 +125,6 @@ final class SyncCoordinator {
     // still pending after cancellation gets a fresh durable request.
     try {
       await _cancelBackground();
-      _durableQueued = false;
     } catch (_) {
       // Leaving an already-queued idempotent worker is harmless. It will run the
       // same serialized reconciliation and find nothing to upload if up to date.
