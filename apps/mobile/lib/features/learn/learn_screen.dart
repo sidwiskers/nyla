@@ -282,35 +282,39 @@ class _KnowledgeCardState extends State<_KnowledgeCard>
   @override
   Widget build(BuildContext context) {
     final palette = _paletteFor(widget.tip.category);
-    return AnimatedBuilder(
-      animation: _flip,
-      builder: (context, _) {
-        final angle = _flip.value * math.pi;
-        final back = angle >= math.pi / 2;
-        final face = back
-            ? Transform(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: ValueKey('learn-card-tap-${widget.tip.id}'),
+        onTap: _toggle,
+        borderRadius: BorderRadius.circular(30),
+        splashColor: palette.ink.withValues(alpha: 0.035),
+        highlightColor: palette.ink.withValues(alpha: 0.025),
+        child: AnimatedBuilder(
+          animation: _flip,
+          builder: (context, _) {
+            final angle = _flip.value * math.pi;
+            final back = angle >= math.pi / 2;
+            final face = back
+                ? Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()..rotateY(math.pi),
+                    child: _BackCard(tip: widget.tip, palette: palette),
+                  )
+                : _FrontCard(tip: widget.tip, palette: palette);
+            return Semantics(
+              label: back ? 'Card details. Tap to flip back.' : 'Tap for card details.',
+              child: Transform(
                 alignment: Alignment.center,
-                transform: Matrix4.identity()..rotateY(math.pi),
-                child: _BackCard(tip: widget.tip, palette: palette),
-              )
-            : _FrontCard(tip: widget.tip, palette: palette);
-        return Semantics(
-          button: true,
-          label: back ? 'Flip card back' : 'Flip card for details',
-          child: GestureDetector(
-            key: ValueKey('learn-card-tap-${widget.tip.id}'),
-            behavior: HitTestBehavior.opaque,
-            onTap: _toggle,
-            child: Transform(
-              alignment: Alignment.center,
-              transform: Matrix4.identity()
-                ..setEntry(3, 2, 0.0011)
-                ..rotateY(angle),
-              child: face,
-            ),
-          ),
-        );
-      },
+                transform: Matrix4.identity()
+                  ..setEntry(3, 2, 0.0011)
+                  ..rotateY(angle),
+                child: face,
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 }
