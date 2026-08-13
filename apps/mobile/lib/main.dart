@@ -163,12 +163,15 @@ class _BootstrapResult {
   final String? lockedMessage;
 }
 
+Brightness get _platformBrightness =>
+    WidgetsBinding.instance.platformDispatcher.platformBrightness;
+
 class _SplashApp extends StatelessWidget {
   const _SplashApp();
 
   @override
   Widget build(BuildContext context) {
-    final dark = MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+    final dark = _platformBrightness == Brightness.dark;
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -204,7 +207,7 @@ class _LockedApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dark = MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+    final dark = _platformBrightness == Brightness.dark;
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
