@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nyla/core/theme/nyla_appearance.dart';
 import 'package:nyla/core/theme/nyla_theme.dart';
+import 'package:nyla/core/theme/nyla_typography.dart';
 
 void main() {
   group('Nyla appearance', () {
@@ -51,6 +52,31 @@ void main() {
       final palette = halfway.extension<NylaPalette>()!;
       expect(palette.canvas, isNot(NylaPalette.light.canvas));
       expect(palette.canvas, isNot(NylaPalette.dark.canvas));
+    });
+  });
+
+  group('Nyla typography', () {
+    test('interface text resolves through Nyla sans', () {
+      expect(
+        NylaTheme.light.textTheme.bodyMedium?.fontFamily,
+        NylaTypography.uiFamily,
+      );
+      expect(
+        NylaTheme.dark.textTheme.labelLarge?.fontFamily,
+        NylaTypography.uiFamily,
+      );
+    });
+
+    test('display treatment uses the editorial family and optical sizing', () {
+      final style = NylaTypography.display(
+        NylaTheme.light.textTheme.headlineMedium,
+        size: 33,
+        opticalSize: 38,
+      );
+      expect(style.fontFamily, NylaTypography.displayFamily);
+      expect(style.fontSize, 33);
+      expect(style.fontWeight, FontWeight.w600);
+      expect(style.fontVariations, isNotEmpty);
     });
   });
 }
