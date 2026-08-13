@@ -450,6 +450,8 @@ class _FlowCard extends StatelessWidget {
 class _LogTile extends StatelessWidget {
   const _LogTile({required this.definition, required this.summary, required this.onTap});
 
+  static const _loggedGreen = Color(0xFF6F9B82);
+
   final LogDefinition definition;
   final String? summary;
   final VoidCallback onTap;
@@ -457,58 +459,81 @@ class _LogTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final active = summary != null;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Ink(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: definition.tint.withValues(alpha: active ? 0.9 : 0.58),
-            borderRadius: BorderRadius.circular(24),
-            border: active ? Border.all(color: NylaColors.wine.withValues(alpha: 0.16)) : null,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.72),
-                      borderRadius: BorderRadius.circular(13),
+    return Semantics(
+      button: true,
+      label: '${definition.label}, ${summary ?? 'not logged'}',
+      excludeSemantics: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Ink(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: definition.tint.withValues(alpha: active ? 0.9 : 0.58),
+              borderRadius: BorderRadius.circular(24),
+              border: active ? Border.all(color: NylaColors.wine.withValues(alpha: 0.16)) : null,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.72),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: Icon(definition.icon, size: 19, color: NylaColors.wine),
                     ),
-                    child: Icon(definition.icon, size: 19, color: NylaColors.wine),
-                  ),
-                  const Spacer(),
-                  if (active)
-                    const Icon(Icons.check_circle_rounded, color: NylaColors.wine, size: 18)
-                  else
-                    const Icon(Icons.add_rounded, color: NylaColors.mutedInk, size: 18),
-                ],
-              ),
-              const Spacer(),
-              Text(
-                definition.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: NylaColors.ink, fontWeight: FontWeight.w700, fontSize: 14.5),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                summary ?? 'Not logged',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontSize: 10.8,
-                      color: active ? NylaColors.wine : NylaColors.mutedInk,
-                      fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                    const Spacer(),
+                    if (active)
+                      const Icon(Icons.check_circle_rounded, color: NylaColors.wine, size: 18)
+                    else
+                      const Icon(Icons.add_rounded, color: NylaColors.mutedInk, size: 18),
+                  ],
+                ),
+                const Spacer(),
+                Text(
+                  definition.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: NylaColors.ink, fontWeight: FontWeight.w700, fontSize: 14.5),
+                ),
+                const SizedBox(height: 5),
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: active ? _loggedGreen : NylaColors.rose,
+                        shape: BoxShape.circle,
+                      ),
                     ),
-              ),
-            ],
+                    if (active) ...[
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          summary!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontSize: 10.8,
+                                color: NylaColors.wine,
+                                fontWeight: FontWeight.w700,
+                                height: 1.1,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
