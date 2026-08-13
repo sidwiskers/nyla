@@ -29,11 +29,9 @@ void main() {
       expect(NylaTheme.light.brightness, Brightness.light);
       expect(NylaTheme.dark.brightness, Brightness.dark);
 
-      final light = NylaTheme.light.extension<NylaPalette>();
-      final dark = NylaTheme.dark.extension<NylaPalette>();
-      expect(light, isNotNull);
-      expect(dark, isNotNull);
-      expect(light!.canvas, isNot(dark!.canvas));
+      final light = NylaTheme.light.extension<NylaPalette>()!;
+      final dark = NylaTheme.dark.extension<NylaPalette>()!;
+      expect(light.canvas, isNot(dark.canvas));
       expect(light.ink, isNot(dark.ink));
     });
 
@@ -50,9 +48,8 @@ void main() {
 
     test('semantic palette participates in theme interpolation', () {
       final halfway = ThemeData.lerp(NylaTheme.light, NylaTheme.dark, 0.5);
-      final palette = halfway.extension<NylaPalette>();
-      expect(palette, isNotNull);
-      expect(palette!.canvas, isNot(NylaPalette.light.canvas));
+      final palette = halfway.extension<NylaPalette>()!;
+      expect(palette.canvas, isNot(NylaPalette.light.canvas));
       expect(palette.canvas, isNot(NylaPalette.dark.canvas));
     });
   });
