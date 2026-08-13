@@ -9,7 +9,6 @@ import '../../core/model/date_text.dart';
 import '../../core/model/log_catalog.dart';
 import '../../core/theme/nyla_theme.dart';
 import '../../data/database/app_database.dart';
-import '../../providers.dart';
 import '../log/quick_log_sheet.dart';
 
 class TodayCycleMomentHero extends StatelessWidget {
