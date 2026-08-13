@@ -124,12 +124,7 @@ bool _retryableBackgroundFailure(Object error) {
   }
   if (error is! SyncTransportException) return false;
 
-  final message = error.message;
-  if (message == 'sync_epoch_retry_exhausted') return true;
-  if (RegExp(r'HTTP (408|425|429|5\d\d)').hasMatch(message)) return true;
-  if (RegExp(r'\b(408|425|429|5\d\d)\b').hasMatch(message) &&
-      message.startsWith('Sync service returned')) {
-    return true;
-  }
-  return false;
+  if (error.message == 'sync_epoch_retry_exhausted') return true;
+  final status = error.statusCode;
+  return status == 408 || status == 425 || status == 429 || (status != null && status >= 500);
 }
