@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:health_content/health_content.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/haptics/nyla_haptics.dart';
 import '../../core/theme/nyla_theme.dart';
@@ -17,9 +16,21 @@ class LearnScreen extends StatefulWidget {
 
 class _LearnScreenState extends State<LearnScreen> {
   final PageController _controller = PageController(viewportFraction: 0.94);
-  TipCategory? selected;
+  int selectedQuickFind = 0;
   String query = '';
   int currentIndex = 0;
+
+  static const quickFinds = <_QuickFind>[
+    _QuickFind('Explore', []),
+    _QuickFind('Cramps', ['cramp', 'pain']),
+    _QuickFind('Flow', ['flow', 'bleeding', 'blood']),
+    _QuickFind('Hygiene', ['hygiene', 'cleaning', 'wash']),
+    _QuickFind('Products', ['pad', 'tampon', 'cup', 'product']),
+    _QuickFind('Discharge', ['discharge']),
+    _QuickFind('PMS', ['pms', 'mood', 'bloating']),
+    _QuickFind('Heavy periods', ['heavy', 'iron']),
+    _QuickFind('Get care', ['seek care', 'warning', 'doctor', 'clinician']),
+  ];
 
   @override
   void dispose() {
@@ -29,17 +40,20 @@ class _LearnScreenState extends State<LearnScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cards = healthTips
-        .where((tip) => selected == null || tip.category == selected)
-        .where((tip) => tip.matches(query))
-        .toList(growable: false);
+    final quickFind = quickFinds[selectedQuickFind];
+    final cards = healthTips.where((tip) {
+      if (!tip.matches(query)) return false;
+      if (quickFind.terms.isEmpty) return true;
+      return quickFind.terms.any(tip.matches);
+    }).toList(growable: false);
     final index = cards.isEmpty ? 0 : currentIndex.clamp(0, cards.length - 1);
-    final deckHeight =
-        (MediaQuery.sizeOf(context).height * 0.61).clamp(440.0, 610.0).toDouble();
+    final deckHeight = (MediaQuery.sizeOf(context).height * 0.62)
+        .clamp(440.0, 620.0)
+        .toDouble();
 
     return NylaPage(
       title: 'Learn',
-      subtitle: 'Small cards for questions that deserve clear answers.',
+      subtitle: 'Period and cycle guidance.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -53,7 +67,18 @@ class _LearnScreenState extends State<LearnScreen> {
             },
           ),
           const SizedBox(height: 11),
-          _CategoryStrip(selected: selected, onSelected: _chooseCategory),
+          _QuickFindStrip(
+            items: quickFinds,
+            selected: selectedQuickFind,
+            onSelected: (value) {
+              NylaHaptics.select();
+              setState(() {
+                selectedQuickFind = value;
+                currentIndex = 0;
+              });
+              _resetDeck();
+            },
+          ),
           const SizedBox(height: 18),
           if (cards.isEmpty)
             const _EmptyDeck()
@@ -113,21 +138,10 @@ class _LearnScreenState extends State<LearnScreen> {
             const SizedBox(height: 4),
             _DeckProgress(index: index, total: cards.length),
           ],
-          const SizedBox(height: 24),
-          const _EditorialNote(),
           const SizedBox(height: 88),
         ],
       ),
     );
-  }
-
-  void _chooseCategory(TipCategory? category) {
-    NylaHaptics.select();
-    setState(() {
-      selected = category;
-      currentIndex = 0;
-    });
-    _resetDeck();
   }
 
   void _resetDeck() {
@@ -135,6 +149,13 @@ class _LearnScreenState extends State<LearnScreen> {
       if (_controller.hasClients) _controller.jumpToPage(0);
     });
   }
+}
+
+class _QuickFind {
+  const _QuickFind(this.label, this.terms);
+
+  final String label;
+  final List<String> terms;
 }
 
 class _SearchField extends StatelessWidget {
@@ -150,17 +171,26 @@ class _SearchField extends StatelessWidget {
           textInputAction: TextInputAction.search,
           decoration: const InputDecoration(
             hintText: 'Search cramps, flow, products…',
-            prefixIcon: Icon(Icons.search_rounded, color: NylaColors.violet, size: 20),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              color: NylaColors.violet,
+              size: 20,
+            ),
           ),
         ),
       );
 }
 
-class _CategoryStrip extends StatelessWidget {
-  const _CategoryStrip({required this.selected, required this.onSelected});
+class _QuickFindStrip extends StatelessWidget {
+  const _QuickFindStrip({
+    required this.items,
+    required this.selected,
+    required this.onSelected,
+  });
 
-  final TipCategory? selected;
-  final ValueChanged<TipCategory?> onSelected;
+  final List<_QuickFind> items;
+  final int selected;
+  final ValueChanged<int> onSelected;
 
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
@@ -168,19 +198,13 @@ class _CategoryStrip extends StatelessWidget {
         physics: const BouncingScrollPhysics(),
         child: Row(
           children: [
-            ChoiceChip(
-              label: const Text('All'),
-              selected: selected == null,
-              onSelected: (_) => onSelected(null),
-            ),
-            const SizedBox(width: 7),
-            for (final category in TipCategory.values) ...[
+            for (var i = 0; i < items.length; i++) ...[
               ChoiceChip(
-                label: Text(_categoryName(category)),
-                selected: selected == category,
-                onSelected: (_) => onSelected(category),
+                label: Text(items[i].label),
+                selected: selected == i,
+                onSelected: (_) => onSelected(i),
               ),
-              const SizedBox(width: 7),
+              if (i != items.length - 1) const SizedBox(width: 7),
             ],
           ],
         ),
@@ -206,11 +230,18 @@ class _DeckHeader extends StatelessWidget {
                   ),
             ),
             const Spacer(),
-            const Icon(Icons.swipe_rounded, size: 17, color: NylaColors.violet),
+            const Icon(
+              Icons.swipe_rounded,
+              size: 17,
+              color: NylaColors.violet,
+            ),
             const SizedBox(width: 5),
             Text(
-              'Swipe for another',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
+              'Swipe',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(fontSize: 11.5),
             ),
           ],
         ),
@@ -226,541 +257,446 @@ class _KnowledgeCard extends StatefulWidget {
   State<_KnowledgeCard> createState() => _KnowledgeCardState();
 }
 
-class _KnowledgeCardState extends State<_KnowledgeCard> {
-  bool detailed = false;
+class _KnowledgeCardState extends State<_KnowledgeCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _flip = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 320),
+  );
+
+  bool get showingBack => _flip.value >= 0.5;
+
+  @override
+  void dispose() {
+    _flip.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggle() async {
+    await NylaHaptics.select();
+    if (_flip.status == AnimationStatus.completed) {
+      await _flip.reverse();
+    } else {
+      await _flip.forward();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final palette = _paletteFor(widget.tip.category);
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 200),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeOutCubic,
-      child: detailed
-          ? _DetailedCard(
-              key: const ValueKey('detail'),
-              tip: widget.tip,
-              palette: palette,
-              onClose: _toggle,
-            )
-          : _QuickCard(
-              key: const ValueKey('quick'),
-              tip: widget.tip,
-              palette: palette,
-              onOpen: _toggle,
-            ),
+    return Semantics(
+      button: true,
+      label: showingBack ? 'Flip card back' : 'Flip card for details',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _toggle,
+        child: AnimatedBuilder(
+          animation: _flip,
+          builder: (context, _) {
+            final angle = _flip.value * math.pi;
+            final back = angle >= math.pi / 2;
+            final face = back
+                ? Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()..rotateY(math.pi),
+                    child: _BackCard(tip: widget.tip, palette: palette),
+                  )
+                : _FrontCard(tip: widget.tip, palette: palette);
+            return Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.identity()
+                ..setEntry(3, 2, 0.0011)
+                ..rotateY(angle),
+              child: face,
+            );
+          },
+        ),
+      ),
     );
   }
-
-  void _toggle() {
-    NylaHaptics.select();
-    setState(() => detailed = !detailed);
-  }
 }
 
-class _QuickCard extends StatelessWidget {
-  const _QuickCard({
-    required this.tip,
-    required this.palette,
-    required this.onOpen,
-    super.key,
-  });
+class _FrontCard extends StatelessWidget {
+  const _FrontCard({required this.tip, required this.palette});
 
   final HealthTip tip;
   final _CardPalette palette;
-  final VoidCallback onOpen;
-
-  @override
-  Widget build(BuildContext context) => Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onOpen,
-          borderRadius: BorderRadius.circular(30),
-          child: Ink(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [palette.start, palette.end],
-              ),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: Colors.white, width: 1.2),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x162B2231),
-                  blurRadius: 22,
-                  offset: Offset(0, 10),
-                ),
-              ],
-            ),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxHeight < 470;
-                final horizontal = compact ? 18.0 : 23.0;
-                return Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    horizontal,
-                    compact ? 17 : 22,
-                    horizontal,
-                    compact ? 16 : 21,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          _CategoryBadge(category: tip.category, palette: palette),
-                          const Spacer(),
-                          Container(
-                            width: compact ? 36 : 42,
-                            height: compact ? 36 : 42,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.58),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            alignment: Alignment.center,
-                            child: Icon(
-                              _categoryIcon(tip.category),
-                              color: palette.ink,
-                              size: compact ? 18 : 20,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: compact ? 12 : 19),
-                      Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, bodyConstraints) => FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.topLeft,
-                            child: SizedBox(
-                              width: bodyConstraints.maxWidth,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    tip.title,
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                                          color: palette.ink,
-                                          fontSize: compact ? 25 : 30,
-                                          height: 1.04,
-                                        ),
-                                  ),
-                                  SizedBox(height: compact ? 12 : 17),
-                                  Container(
-                                    width: double.infinity,
-                                    padding: EdgeInsets.fromLTRB(
-                                      compact ? 13 : 15,
-                                      compact ? 12 : 14,
-                                      compact ? 13 : 15,
-                                      compact ? 13 : 15,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.64),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'THE TAKEAWAY',
-                                          style: TextStyle(
-                                            color: palette.ink.withValues(alpha: 0.64),
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.w700,
-                                            letterSpacing: 0.85,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 5),
-                                        Text(
-                                          tip.flash,
-                                          maxLines: 4,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                                color: palette.ink,
-                                                fontWeight: FontWeight.w600,
-                                                height: 1.36,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: compact ? 9 : 13),
-                      Row(
-                        children: [
-                          Container(
-                            width: 34,
-                            height: 34,
-                            decoration: BoxDecoration(
-                              color: palette.ink.withValues(alpha: 0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: Icon(
-                              Icons.menu_book_rounded,
-                              color: palette.ink,
-                              size: 16,
-                            ),
-                          ),
-                          const SizedBox(width: 9),
-                          Expanded(
-                            child: Text(
-                              'Read the full card',
-                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                    color: palette.ink,
-                                  ),
-                            ),
-                          ),
-                          Icon(Icons.arrow_forward_rounded, color: palette.ink, size: 18),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-      );
-}
-
-class _DetailedCard extends StatelessWidget {
-  const _DetailedCard({
-    required this.tip,
-    required this.palette,
-    required this.onClose,
-    super.key,
-  });
-
-  final HealthTip tip;
-  final _CardPalette palette;
-  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: NylaColors.cream,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [palette.start, palette.end],
+          ),
           borderRadius: BorderRadius.circular(30),
           border: Border.all(color: Colors.white, width: 1.2),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x162B2231),
-              blurRadius: 22,
-              offset: Offset(0, 10),
+              color: Color(0x142B2231),
+              blurRadius: 20,
+              offset: Offset(0, 9),
             ),
           ],
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 14, 10, 12),
-              color: palette.start,
-              child: Row(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxHeight < 470;
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                compact ? 19 : 23,
+                compact ? 18 : 22,
+                compact ? 19 : 23,
+                compact ? 17 : 21,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _CategoryBadge(category: tip.category, palette: palette),
-                  const Spacer(),
-                  IconButton(
-                    tooltip: 'Back to takeaway',
-                    onPressed: onClose,
-                    icon: Icon(Icons.close_rounded, color: palette.ink),
+                  Row(
+                    children: [
+                      _CardLabel(
+                        text: _cardLabel(tip.category),
+                        palette: palette,
+                      ),
+                      const Spacer(),
+                      Container(
+                        width: compact ? 37 : 42,
+                        height: compact ? 37 : 42,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.58),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          _categoryIcon(tip.category),
+                          color: palette.ink,
+                          size: compact ? 18 : 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: compact ? 14 : 21),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, available) => FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.topLeft,
+                        child: SizedBox(
+                          width: available.maxWidth,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                tip.title,
+                                maxLines: 4,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'sans-serif-rounded',
+                                  fontFamilyFallback: const [
+                                    'sans-serif',
+                                    'Roboto',
+                                  ],
+                                  color: palette.ink,
+                                  fontSize: compact ? 27 : 31,
+                                  height: 1.06,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: -0.35,
+                                ),
+                              ),
+                              SizedBox(height: compact ? 14 : 19),
+                              Text(
+                                tip.flash,
+                                maxLines: 5,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge
+                                    ?.copyWith(
+                                      color: palette.ink,
+                                      fontSize: compact ? 15 : 16,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.43,
+                                    ),
+                              ),
+                              if (!compact && tip.details.isNotEmpty) ...[
+                                const SizedBox(height: 14),
+                                Text(
+                                  tip.details.first,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: palette.ink.withValues(alpha: 0.76),
+                                        height: 1.42,
+                                      ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: compact ? 10 : 14),
+                  Row(
+                    children: [
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: palette.ink.withValues(alpha: 0.09),
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.flip_rounded,
+                          color: palette.ink,
+                          size: 16,
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          'Tap to flip',
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                color: palette.ink,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        color: palette.ink,
+                        size: 18,
+                      ),
+                    ],
                   ),
                 ],
               ),
+            );
+          },
+        ),
+      );
+}
+
+class _BackCard extends StatelessWidget {
+  const _BackCard({required this.tip, required this.palette});
+
+  final HealthTip tip;
+  final _CardPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final contentLength = tip.flash.length +
+        tip.details.fold<int>(0, (sum, item) => sum + item.length) +
+        tip.practical.fold<int>(0, (sum, item) => sum + item.length) +
+        tip.seekCare.fold<int>(0, (sum, item) => sum + item.length);
+    final bodySize = contentLength > 1050
+        ? 12.7
+        : contentLength > 760
+            ? 13.3
+            : contentLength > 520
+                ? 14.0
+                : 14.7;
+    final spacing = contentLength > 900 ? 10.0 : 13.0;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [palette.end, NylaColors.cream],
+        ),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white, width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x142B2231),
+            blurRadius: 20,
+            offset: Offset(0, 9),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(21, 19, 21, 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _CardLabel(text: _cardLabel(tip.category), palette: palette),
+                const Spacer(),
+                Icon(Icons.flip_rounded, color: palette.ink, size: 18),
+                const SizedBox(width: 5),
+                Text(
+                  'Flip back',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: palette.ink.withValues(alpha: 0.72),
+                        fontSize: 11.5,
+                      ),
+                ),
+              ],
             ),
+            const SizedBox(height: 15),
+            Text(
+              tip.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'sans-serif-rounded',
+                fontFamilyFallback: const ['sans-serif', 'Roboto'],
+                color: palette.ink,
+                fontSize: 22,
+                height: 1.08,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.2,
+              ),
+            ),
+            const SizedBox(height: 12),
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(21, 18, 21, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      tip.title,
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 25),
+                      tip.flash,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: palette.ink,
+                            fontSize: bodySize + 0.6,
+                            fontWeight: FontWeight.w600,
+                            height: 1.43,
+                          ),
                     ),
-                    const SizedBox(height: 13),
-                    _LeadTakeaway(text: tip.flash, palette: palette),
-                    const SizedBox(height: 20),
+                    SizedBox(height: spacing),
                     for (final paragraph in tip.details) ...[
-                      Text(paragraph, style: Theme.of(context).textTheme.bodyLarge),
-                      const SizedBox(height: 14),
+                      Text(
+                        paragraph,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: palette.ink,
+                              fontSize: bodySize,
+                              height: 1.5,
+                            ),
+                      ),
+                      SizedBox(height: spacing),
                     ],
                     if (tip.practical.isNotEmpty) ...[
-                      const SizedBox(height: 3),
-                      _GuidanceBlock(
-                        icon: Icons.favorite_rounded,
-                        title: 'What can help',
-                        tint: NylaColors.sageSoft,
-                        iconColor: const Color(0xFF688E7A),
-                        items: tip.practical,
-                      ),
+                      _InlineHeading(text: 'Try', color: palette.ink),
+                      const SizedBox(height: 7),
+                      for (final item in tip.practical)
+                        _Bullet(
+                          text: item,
+                          color: palette.ink,
+                          fontSize: bodySize,
+                        ),
+                      SizedBox(height: spacing),
                     ],
                     if (tip.seekCare.isNotEmpty) ...[
-                      const SizedBox(height: 13),
-                      _GuidanceBlock(
-                        icon: Icons.health_and_safety_rounded,
-                        title: 'When to check in',
-                        tint: NylaColors.peachSoft,
-                        iconColor: NylaColors.warning,
-                        items: tip.seekCare,
+                      _InlineHeading(
+                        text: 'Get medical advice if',
+                        color: NylaColors.warning,
                       ),
+                      const SizedBox(height: 7),
+                      for (final item in tip.seekCare)
+                        _Bullet(
+                          text: item,
+                          color: NylaColors.warning,
+                          fontSize: bodySize,
+                        ),
                     ],
-                    const SizedBox(height: 18),
-                    _SourceFooter(tip: tip),
+                    const SizedBox(height: 4),
                   ],
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _InlineHeading extends StatelessWidget {
+  const _InlineHeading({required this.text, required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Text(
+        text,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: color,
+              fontSize: 13.5,
+            ),
       );
 }
 
-class _LeadTakeaway extends StatelessWidget {
-  const _LeadTakeaway({required this.text, required this.palette});
+class _Bullet extends StatelessWidget {
+  const _Bullet({
+    required this.text,
+    required this.color,
+    required this.fontSize,
+  });
+
+  final String text;
+  final Color color;
+  final double fontSize;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 7),
+              child: Container(
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                text,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: NylaColors.ink,
+                      fontSize: fontSize,
+                      height: 1.48,
+                    ),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _CardLabel extends StatelessWidget {
+  const _CardLabel({required this.text, required this.palette});
 
   final String text;
   final _CardPalette palette;
 
   @override
   Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
-        decoration: BoxDecoration(
-          color: palette.start.withValues(alpha: 0.62),
-          borderRadius: BorderRadius.circular(21),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'In one sentence',
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: palette.ink.withValues(alpha: 0.68),
-                    fontSize: 11.5,
-                  ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              text,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: palette.ink,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ],
-        ),
-      );
-}
-
-class _GuidanceBlock extends StatelessWidget {
-  const _GuidanceBlock({
-    required this.icon,
-    required this.title,
-    required this.tint,
-    required this.iconColor,
-    required this.items,
-  });
-
-  final IconData icon;
-  final String title;
-  final Color tint;
-  final Color iconColor;
-  final List<String> items;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(16, 15, 16, 8),
-        decoration: BoxDecoration(
-          color: tint,
-          borderRadius: BorderRadius.circular(22),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 35,
-                  height: 35,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(icon, color: iconColor, size: 18),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(title, style: Theme.of(context).textTheme.titleMedium),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            for (final item in items) ...[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 7),
-                    child: Container(
-                      width: 5,
-                      height: 5,
-                      decoration: BoxDecoration(color: iconColor, shape: BoxShape.circle),
-                    ),
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Text(
-                      item,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: NylaColors.ink,
-                          ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-            ],
-          ],
-        ),
-      );
-}
-
-class _SourceFooter extends StatelessWidget {
-  const _SourceFooter({required this.tip});
-
-  final HealthTip tip;
-
-  @override
-  Widget build(BuildContext context) => OutlinedButton.icon(
-        onPressed: () {
-          NylaHaptics.select();
-          showModalBottomSheet<void>(
-            context: context,
-            isScrollControlled: true,
-            useSafeArea: true,
-            builder: (context) => _SourcesSheet(tip: tip),
-          );
-        },
-        icon: const Icon(Icons.verified_outlined, size: 17),
-        label: Text('Reviewed sources · ${_reviewDate(tip.lastReviewed)}'),
-      );
-}
-
-class _SourcesSheet extends StatelessWidget {
-  const _SourcesSheet({required this.tip});
-
-  final HealthTip tip;
-
-  @override
-  Widget build(BuildContext context) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.58,
-        minChildSize: 0.4,
-        maxChildSize: 0.9,
-        builder: (context, controller) => ListView(
-          controller: controller,
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 30),
-          children: [
-            Text('Reviewed sources', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 6),
-            Text(
-              'These references support the card. You do not need to leave Nyla to read the guidance.',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 18),
-            for (final source in tip.sources) ...[
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => launchUrl(
-                    Uri.parse(source.url),
-                    mode: LaunchMode.externalApplication,
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  child: Ink(
-                    padding: const EdgeInsets.all(15),
-                    decoration: BoxDecoration(
-                      color: NylaColors.lavenderMist,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: NylaColors.outline),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(13),
-                          ),
-                          alignment: Alignment.center,
-                          child: const Icon(
-                            Icons.open_in_new_rounded,
-                            color: NylaColors.violet,
-                            size: 17,
-                          ),
-                        ),
-                        const SizedBox(width: 11),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                source.organization,
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                              const SizedBox(height: 3),
-                              Text(source.title, style: Theme.of(context).textTheme.bodyMedium),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 9),
-            ],
-          ],
-        ),
-      );
-}
-
-class _CategoryBadge extends StatelessWidget {
-  const _CategoryBadge({required this.category, required this.palette});
-
-  final TipCategory category;
-  final _CardPalette palette;
-
-  @override
-  Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.6),
+          color: Colors.white.withValues(alpha: 0.58),
           borderRadius: BorderRadius.circular(99),
         ),
         child: Text(
-          _categoryName(category),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          text,
           style: TextStyle(
             color: palette.ink,
             fontSize: 10.5,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
           ),
         ),
       );
@@ -775,7 +711,7 @@ class _DeckProgress extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final visible = math.min(total, 7);
-    final selected = index.clamp(0, visible - 1);
+    final selected = visible == 0 ? 0 : index % visible;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -796,25 +732,6 @@ class _DeckProgress extends StatelessWidget {
   }
 }
 
-class _EditorialNote extends StatelessWidget {
-  const _EditorialNote();
-
-  @override
-  Widget build(BuildContext context) => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.verified_rounded, color: NylaColors.violet, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Every card is written for Nyla and reviewed against trusted medical sources. Sources stay available without taking over the experience.',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ),
-        ],
-      );
-}
-
 class _EmptyDeck extends StatelessWidget {
   const _EmptyDeck();
 
@@ -828,18 +745,32 @@ class _EmptyDeck extends StatelessWidget {
         ),
         child: Column(
           children: [
-            const Icon(Icons.search_off_rounded, color: NylaColors.violet, size: 28),
+            const Icon(
+              Icons.search_off_rounded,
+              color: NylaColors.violet,
+              size: 28,
+            ),
             const SizedBox(height: 9),
-            Text('Nothing matched that search', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'No cards found',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 4),
-            Text('Try a shorter phrase or switch back to All.', style: Theme.of(context).textTheme.bodyMedium),
+            Text(
+              'Try another search.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
           ],
         ),
       );
 }
 
 class _CardPalette {
-  const _CardPalette({required this.start, required this.end, required this.ink});
+  const _CardPalette({
+    required this.start,
+    required this.end,
+    required this.ink,
+  });
 
   final Color start;
   final Color end;
@@ -889,15 +820,15 @@ _CardPalette _paletteFor(TipCategory category) => switch (category) {
         ),
     };
 
-String _categoryName(TipCategory category) => switch (category) {
+String _cardLabel(TipCategory category) => switch (category) {
       TipCategory.cycle => 'Cycle',
-      TipCategory.understanding => 'Understanding',
-      TipCategory.body => 'Body',
-      TipCategory.care => 'Care',
+      TipCategory.understanding => 'Basics',
+      TipCategory.body => 'Anatomy',
+      TipCategory.care => 'Hygiene',
       TipCategory.products => 'Products',
-      TipCategory.comfort => 'Comfort',
+      TipCategory.comfort => 'Relief',
       TipCategory.symptoms => 'Symptoms',
-      TipCategory.seekCare => 'Seek care',
+      TipCategory.seekCare => 'Get care',
     };
 
 IconData _categoryIcon(TipCategory category) => switch (category) {
@@ -910,21 +841,3 @@ IconData _categoryIcon(TipCategory category) => switch (category) {
       TipCategory.symptoms => Icons.monitor_heart_outlined,
       TipCategory.seekCare => Icons.health_and_safety_outlined,
     };
-
-String _reviewDate(DateTime value) {
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  return '${months[value.month - 1]} ${value.year}';
-}
