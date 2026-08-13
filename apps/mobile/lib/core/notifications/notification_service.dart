@@ -76,6 +76,28 @@ class NotificationService {
     await _plugin.cancelAll();
   }
 
+  Future<bool?> notificationsEnabled() async {
+    await initialize();
+    if (Platform.isAndroid) {
+      return _plugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.areNotificationsEnabled();
+    }
+    if (Platform.isIOS) {
+      final options = await _plugin
+          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+          ?.checkPermissions();
+      return options?.isEnabled;
+    }
+    if (Platform.isMacOS) {
+      final options = await _plugin
+          .resolvePlatformSpecificImplementation<MacOSFlutterLocalNotificationsPlugin>()
+          ?.checkPermissions();
+      return options?.isEnabled;
+    }
+    return true;
+  }
+
   Future<bool> requestPermission() async {
     await initialize();
     bool granted = true;
@@ -137,7 +159,7 @@ class NotificationService {
     await _plugin.zonedSchedule(
       id: _dailyLogId,
       title: 'Nyla',
-      body: _copy(config.privacy, contextual: 'A quick check-in is ready when you are.'),
+      body: _copy(config.privacy, contextual: 'Time for today’s check-in.'),
       scheduledDate: next,
       notificationDetails: _details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -169,7 +191,7 @@ class NotificationService {
   }
 
   String _copy(NotificationPrivacy privacy, {required String contextual}) =>
-      privacy == NotificationPrivacy.private ? 'You have a gentle reminder.' : contextual;
+      privacy == NotificationPrivacy.private ? 'Nyla reminder.' : contextual;
 
   static const _details = NotificationDetails(
     android: AndroidNotificationDetails(
