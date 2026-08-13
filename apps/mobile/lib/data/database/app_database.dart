@@ -206,6 +206,14 @@ class AppDatabase extends _$AppDatabase {
     return (await query.map((row) => row.read(count) ?? 0).getSingle());
   }
 
+  Stream<int> watchPendingMutationCount() {
+    final count = localMutations.opId.count();
+    final query = selectOnly(localMutations)
+      ..addColumns([count])
+      ..where(localMutations.uploaded.equals(false));
+    return query.watchSingle().map((row) => row.read(count) ?? 0).distinct();
+  }
+
   Future<String?> preference(String key) async =>
       (await (select(preferences)..where((row) => row.key.equals(key))).getSingleOrNull())?.value;
 
