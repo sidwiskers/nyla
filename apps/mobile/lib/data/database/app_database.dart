@@ -143,6 +143,10 @@ class AppDatabase extends _$AppDatabase {
         rawDb.execute('PRAGMA foreign_keys = ON;');
         rawDb.execute('PRAGMA secure_delete = ON;');
         rawDb.execute('PRAGMA journal_mode = WAL;');
+        // Foreground repositories and a WorkManager isolate may briefly share
+        // this WAL database. Wait for the active writer instead of surfacing an
+        // incidental SQLITE_BUSY to a health-data edit or remote merge.
+        rawDb.execute('PRAGMA busy_timeout = 5000;');
       },
     );
     return AppDatabase(executor);
@@ -204,6 +208,14 @@ class AppDatabase extends _$AppDatabase {
       ..addColumns([count])
       ..where(localMutations.uploaded.equals(false));
     return (await query.map((row) => row.read(count) ?? 0).getSingle());
+  }
+
+  Stream<int> watchPendingMutationCount() {
+    final count = localMutations.opId.count();
+    final query = selectOnly(localMutations)
+      ..addColumns([count])
+      ..where(localMutations.uploaded.equals(false));
+    return query.watchSingle().map((row) => row.read(count) ?? 0).distinct();
   }
 
   Future<String?> preference(String key) async =>

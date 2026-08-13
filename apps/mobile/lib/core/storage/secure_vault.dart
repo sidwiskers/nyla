@@ -16,8 +16,8 @@ class SecureVault {
   final FlutterSecureStorage _storage;
 
   Future<String> databaseKeyHex() async {
-    final existing = await _storage.read(key: _databaseKeyName);
-    if (existing != null && RegExp(r'^[0-9a-f]{64}$').hasMatch(existing)) return existing;
+    final existing = await existingDatabaseKeyHex();
+    if (existing != null) return existing;
 
     final bytes = _randomBytes(32);
     final key = bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
@@ -25,12 +25,27 @@ class SecureVault {
     return key;
   }
 
+  /// Reads the existing database key without creating replacement material.
+  ///
+  /// Background work uses this fail-closed form so a stale worker that runs
+  /// after local erasure cannot recreate Nyla's storage identity.
+  Future<String?> existingDatabaseKeyHex() async {
+    final existing = await _storage.read(key: _databaseKeyName);
+    return existing != null && RegExp(r'^[0-9a-f]{64}$').hasMatch(existing) ? existing : null;
+  }
+
   Future<String> deviceId() async {
-    final existing = await _storage.read(key: _deviceIdName);
-    if (existing != null && existing.length >= 16) return existing;
+    final existing = await existingDeviceId();
+    if (existing != null) return existing;
     final id = base64UrlEncode(_randomBytes(16)).replaceAll('=', '');
     await _storage.write(key: _deviceIdName, value: id);
     return id;
+  }
+
+  /// Reads the existing installation ID without creating a new installation.
+  Future<String?> existingDeviceId() async {
+    final existing = await _storage.read(key: _deviceIdName);
+    return existing != null && existing.length >= 16 ? existing : null;
   }
 
   Future<bool> isAppLockEnabled() async => (await _storage.read(key: _appLockName)) == 'true';

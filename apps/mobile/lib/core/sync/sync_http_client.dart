@@ -11,6 +11,8 @@ final class SyncHttpClient {
       : _client = client ?? http.Client(),
         _crypto = crypto ?? NylaSyncCrypto();
 
+  static const _requestTimeout = Duration(seconds: 20);
+
   final String baseUrl;
   final http.Client _client;
   final NylaSyncCrypto _crypto;
@@ -140,19 +142,25 @@ final class SyncHttpClient {
       request.headers['x-nyla-signature'] = base64UrlNoPadding(signature);
     }
 
-    final streamed = await _client.send(request);
-    final bytes = await streamed.stream.toBytes();
+    final streamed = await _client.send(request).timeout(_requestTimeout);
+    final bytes = await streamed.stream.toBytes().timeout(_requestTimeout);
     Object? decoded;
     if (bytes.isNotEmpty) {
       try {
         decoded = jsonDecode(utf8.decode(bytes));
       } catch (_) {
-        throw SyncTransportException('Sync service returned unreadable data (${streamed.statusCode}).');
+        throw SyncTransportException(
+          'Sync service returned unreadable data (${streamed.statusCode}).',
+          statusCode: streamed.statusCode,
+        );
       }
     }
     if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
       final code = decoded is Map<String, dynamic> ? decoded['error'] : null;
-      throw SyncTransportException(code is String ? code : 'HTTP ${streamed.statusCode}');
+      throw SyncTransportException(
+        code is String ? code : 'HTTP ${streamed.statusCode}',
+        statusCode: streamed.statusCode,
+      );
     }
     if (decoded is! Map<String, dynamic>) throw const SyncTransportException('Sync service returned invalid JSON.');
     return decoded;
@@ -165,9 +173,10 @@ final class SyncHttpClient {
 }
 
 final class SyncTransportException implements Exception {
-  const SyncTransportException(this.message);
+  const SyncTransportException(this.message, {this.statusCode});
 
   final String message;
+  final int? statusCode;
 
   @override
   String toString() => 'SyncTransportException: $message';

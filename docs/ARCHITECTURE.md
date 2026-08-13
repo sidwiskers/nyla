@@ -69,6 +69,10 @@ Cloudflare Worker + one SQLite-backed Durable Object per opaque vault identifier
 
 The Worker authenticates devices, assigns monotonic server cursors, deduplicates operations and relays ciphertext. It cannot decrypt health records.
 
+Synchronization is initiated only by the device. The mobile runtime observes committed local outbox growth and unlocked app foregrounding, then invokes the same sync protocol used by the manual Sync action. Android additionally uses WorkManager as a durable connected-network constraint so an already-requested sync can become eligible after connectivity returns. There is no Cloudflare cron, server-side wake-up, fixed polling interval or persistent connection in the product design.
+
+See `SYNC_PROTOCOL.md` for the wire/cryptographic protocol and `SYNC_RUNTIME.md` for device scheduling and concurrency semantics.
+
 ### Content
 
 Educational content is data, not hard-coded widgets. Each card carries:
@@ -98,18 +102,26 @@ Domain command
    +--> append sync operation --> encrypted outbox
                                 |
                                 v
-                         Cloudflare relay
-                                |
-                       encrypted operation log
-                                |
-                                v
-                         another device inbox
-                                |
-                                v
-                    deterministic local merge
+                      device sync coordinator
+                       |                |
+                  foreground       durable Android
+                    attempt        WorkManager request
+                       |                |
+                       +-------+--------+
+                               |
+                               v
+                        Cloudflare relay
+                               |
+                      encrypted operation log
+                               |
+                               v
+                        another device pull
+                               |
+                               v
+                   deterministic local merge
 ```
 
-The UI never waits for Cloudflare to accept a menstrual log. Offline mode is the normal architecture, not a degraded mode.
+The UI never waits for Cloudflare to accept a menstrual log. Offline mode is the normal architecture, not a degraded mode. Cloudflare never owns the trigger: if a device is offline, its local outbox remains authoritative until that device can run synchronization itself.
 
 ## Date semantics
 
@@ -137,7 +149,7 @@ Predictions are recalculated locally whenever relevant history changes.
 
 ## Failure philosophy
 
-- Cloud unavailable: local tracking continues normally.
+- Cloud unavailable: local tracking continues normally; queued sync work remains local and retries only from the device.
 - Notification permission denied: tracking remains complete; UI explains the disabled reminder state.
 - Keychain/Keystore unavailable: fail closed for encrypted data rather than create an unencrypted database.
 - Sync conflict: deterministic field-level merge; never overwrite a whole database.

@@ -6,6 +6,7 @@ import 'core/notifications/notification_service.dart';
 import 'core/security/app_lock_service.dart';
 import 'core/storage/secure_vault.dart';
 import 'core/sync/hlc_service.dart';
+import 'core/sync/sync_coordinator.dart';
 import 'core/sync/sync_service.dart';
 import 'data/database/app_database.dart';
 import 'data/repositories/custom_log_repository.dart';
@@ -41,6 +42,17 @@ final syncServiceProvider = Provider<SyncService>(
     deviceId: ref.watch(deviceIdProvider),
     secureVault: ref.watch(secureVaultProvider),
   ),
+);
+final syncCoordinatorProvider = Provider<SyncCoordinator>((ref) {
+  final coordinator = SyncCoordinator(
+    service: ref.watch(syncServiceProvider),
+    database: ref.watch(databaseProvider),
+  );
+  ref.onDispose(coordinator.dispose);
+  return coordinator;
+});
+final pendingSyncMutationCountProvider = StreamProvider<int>(
+  (ref) => ref.watch(databaseProvider).watchPendingMutationCount(),
 );
 final preferencesRepositoryProvider = Provider<PreferencesRepository>(
   (ref) => PreferencesRepository(ref.watch(databaseProvider)),
