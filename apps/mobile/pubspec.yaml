@@ -46,6 +46,15 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/fonts/OFL.txt
+  fonts:
+    - family: NylaSans
+      fonts:
+        - asset: assets/fonts/Onest-Variable.ttf
+    - family: NylaDisplay
+      fonts:
+        - asset: assets/fonts/Newsreader-Variable.ttf
 
 flutter_launcher_icons:
   android: true
