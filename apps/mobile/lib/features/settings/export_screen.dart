@@ -46,8 +46,12 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.nyla;
     return Scaffold(
-      appBar: AppBar(title: const Text('Export your data'), backgroundColor: Colors.transparent),
+      appBar: AppBar(
+        title: const Text('Export your data'),
+        backgroundColor: Colors.transparent,
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 10, 18, 36),
         children: [
@@ -61,13 +65,19 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: NylaColors.peach,
+                      color: palette.peach,
                       borderRadius: BorderRadius.circular(17),
                     ),
-                    child: const Icon(Icons.ios_share_rounded),
+                    child: Icon(
+                      Icons.ios_share_rounded,
+                      color: palette.ink,
+                    ),
                   ),
                   const SizedBox(height: 18),
-                  Text('Your history belongs to you.', style: Theme.of(context).textTheme.headlineMedium),
+                  Text(
+                    'Your history belongs to you.',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
                   const SizedBox(height: 10),
                   const Text(
                     'Create a complete readable copy of your periods, daily logs, notes, custom logs and preferences. Sync keys, device credentials and encrypted-relay metadata are never included.',
@@ -83,7 +93,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.lock_open_rounded, color: NylaColors.warning),
+                  Icon(Icons.lock_open_rounded, color: palette.warning),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -97,15 +107,18 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
           ),
           if (_error != null) ...[
             const SizedBox(height: 14),
-            Text(_error!, style: const TextStyle(color: NylaColors.warning)),
+            Text(_error!, style: TextStyle(color: palette.warning)),
           ],
           const SizedBox(height: 22),
           FilledButton.icon(
             onPressed: _busy ? null : _export,
             icon: _busy
-                ? const SizedBox.square(
+                ? SizedBox.square(
                     dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    ),
                   )
                 : const Icon(Icons.ios_share_rounded),
             label: Text(_busy ? 'Preparing…' : 'Create export'),

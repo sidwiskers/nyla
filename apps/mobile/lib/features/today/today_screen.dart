@@ -73,18 +73,13 @@ class TodayScreen extends ConsumerWidget {
     final cramps = byKey['cramps'];
     if ((cramps?.severity ?? 0) > 0) return _tip('why-cramps-happen');
     final discharge = byKey['discharge'];
-    if (discharge != null && discharge.value != 'none') {
-      return _tip('normal-discharge');
-    }
+    if (discharge != null && discharge.value != 'none') return _tip('normal-discharge');
     final sleep = byKey['sleep'];
-    if (sleep != null &&
-        (sleep.value == 'poor' || sleep.value == 'very_poor')) {
+    if (sleep != null && (sleep.value == 'poor' || sleep.value == 'very_poor')) {
       return _tip('sleep-and-discomfort');
     }
     final flow = byKey['flow'];
-    if (flow != null && flow.value != 'none') {
-      return _tip('hands-before-after-products');
-    }
+    if (flow != null && flow.value != 'none') return _tip('hands-before-after-products');
 
     final safeGeneral = healthTips
         .where(
@@ -106,8 +101,7 @@ class TodayScreen extends ConsumerWidget {
         CycleExperienceWindow.periodStart => _tip('cycle-now-period-start'),
         CycleExperienceWindow.earlyCycle => _tip('cycle-now-early'),
         CycleExperienceWindow.middleCycle => _tip('cycle-now-middle'),
-        CycleExperienceWindow.approachingPeriod =>
-          _tip('cycle-now-before-period'),
+        CycleExperienceWindow.approachingPeriod => _tip('cycle-now-before-period'),
       };
 
   SymptomPattern? _matchingPattern(
@@ -117,8 +111,7 @@ class TodayScreen extends ConsumerWidget {
     final target = switch (experience.window) {
       CycleExperienceWindow.periodStart => CycleWindow.periodStart,
       CycleExperienceWindow.approachingPeriod => CycleWindow.beforePeriod,
-      CycleExperienceWindow.earlyCycle || CycleExperienceWindow.middleCycle =>
-        null,
+      CycleExperienceWindow.earlyCycle || CycleExperienceWindow.middleCycle => null,
     };
     if (target == null) return null;
     for (final pattern in patterns) {
@@ -143,26 +136,23 @@ class _CycleDashboard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.nyla;
     return Container(
       padding: const EdgeInsets.fromLTRB(21, 20, 21, 20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFF0E9F8),
-            Color(0xFFFBECEF),
-            Color(0xFFFFF8F4),
-          ],
-          stops: [0, 0.58, 1],
+          colors: [palette.lavenderSoft, palette.roseWash, palette.peachSoft],
+          stops: const [0, 0.58, 1],
         ),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.white, width: 1.2),
-        boxShadow: const [
+        border: Border.all(color: palette.glassBorder, width: 1.2),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x102B2231),
+            color: palette.shadow,
             blurRadius: 20,
-            offset: Offset(0, 9),
+            offset: const Offset(0, 9),
           ),
         ],
       ),
@@ -184,8 +174,7 @@ class _CycleDashboard extends ConsumerWidget {
               height: 250,
               child: Center(child: CircularProgressIndicator()),
             ),
-            error: (_, _) =>
-                _CycleBody(today: today, day: cycleDay, estimate: null),
+            error: (_, _) => _CycleBody(today: today, day: cycleDay, estimate: null),
             data: (result) => _CycleBody(
               today: today,
               day: cycleDay,
@@ -213,36 +202,28 @@ class _FirstCycle extends StatelessWidget {
           Container(
             width: 52,
             height: 52,
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: context.nyla.glassStrong,
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
-            child: const Icon(
+            child: Icon(
               Icons.water_drop_rounded,
-              color: NylaColors.rose,
+              color: context.nyla.rose,
               size: 23,
             ),
           ),
           const SizedBox(height: 16),
-          Text(
-            'Start your cycle history',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
+          Text('Start your cycle history', style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 7),
-          Text(
-            'Mark the first day of your period.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          Text('Mark the first day of your period.', style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: () async {
                 await NylaHaptics.confirm();
-                await ref
-                    .read(cycleRepositoryProvider)
-                    .recordPeriod(start: today);
+                await ref.read(cycleRepositoryProvider).recordPeriod(start: today);
               },
               icon: const Icon(Icons.water_drop_rounded, size: 17),
               label: const Text('My period started'),
@@ -253,11 +234,7 @@ class _FirstCycle extends StatelessWidget {
 }
 
 class _CycleBody extends StatelessWidget {
-  const _CycleBody({
-    required this.today,
-    required this.day,
-    required this.estimate,
-  });
+  const _CycleBody({required this.today, required this.day, required this.estimate});
 
   final LocalDay today;
   final int day;
@@ -265,11 +242,10 @@ class _CycleBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.nyla;
     final headline = _headline(today, day, estimate);
     final cycleLength = estimate?.predictedCycleLength ?? 28;
-    final progress = day <= 0
-        ? 0.04
-        : (day / cycleLength).clamp(0.04, 1.0).toDouble();
+    final progress = day <= 0 ? 0.04 : (day / cycleLength).clamp(0.04, 1.0).toDouble();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,8 +254,7 @@ class _CycleBody extends StatelessWidget {
           children: [
             const _SoftEyebrow('YOUR CYCLE'),
             const Spacer(),
-            if (estimate != null)
-              _ConfidenceBadge(confidence: estimate!.confidence),
+            if (estimate != null) _ConfidenceBadge(confidence: estimate!.confidence),
           ],
         ),
         const SizedBox(height: 18),
@@ -292,10 +267,7 @@ class _CycleBody extends StatelessWidget {
                 children: [
                   Text(
                     headline,
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineMedium
-                        ?.copyWith(fontSize: 25),
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 25),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -317,8 +289,8 @@ class _CycleBody extends StatelessWidget {
           child: LinearProgressIndicator(
             value: progress,
             minHeight: 9,
-            backgroundColor: Colors.white.withValues(alpha: 0.82),
-            valueColor: const AlwaysStoppedAnimation<Color>(NylaColors.rose),
+            backgroundColor: palette.glassStrong,
+            valueColor: AlwaysStoppedAnimation<Color>(palette.rose),
           ),
         ),
         const SizedBox(height: 8),
@@ -326,18 +298,12 @@ class _CycleBody extends StatelessWidget {
           children: [
             Text(
               day > 0 ? 'Day $day' : 'Building history',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontSize: 11.5),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
             ),
             const Spacer(),
             Text(
               estimate == null ? 'More history needed' : '~$cycleLength day cycle',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontSize: 11.5),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
             ),
           ],
         ),
@@ -345,26 +311,19 @@ class _CycleBody extends StatelessWidget {
         Container(
           padding: const EdgeInsets.fromLTRB(13, 11, 13, 11),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.7),
+            color: palette.glass,
             borderRadius: BorderRadius.circular(18),
           ),
           child: Row(
             children: [
-              const Icon(
-                Icons.calendar_month_rounded,
-                color: NylaColors.violet,
-                size: 18,
-              ),
+              Icon(Icons.calendar_month_rounded, color: palette.violet, size: 18),
               const SizedBox(width: 9),
               Expanded(
                 child: Text(
                   estimate == null
                       ? 'Predictions start after enough completed cycles.'
                       : 'Expected dates can shift as your cycles change.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(fontSize: 12),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
                 ),
               ),
             ],
@@ -374,11 +333,7 @@ class _CycleBody extends StatelessWidget {
     );
   }
 
-  String _headline(
-    LocalDay today,
-    int cycleDay,
-    CyclePrediction? prediction,
-  ) {
+  String _headline(LocalDay today, int cycleDay, CyclePrediction? prediction) {
     if (prediction == null) {
       return cycleDay > 0 ? 'Cycle day $cycleDay' : 'Building your history';
     }
@@ -396,37 +351,40 @@ class _CycleDayBadge extends StatelessWidget {
   final int? day;
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: 82,
-        height: 82,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.82),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white),
-        ),
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              day?.toString() ?? '—',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: NylaColors.wine,
-                    fontSize: 25,
-                  ),
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    return Container(
+      width: 82,
+      height: 82,
+      decoration: BoxDecoration(
+        color: palette.glassStrong,
+        shape: BoxShape.circle,
+        border: Border.all(color: palette.glassBorder),
+      ),
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            day?.toString() ?? '—',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: palette.wine,
+                  fontSize: 25,
+                ),
+          ),
+          Text(
+            'DAY',
+            style: TextStyle(
+              color: palette.violet,
+              fontSize: 8.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.7,
             ),
-            const Text(
-              'DAY',
-              style: TextStyle(
-                color: NylaColors.violet,
-                fontSize: 8.5,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.7,
-              ),
-            ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ConfidenceBadge extends StatelessWidget {
@@ -445,13 +403,13 @@ class _ConfidenceBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.72),
+        color: context.nyla.glass,
         borderRadius: BorderRadius.circular(99),
       ),
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: NylaColors.violet,
+              color: context.nyla.violet,
               fontSize: 10.5,
             ),
       ),
@@ -468,12 +426,13 @@ class _QuickRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final count = values.value?.length ?? 0;
+    final palette = context.nyla;
     return Row(
       children: [
         Expanded(
           flex: 6,
           child: _QuickAction(
-            tint: NylaColors.peachSoft,
+            tint: palette.peachSoft,
             icon: count == 0 ? Icons.add_rounded : Icons.check_rounded,
             title: count == 0 ? 'Check in' : '$count logged',
             subtitle: count == 0 ? 'How is today?' : 'Edit today',
@@ -487,7 +446,7 @@ class _QuickRow extends StatelessWidget {
         Expanded(
           flex: 5,
           child: _QuickAction(
-            tint: NylaColors.lavenderSoft,
+            tint: palette.lavenderSoft,
             icon: Icons.calendar_month_rounded,
             title: 'Calendar',
             subtitle: 'Dates & history',
@@ -518,46 +477,46 @@ class _QuickAction extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(24),
-          onTap: onTap,
-          child: Ink(
-            padding: const EdgeInsets.fromLTRB(16, 16, 14, 15),
-            decoration: BoxDecoration(
-              color: tint,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.76),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(icon, color: NylaColors.violet, size: 20),
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.fromLTRB(16, 16, 14, 15),
+          decoration: BoxDecoration(
+            color: tint,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: palette.glassBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: palette.glass,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(height: 15),
-                Text(title, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(fontSize: 11.5),
-                ),
-              ],
-            ),
+                alignment: Alignment.center,
+                child: Icon(icon, color: palette.violet, size: 20),
+              ),
+              const SizedBox(height: 15),
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _CycleCompanionCard extends StatelessWidget {
@@ -579,8 +538,7 @@ class _CycleCompanionCard extends StatelessWidget {
       CycleExperienceWindow.periodStart => 'Your period has just started',
       CycleExperienceWindow.earlyCycle => 'The early days are still shifting',
       CycleExperienceWindow.middleCycle => 'Around the middle of your cycle',
-      CycleExperienceWindow.approachingPeriod =>
-        'Your next period may be getting closer',
+      CycleExperienceWindow.approachingPeriod => 'Your next period may be getting closer',
     };
     final eyebrow = switch (experience.window) {
       CycleExperienceWindow.periodStart => 'FIRST DAYS',
@@ -599,19 +557,15 @@ class _CycleCompanionCard extends StatelessWidget {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                NylaColors.night,
-                Color(0xFF392A50),
-                Color(0xFF614A73),
-              ],
+              colors: [NylaColors.night, Color(0xFF392A50), Color(0xFF614A73)],
               stops: [0, 0.58, 1],
             ),
             borderRadius: BorderRadius.circular(30),
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
-                color: Color(0x242A1D34),
+                color: context.nyla.shadow,
                 blurRadius: 28,
-                offset: Offset(0, 13),
+                offset: const Offset(0, 13),
               ),
             ],
           ),
@@ -633,16 +587,11 @@ class _CycleCompanionCard extends StatelessWidget {
                     ),
                     const Spacer(),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(99),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
-                        ),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                       ),
                       child: Text(
                         'Day ${experience.cycleDay}',
@@ -679,9 +628,7 @@ class _CycleCompanionCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.085),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.08),
-                    ),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -728,10 +675,10 @@ class _CycleCompanionCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Row(
+                    const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
+                        Text(
                           'Explore',
                           style: TextStyle(
                             color: Colors.white,
@@ -739,12 +686,8 @@ class _CycleCompanionCard extends StatelessWidget {
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        const SizedBox(width: 5),
-                        const Icon(
-                          Icons.arrow_forward_rounded,
-                          color: Colors.white,
-                          size: 16,
-                        ),
+                        SizedBox(width: 5),
+                        Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 16),
                       ],
                     ),
                   ],
@@ -772,18 +715,12 @@ class _PersonalPatternNote extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFE8B8CB).withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0xFFF2D4E0).withValues(alpha: 0.11),
-        ),
+        border: Border.all(color: const Color(0xFFF2D4E0).withValues(alpha: 0.11)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.auto_awesome_rounded,
-            color: Color(0xFFF0C7D8),
-            size: 17,
-          ),
+          const Icon(Icons.auto_awesome_rounded, color: Color(0xFFF0C7D8), size: 17),
           const SizedBox(width: 9),
           Expanded(
             child: Text(
@@ -821,86 +758,72 @@ class _TodayCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(26),
-          onTap: onTap,
-          child: Ink(
-            padding: const EdgeInsets.fromLTRB(20, 19, 20, 19),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [NylaColors.sageSoft, NylaColors.lavenderSoft],
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(26),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.fromLTRB(20, 19, 20, 19),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [palette.sageSoft, palette.lavenderSoft],
+            ),
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: palette.glassBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const _SoftEyebrow('TODAY’S CARD'),
+                  const Spacer(),
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: palette.glass,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(Icons.style_rounded, color: palette.violet, size: 17),
+                  ),
+                ],
               ),
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: Colors.white),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const _SoftEyebrow('TODAY’S CARD'),
-                    const Spacer(),
-                    Container(
-                      width: 34,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.72),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.style_rounded,
-                        color: NylaColors.violet,
-                        size: 17,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 15),
-                Text(
-                  tip.title,
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineMedium
-                      ?.copyWith(fontSize: 23),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  tip.flash,
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyLarge
-                      ?.copyWith(color: NylaColors.wine),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Text(
-                      'Open card',
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelLarge
-                          ?.copyWith(color: NylaColors.violet),
-                    ),
-                    const SizedBox(width: 5),
-                    const Icon(
-                      Icons.arrow_forward_rounded,
-                      color: NylaColors.violet,
-                      size: 17,
-                    ),
-                  ],
-                ),
-              ],
-            ),
+              const SizedBox(height: 15),
+              Text(
+                tip.title,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 23),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                tip.flash,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: palette.wine),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Text(
+                    'Open card',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(color: palette.violet),
+                  ),
+                  const SizedBox(width: 5),
+                  Icon(Icons.arrow_forward_rounded, color: palette.violet, size: 17),
+                ],
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _SoftEyebrow extends StatelessWidget {
@@ -911,8 +834,8 @@ class _SoftEyebrow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
         text,
-        style: const TextStyle(
-          color: NylaColors.violet,
+        style: TextStyle(
+          color: context.nyla.violet,
           fontSize: 9.5,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.0,

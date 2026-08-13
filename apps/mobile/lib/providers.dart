@@ -8,6 +8,7 @@ import 'core/storage/secure_vault.dart';
 import 'core/sync/hlc_service.dart';
 import 'core/sync/sync_coordinator.dart';
 import 'core/sync/sync_service.dart';
+import 'core/theme/nyla_appearance.dart';
 import 'data/database/app_database.dart';
 import 'data/repositories/custom_log_repository.dart';
 import 'data/repositories/cycle_repository.dart';
@@ -17,6 +18,7 @@ import 'data/repositories/preferences_repository.dart';
 final databaseProvider = Provider<AppDatabase>((ref) => throw StateError('Database has not been bootstrapped.'));
 final deviceIdProvider = Provider<String>((ref) => throw StateError('Device identity has not been bootstrapped.'));
 final secureVaultProvider = Provider<SecureVault>((ref) => const SecureVault());
+final initialAppearanceProvider = Provider<NylaAppearance>((ref) => NylaAppearance.system);
 final appLockServiceProvider = Provider<AppLockService>(
   (ref) => AppLockService(vault: ref.watch(secureVaultProvider)),
 );
@@ -57,6 +59,15 @@ final pendingSyncMutationCountProvider = StreamProvider<int>(
 final preferencesRepositoryProvider = Provider<PreferencesRepository>(
   (ref) => PreferencesRepository(ref.watch(databaseProvider)),
 );
+final appearanceProvider = StreamProvider<NylaAppearance>(
+  (ref) => ref.watch(preferencesRepositoryProvider).watchAppearance(),
+);
+final effectiveAppearanceProvider = Provider<NylaAppearance>((ref) {
+  final streamed = ref.watch(appearanceProvider);
+  final current = streamed.value;
+  if (current != null) return current;
+  return ref.watch(initialAppearanceProvider);
+});
 final notificationServiceProvider = FutureProvider<NotificationService>((ref) async {
   final service = NotificationService();
   await service.initialize();

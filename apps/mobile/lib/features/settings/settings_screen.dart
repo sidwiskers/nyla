@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/haptics/nyla_haptics.dart';
 import '../../core/notifications/notification_config.dart';
 import '../../core/security/app_lock_service.dart';
+import '../../core/theme/nyla_appearance.dart';
 import '../../core/theme/nyla_theme.dart';
 import '../../providers.dart';
 
@@ -15,6 +16,8 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final configAsync = ref.watch(notificationConfigProvider);
     final config = configAsync.value ?? const NotificationConfig();
+    final appearance = ref.watch(effectiveAppearanceProvider);
+    final palette = context.nyla;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -23,12 +26,12 @@ class SettingsScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
       ),
       body: DecoratedBox(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFF0E8F8), NylaColors.canvas, Color(0xFFFFF2EC)],
-            stops: [0, 0.5, 1],
+            colors: [palette.pageTop, palette.canvas, palette.pageBottom],
+            stops: const [0, 0.5, 1],
           ),
         ),
         child: SafeArea(
@@ -52,6 +55,23 @@ class SettingsScreen extends ConsumerWidget {
                     onPrivacyChanged: (value) async {
                       await NylaHaptics.select();
                       await _save(ref, config.copyWith(privacy: value));
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  const _SectionHeader(
+                    eyebrow: 'APPEARANCE',
+                    title: 'Appearance',
+                    subtitle: 'Follow your phone or choose a look.',
+                  ),
+                  const SizedBox(height: 12),
+                  _AppearancePanel(
+                    value: appearance,
+                    onChanged: (value) async {
+                      if (value == appearance) return;
+                      await NylaHaptics.select();
+                      await ref
+                          .read(preferencesRepositoryProvider)
+                          .setAppearance(value);
                     },
                   ),
                   const SizedBox(height: 24),
@@ -100,7 +120,7 @@ class SettingsScreen extends ConsumerWidget {
                       Expanded(
                         child: _ActionTile(
                           icon: Icons.devices_rounded,
-                          tint: NylaColors.lavenderSoft,
+                          tint: palette.lavenderSoft,
                           title: 'Devices',
                           subtitle: 'Private sync',
                           onTap: () {
@@ -113,7 +133,7 @@ class SettingsScreen extends ConsumerWidget {
                       Expanded(
                         child: _ActionTile(
                           icon: Icons.tune_rounded,
-                          tint: NylaColors.sageSoft,
+                          tint: palette.sageSoft,
                           title: 'Your logs',
                           subtitle: 'Tracking options',
                           onTap: () {
@@ -126,7 +146,7 @@ class SettingsScreen extends ConsumerWidget {
                       Expanded(
                         child: _ActionTile(
                           icon: Icons.ios_share_rounded,
-                          tint: NylaColors.peachSoft,
+                          tint: palette.peachSoft,
                           title: 'Export',
                           subtitle: 'Make a copy',
                           onTap: () {
@@ -200,6 +220,129 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
+class _AppearancePanel extends StatelessWidget {
+  const _AppearancePanel({required this.value, required this.onChanged});
+
+  final NylaAppearance value;
+  final ValueChanged<NylaAppearance> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    return Container(
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(
+        color: palette.glass,
+        borderRadius: BorderRadius.circular(27),
+        border: Border.all(color: palette.glassBorder),
+        boxShadow: [
+          BoxShadow(
+            color: palette.shadow.withValues(alpha: 0.55),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              for (final mode in NylaAppearance.values)
+                Expanded(
+                  child: _AppearanceChoice(
+                    value: mode,
+                    selected: value == mode,
+                    onTap: () => onChanged(mode),
+                  ),
+                ),
+            ],
+          ),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            child: Padding(
+              key: ValueKey(value),
+              padding: const EdgeInsets.fromLTRB(10, 9, 10, 3),
+              child: Text(
+                switch (value) {
+                  NylaAppearance.system => 'Changes with your phone automatically.',
+                  NylaAppearance.light => 'Always use Nyla’s soft light palette.',
+                  NylaAppearance.dark => 'Always use Nyla’s low-light palette.',
+                },
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontSize: 10.8,
+                      color: palette.mutedInk,
+                    ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AppearanceChoice extends StatelessWidget {
+  const _AppearanceChoice({
+    required this.value,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final NylaAppearance value;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    final icon = switch (value) {
+      NylaAppearance.system => Icons.brightness_auto_rounded,
+      NylaAppearance.light => Icons.light_mode_rounded,
+      NylaAppearance.dark => Icons.dark_mode_rounded,
+    };
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${value.label} appearance',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          margin: const EdgeInsets.all(2),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 5),
+          decoration: BoxDecoration(
+            color: selected ? palette.lavenderSoft : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected ? palette.violet.withValues(alpha: 0.35) : Colors.transparent,
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(
+                icon,
+                color: selected ? palette.violet : palette.mutedInk,
+                size: 20,
+              ),
+              const SizedBox(height: 5),
+              Text(
+                value.label,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: selected ? palette.wine : palette.mutedInk,
+                      fontSize: 11.5,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _PrivacyPanel extends StatelessWidget {
   const _PrivacyPanel({required this.privacy, required this.onPrivacyChanged});
 
@@ -216,11 +359,11 @@ class _PrivacyPanel extends StatelessWidget {
             colors: [NylaColors.night, Color(0xFF392447), NylaColors.violet],
           ),
           borderRadius: BorderRadius.circular(34),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Color(0x3433203E),
+              color: context.nyla.shadow,
               blurRadius: 34,
-              offset: Offset(0, 16),
+              offset: const Offset(0, 16),
             ),
           ],
         ),
@@ -393,104 +536,105 @@ class _ReminderPanel extends StatelessWidget {
   final String timeText;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(16, 7, 16, 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.78),
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: Colors.white),
-        ),
-        child: Column(
-          children: [
-            const _NotificationAccessTile(),
-            const _SoftDivider(),
-            _ReminderRow(
-              icon: Icons.upcoming_rounded,
-              tint: NylaColors.roseWash,
-              title: 'Period approaching',
-              subtitle: '${config.periodDaysBefore} days before the expected window',
-              value: config.periodApproaching,
-              onChanged: onPeriodApproaching,
-            ),
-            if (config.periodApproaching)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(54, 0, 5, 8),
-                child: Row(
-                  children: [
-                    const Text(
-                      '1d',
-                      style: TextStyle(
-                        color: NylaColors.faintInk,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w700,
-                      ),
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 7, 16, 8),
+      decoration: BoxDecoration(
+        color: palette.glass,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: palette.glassBorder),
+      ),
+      child: Column(
+        children: [
+          const _NotificationAccessTile(),
+          const _SoftDivider(),
+          _ReminderRow(
+            icon: Icons.upcoming_rounded,
+            tint: palette.roseWash,
+            title: 'Period approaching',
+            subtitle: '${config.periodDaysBefore} days before the expected window',
+            value: config.periodApproaching,
+            onChanged: onPeriodApproaching,
+          ),
+          if (config.periodApproaching)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(54, 0, 5, 8),
+              child: Row(
+                children: [
+                  Text(
+                    '1d',
+                    style: TextStyle(
+                      color: palette.faintInk,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
                     ),
-                    Expanded(
-                      child: Slider(
-                        min: 1,
-                        max: 7,
-                        divisions: 6,
-                        value: config.periodDaysBefore.toDouble(),
-                        label: '${config.periodDaysBefore} days',
-                        onChanged: (value) => onLeadTime(value.round()),
-                      ),
-                    ),
-                    const Text(
-                      '7d',
-                      style: TextStyle(
-                        color: NylaColors.faintInk,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            const _SoftDivider(),
-            _ReminderRow(
-              icon: Icons.blur_on_rounded,
-              tint: NylaColors.lavenderSoft,
-              title: 'Expected window',
-              subtitle: 'When the predicted range begins',
-              value: config.expectedWindowStarts,
-              onChanged: onExpectedWindow,
-            ),
-            const _SoftDivider(),
-            _ReminderRow(
-              icon: Icons.wb_twilight_rounded,
-              tint: NylaColors.sageSoft,
-              title: 'Daily check-in',
-              subtitle: config.dailyLogReminder ? timeText : 'Off',
-              value: config.dailyLogReminder,
-              onChanged: onDailyLog,
-            ),
-            if (config.dailyLogReminder)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(54, 0, 5, 10),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: onPickTime,
-                    icon: const Icon(Icons.schedule_rounded, size: 17),
-                    label: Text('Time · $timeText'),
                   ),
+                  Expanded(
+                    child: Slider(
+                      min: 1,
+                      max: 7,
+                      divisions: 6,
+                      value: config.periodDaysBefore.toDouble(),
+                      label: '${config.periodDaysBefore} days',
+                      onChanged: (value) => onLeadTime(value.round()),
+                    ),
+                  ),
+                  Text(
+                    '7d',
+                    style: TextStyle(
+                      color: palette.faintInk,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const _SoftDivider(),
+          _ReminderRow(
+            icon: Icons.blur_on_rounded,
+            tint: palette.lavenderSoft,
+            title: 'Expected window',
+            subtitle: 'When the predicted range begins',
+            value: config.expectedWindowStarts,
+            onChanged: onExpectedWindow,
+          ),
+          const _SoftDivider(),
+          _ReminderRow(
+            icon: Icons.wb_twilight_rounded,
+            tint: palette.sageSoft,
+            title: 'Daily check-in',
+            subtitle: config.dailyLogReminder ? timeText : 'Off',
+            value: config.dailyLogReminder,
+            onChanged: onDailyLog,
+          ),
+          if (config.dailyLogReminder)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(54, 0, 5, 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: onPickTime,
+                  icon: const Icon(Icons.schedule_rounded, size: 17),
+                  label: Text('Time · $timeText'),
                 ),
               ),
-          ],
-        ),
-      );
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _NotificationAccessTile extends ConsumerStatefulWidget {
   const _NotificationAccessTile();
 
   @override
-  ConsumerState<_NotificationAccessTile> createState() =>
-      _NotificationAccessTileState();
+  ConsumerState<_NotificationAccessTile> createState() => _NotificationAccessTileState();
 }
 
-class _NotificationAccessTileState
-    extends ConsumerState<_NotificationAccessTile> {
+class _NotificationAccessTileState extends ConsumerState<_NotificationAccessTile> {
   bool? _enabled;
   bool _busy = false;
 
@@ -530,6 +674,7 @@ class _NotificationAccessTileState
   @override
   Widget build(BuildContext context) {
     final ready = _enabled == true;
+    final palette = context.nyla;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -538,12 +683,12 @@ class _NotificationAccessTileState
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: NylaColors.peachSoft,
+              color: palette.peachSoft,
               borderRadius: BorderRadius.circular(15),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.notifications_none_rounded,
-              color: NylaColors.violet,
+              color: palette.violet,
               size: 20,
             ),
           ),
@@ -554,10 +699,7 @@ class _NotificationAccessTileState
               children: [
                 Text(
                   'Notification access',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontSize: 14.5),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 14.5),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -566,10 +708,7 @@ class _NotificationAccessTileState
                       : ready
                           ? 'Allowed'
                           : 'Permission needed',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(fontSize: 11.2),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.2),
                 ),
               ],
             ),
@@ -580,11 +719,7 @@ class _NotificationAccessTileState
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           else if (ready)
-            const Icon(
-              Icons.check_circle_rounded,
-              color: Color(0xFF6F9B82),
-              size: 22,
-            )
+            Icon(Icons.check_circle_rounded, color: palette.expected, size: 22)
           else
             TextButton(onPressed: _request, child: const Text('Allow')),
         ],
@@ -622,7 +757,7 @@ class _ReminderRow extends StatelessWidget {
                 color: tint,
                 borderRadius: BorderRadius.circular(15),
               ),
-              child: Icon(icon, color: NylaColors.violet, size: 20),
+              child: Icon(icon, color: context.nyla.violet, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -631,18 +766,12 @@ class _ReminderRow extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontSize: 14.5),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 14.5),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(fontSize: 11.2),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.2),
                   ),
                 ],
               ),
@@ -672,53 +801,53 @@ class _ActionTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(24),
-          onTap: onTap,
-          child: Ink(
-            padding: const EdgeInsets.fromLTRB(13, 14, 12, 13),
-            decoration: BoxDecoration(
-              color: tint,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 39,
-                  height: 39,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.72),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(icon, color: NylaColors.violet, size: 19),
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.fromLTRB(13, 14, 12, 13),
+          decoration: BoxDecoration(
+            color: tint,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: palette.glassBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 39,
+                height: 39,
+                decoration: BoxDecoration(
+                  color: palette.glass,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(height: 14),
-                Text(
-                  title,
-                  maxLines: 1,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontSize: 13.8),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  maxLines: 2,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontSize: 10.5,
-                        height: 1.25,
-                      ),
-                ),
-              ],
-            ),
+                child: Icon(icon, color: palette.violet, size: 19),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                maxLines: 1,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 13.8),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                maxLines: 2,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontSize: 10.5,
+                      height: 1.25,
+                    ),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _SectionHeader extends StatelessWidget {
@@ -740,8 +869,8 @@ class _SectionHeader extends StatelessWidget {
           children: [
             Text(
               eyebrow,
-              style: const TextStyle(
-                color: NylaColors.violet,
+              style: TextStyle(
+                color: context.nyla.violet,
                 fontSize: 9.5,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.05,
@@ -752,10 +881,7 @@ class _SectionHeader extends StatelessWidget {
             const SizedBox(height: 3),
             Text(
               subtitle,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontSize: 12),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
             ),
           ],
         ),
@@ -769,7 +895,7 @@ class _SoftDivider extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         height: 1,
         margin: const EdgeInsets.only(left: 54),
-        color: NylaColors.outline.withValues(alpha: 0.75),
+        color: context.nyla.outline.withValues(alpha: 0.75),
       );
 }
 
@@ -912,8 +1038,7 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
           ),
           if (hasSync)
             FilledButton(
-              onPressed: () =>
-                  Navigator.pop(context, _EraseScope.cloudAndLocal),
+              onPressed: () => Navigator.pop(context, _EraseScope.cloudAndLocal),
               child: const Text('Synced copy + this device'),
             ),
         ],
@@ -955,9 +1080,9 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            icon: const Icon(
+            icon: Icon(
               Icons.delete_sweep_rounded,
-              color: NylaColors.warning,
+              color: context.nyla.warning,
               size: 28,
             ),
             title: Text(
@@ -996,10 +1121,15 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () =>
-                    Navigator.pop(context, controller.text.trim() == 'ERASE'),
+                onPressed: () => Navigator.pop(
+                  context,
+                  controller.text.trim() == 'ERASE',
+                ),
                 style: FilledButton.styleFrom(
-                  backgroundColor: NylaColors.warning,
+                  backgroundColor: context.nyla.warning,
+                  foregroundColor: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF2D1712)
+                      : Colors.white,
                 ),
                 child: const Text('Erase permanently'),
               ),
@@ -1012,72 +1142,67 @@ class _EraseDataTileState extends ConsumerState<_EraseDataTile> {
   }
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(22),
-          onTap: _busy ? null : _begin,
-          child: Ink(
-            padding: const EdgeInsets.fromLTRB(15, 13, 14, 13),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.58),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: NylaColors.outline.withValues(alpha: 0.82),
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: _busy ? null : _begin,
+        child: Ink(
+          padding: const EdgeInsets.fromLTRB(15, 13, 14, 13),
+          decoration: BoxDecoration(
+            color: palette.glass,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: palette.outline.withValues(alpha: 0.82)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: palette.peachSoft,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(
+                  Icons.delete_outline_rounded,
+                  color: palette.warning,
+                  size: 19,
+                ),
               ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: NylaColors.peachSoft,
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: const Icon(
-                    Icons.delete_outline_rounded,
-                    color: NylaColors.warning,
-                    size: 19,
-                  ),
-                ),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Erase data',
-                        style: TextStyle(
-                          color: NylaColors.warning,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13.5,
-                        ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Erase data',
+                      style: TextStyle(
+                        color: palette.warning,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Permanent removal',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(fontSize: 10.8),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Permanent removal',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 10.8),
+                    ),
+                  ],
                 ),
-                if (_busy)
-                  const SizedBox.square(
-                    dimension: 19,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: NylaColors.faintInk,
-                  ),
-              ],
-            ),
+              ),
+              if (_busy)
+                const SizedBox.square(
+                  dimension: 19,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                Icon(Icons.chevron_right_rounded, color: palette.faintInk),
+            ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }

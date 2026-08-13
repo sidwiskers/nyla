@@ -23,6 +23,7 @@ class NylaShell extends StatelessWidget {
     final selected = _destinations
         .indexWhere((entry) => location.startsWith(entry.path))
         .clamp(0, _destinations.length - 1);
+    final palette = context.nyla;
 
     return Scaffold(
       extendBody: true,
@@ -37,14 +38,14 @@ class NylaShell extends StatelessWidget {
               height: 70,
               padding: const EdgeInsets.symmetric(horizontal: 7),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFFCFE).withValues(alpha: 0.96),
+                color: palette.navSurface,
                 borderRadius: BorderRadius.circular(27),
-                border: Border.all(color: Colors.white),
-                boxShadow: const [
+                border: Border.all(color: palette.glassBorder),
+                boxShadow: [
                   BoxShadow(
-                    color: Color(0x172B2231),
+                    color: palette.shadow,
                     blurRadius: 22,
-                    offset: Offset(0, 9),
+                    offset: const Offset(0, 9),
                   ),
                 ],
               ),
@@ -88,6 +89,7 @@ class _Destination extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.nyla;
     if (primary) {
       return Semantics(
         selected: selected,
@@ -103,19 +105,21 @@ class _Destination extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: selected ? NylaColors.rose : NylaColors.violet,
+                color: selected ? palette.rose : palette.violet,
                 shape: BoxShape.circle,
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
-                    color: Color(0x248269AE),
+                    color: palette.violet.withValues(alpha: 0.24),
                     blurRadius: 12,
-                    offset: Offset(0, 5),
+                    offset: const Offset(0, 5),
                   ),
                 ],
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.add_rounded,
-                color: Colors.white,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF1D1428)
+                    : Colors.white,
                 size: 25,
               ),
             ),
@@ -140,14 +144,14 @@ class _Destination extends StatelessWidget {
               width: selected ? 38 : 31,
               height: 30,
               decoration: BoxDecoration(
-                color: selected ? NylaColors.lavenderSoft : Colors.transparent,
+                color: selected ? palette.lavenderSoft : Colors.transparent,
                 borderRadius: BorderRadius.circular(13),
               ),
               alignment: Alignment.center,
               child: Icon(
                 entry.icon,
                 size: 19,
-                color: selected ? NylaColors.violet : NylaColors.mutedInk,
+                color: selected ? palette.violet : palette.mutedInk,
               ),
             ),
             const SizedBox(height: 3),
@@ -158,7 +162,7 @@ class _Destination extends StatelessWidget {
                 fontFamily: 'sans-serif-rounded',
                 fontSize: 9.4,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                color: selected ? NylaColors.wine : NylaColors.mutedInk,
+                color: selected ? palette.wine : palette.mutedInk,
               ),
             ),
           ],

@@ -38,15 +38,11 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             prediction: prediction,
             onPrevious: () {
               NylaHaptics.select();
-              setState(
-                () => month = DateTime(month.year, month.month - 1),
-              );
+              setState(() => month = DateTime(month.year, month.month - 1));
             },
             onNext: () {
               NylaHaptics.select();
-              setState(
-                () => month = DateTime(month.year, month.month + 1),
-              );
+              setState(() => month = DateTime(month.year, month.month + 1));
             },
           ),
           if (prediction != null) ...[
@@ -83,73 +79,76 @@ class _CalendarCanvas extends StatelessWidget {
   final VoidCallback onNext;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFF4EEF9), NylaColors.cream, Color(0xFFFFF2ED)],
-            stops: [0, 0.56, 1],
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [palette.lavenderMist, palette.cream, palette.peachSoft],
+          stops: const [0, 0.56, 1],
+        ),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: palette.glassBorder, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: palette.shadow,
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
-          borderRadius: BorderRadius.circular(32),
-          border: Border.all(color: Colors.white, width: 1.2),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x142B2231),
-              blurRadius: 24,
-              offset: Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                _MonthButton(
-                  icon: Icons.chevron_left_rounded,
-                  tooltip: 'Previous month',
-                  onTap: onPrevious,
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              _MonthButton(
+                icon: Icons.chevron_left_rounded,
+                tooltip: 'Previous month',
+                onTap: onPrevious,
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    Text(
+                      monthYear(month),
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineMedium
+                          ?.copyWith(fontSize: 25),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _monthContext(month),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(fontSize: 11.5),
+                    ),
+                  ],
                 ),
-                Expanded(
-                  child: Column(
-                    children: [
-                      Text(
-                        monthYear(month),
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineMedium
-                            ?.copyWith(fontSize: 25),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        _monthContext(month),
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(fontSize: 11.5),
-                      ),
-                    ],
-                  ),
-                ),
-                _MonthButton(
-                  icon: Icons.chevron_right_rounded,
-                  tooltip: 'Next month',
-                  onTap: onNext,
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            _MonthGrid(
-              month: month,
-              periods: periods,
-              prediction: prediction,
-            ),
-            const SizedBox(height: 16),
-            const _Legend(),
-          ],
-        ),
-      );
+              ),
+              _MonthButton(
+                icon: Icons.chevron_right_rounded,
+                tooltip: 'Next month',
+                onTap: onNext,
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _MonthGrid(
+            month: month,
+            periods: periods,
+            prediction: prediction,
+          ),
+          const SizedBox(height: 16),
+          const _Legend(),
+        ],
+      ),
+    );
+  }
 
   String _monthContext(DateTime value) {
     final now = DateTime.now();
@@ -172,13 +171,13 @@ class _MonthButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Colors.white.withValues(alpha: 0.76),
+        color: context.nyla.glass,
         shape: const CircleBorder(),
         child: IconButton(
           tooltip: tooltip,
           onPressed: onTap,
           icon: Icon(icon),
-          color: NylaColors.violet,
+          color: context.nyla.violet,
         ),
       );
 }
@@ -202,6 +201,7 @@ class _MonthGrid extends StatelessWidget {
     final leading = first.weekday - DateTime.monday;
     final cells = ((leading + days + 6) ~/ 7) * 7;
     final today = LocalDay.fromDateTime(DateTime.now());
+    final palette = context.nyla;
 
     return Column(
       children: [
@@ -214,8 +214,8 @@ class _MonthGrid extends StatelessWidget {
                   child: Text(
                     label,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: NylaColors.faintInk,
+                    style: TextStyle(
+                      color: palette.faintInk,
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.3,
@@ -284,9 +284,6 @@ class _DayCell extends StatelessWidget {
     required this.onTap,
   });
 
-  static const expectedGreen = Color(0xFF6F9B82);
-  static const expectedFill = Color(0xFFE8F2EC);
-
   final int number;
   final bool actual;
   final bool predicted;
@@ -297,6 +294,7 @@ class _DayCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final expectedOnly = predicted && !actual;
+    final palette = context.nyla;
     return Semantics(
       button: true,
       label: semanticsLabel,
@@ -315,13 +313,13 @@ class _DayCell extends StatelessWidget {
                 height: 36,
                 decoration: BoxDecoration(
                   color: actual
-                      ? NylaColors.rose
+                      ? palette.rose
                       : expectedOnly
-                          ? expectedFill
+                          ? palette.expectedFill
                           : Colors.transparent,
                   shape: BoxShape.circle,
                   border: expectedOnly
-                      ? Border.all(color: expectedGreen, width: 1.2)
+                      ? Border.all(color: palette.expected, width: 1.2)
                       : null,
                 ),
                 alignment: Alignment.center,
@@ -329,10 +327,12 @@ class _DayCell extends StatelessWidget {
                   '$number',
                   style: TextStyle(
                     color: actual
-                        ? Colors.white
+                        ? (Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFF2B1520)
+                            : Colors.white)
                         : expectedOnly
-                            ? const Color(0xFF4D715D)
-                            : NylaColors.mutedInk,
+                            ? palette.expectedInk
+                            : palette.mutedInk,
                     fontSize: 13,
                     fontWeight:
                         actual || today ? FontWeight.w700 : FontWeight.w600,
@@ -340,14 +340,14 @@ class _DayCell extends StatelessWidget {
                 ),
               ),
               if (today && !actual && !expectedOnly)
-                const Positioned(
+                Positioned(
                   bottom: 2,
                   child: SizedBox(
                     width: 4,
                     height: 4,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: NylaColors.violet,
+                        color: palette.violet,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -365,21 +365,24 @@ class _Legend extends StatelessWidget {
   const _Legend();
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.62),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _LegendDot(color: NylaColors.rose, label: 'Period'),
-            SizedBox(width: 22),
-            _LegendDot(color: Color(0xFF6F9B82), label: 'Expected'),
-          ],
-        ),
-      );
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+      decoration: BoxDecoration(
+        color: palette.glass,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _LegendDot(color: palette.rose, label: 'Period'),
+          const SizedBox(width: 22),
+          _LegendDot(color: palette.expected, label: 'Expected'),
+        ],
+      ),
+    );
+  }
 }
 
 class _LegendDot extends StatelessWidget {
@@ -400,8 +403,8 @@ class _LegendDot extends StatelessWidget {
           const SizedBox(width: 7),
           Text(
             label,
-            style: const TextStyle(
-              color: NylaColors.mutedInk,
+            style: TextStyle(
+              color: context.nyla.mutedInk,
               fontSize: 11.5,
               fontWeight: FontWeight.w600,
             ),
@@ -416,55 +419,58 @@ class _PredictionCard extends StatelessWidget {
   final CyclePrediction prediction;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(18, 17, 18, 17),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [NylaColors.lavenderSoft, NylaColors.sageSoft],
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 17, 18, 17),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [palette.lavenderSoft, palette.sageSoft],
+        ),
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: palette.glassBorder),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 43,
+            height: 43,
+            decoration: BoxDecoration(
+              color: palette.glass,
+              borderRadius: BorderRadius.circular(15),
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.calendar_today_rounded,
+              color: palette.expected,
+              size: 19,
+            ),
           ),
-          borderRadius: BorderRadius.circular(25),
-          border: Border.all(color: Colors.white),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 43,
-              height: 43,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.76),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              alignment: Alignment.center,
-              child: const Icon(
-                Icons.calendar_today_rounded,
-                color: Color(0xFF6F9B82),
-                size: 19,
-              ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Expected ${rangeText(prediction.earliestStart, prediction.latestStart)}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Based on your recent cycles. This range can shift.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontSize: 12),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Expected ${rangeText(prediction.earliestStart, prediction.latestStart)}',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Based on your recent cycles. This range can shift.',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _HistoryAction extends StatelessWidget {
@@ -473,60 +479,63 @@ class _HistoryAction extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(24),
-          child: Ink(
-            padding: const EdgeInsets.fromLTRB(16, 14, 15, 14),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.7),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: NylaColors.roseWash,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(
-                    Icons.edit_calendar_rounded,
-                    color: NylaColors.violet,
-                    size: 19,
-                  ),
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Ink(
+          padding: const EdgeInsets.fromLTRB(16, 14, 15, 14),
+          decoration: BoxDecoration(
+            color: palette.glass,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: palette.glassBorder),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: palette.roseWash,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Period history',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Add or correct dates',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(fontSize: 11.2),
-                      ),
-                    ],
-                  ),
+                child: Icon(
+                  Icons.edit_calendar_rounded,
+                  color: palette.violet,
+                  size: 19,
                 ),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: NylaColors.faintInk,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Period history',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Add or correct dates',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(fontSize: 11.2),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: palette.faintInk,
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }

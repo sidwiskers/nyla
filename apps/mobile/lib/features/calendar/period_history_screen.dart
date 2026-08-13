@@ -40,8 +40,14 @@ class PeriodHistoryScreen extends ConsumerWidget {
                     Container(
                       width: 42,
                       height: 42,
-                      decoration: BoxDecoration(color: NylaColors.roseSoft, borderRadius: BorderRadius.circular(14)),
-                      child: const Icon(Icons.edit_calendar_rounded, color: NylaColors.rose),
+                      decoration: BoxDecoration(
+                        color: context.nyla.roseSoft,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        Icons.edit_calendar_rounded,
+                        color: context.nyla.rose,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     const Expanded(
@@ -110,11 +116,15 @@ class PeriodHistoryScreen extends ConsumerWidget {
       }
     } on ArgumentError catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message?.toString() ?? 'Those dates are not valid.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message?.toString() ?? 'Those dates are not valid.')),
+        );
       }
     } on StateError {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('That period changed on another screen. Try again.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('That period changed on another screen. Try again.')),
+        );
       }
     }
   }
@@ -138,8 +148,15 @@ class _PeriodCard extends StatelessWidget {
           width: 42,
           height: 42,
           alignment: Alignment.center,
-          decoration: BoxDecoration(color: NylaColors.roseSoft, borderRadius: BorderRadius.circular(14)),
-          child: const Icon(Icons.water_drop_rounded, color: NylaColors.rose, size: 20),
+          decoration: BoxDecoration(
+            color: context.nyla.roseSoft,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(
+            Icons.water_drop_rounded,
+            color: context.nyla.rose,
+            size: 20,
+          ),
         ),
         title: Text(end == null ? friendlyDay(start) : '${friendlyDay(start)} – ${friendlyDay(end)}'),
         subtitle: Text(
@@ -165,13 +182,21 @@ class _EmptyHistory extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 46),
         child: Column(
           children: [
-            const Icon(Icons.calendar_today_outlined, size: 36, color: NylaColors.mutedInk),
+            Icon(
+              Icons.calendar_today_outlined,
+              size: 36,
+              color: context.nyla.mutedInk,
+            ),
             const SizedBox(height: 12),
             Text('No periods recorded yet', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 6),
             Text('Add a past or current period when you are ready.', style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: 18),
-            FilledButton.icon(onPressed: onAdd, icon: const Icon(Icons.add_rounded), label: const Text('Add period')),
+            FilledButton.icon(
+              onPressed: onAdd,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add period'),
+            ),
           ],
         ),
       );
@@ -222,7 +247,9 @@ class _PeriodEditorState extends State<_PeriodEditor> {
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Delete this period?'),
-            content: const Text('This removes the period record from this device and your encrypted sync history. Daily symptom logs are left untouched.'),
+            content: const Text(
+              'This removes the period record from this device and your encrypted sync history. Daily symptom logs are left untouched.',
+            ),
             actions: [
               TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
               FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
@@ -273,7 +300,7 @@ class _PeriodEditorState extends State<_PeriodEditor> {
               onPressed: _delete,
               icon: const Icon(Icons.delete_outline_rounded),
               label: const Text('Delete period'),
-              style: TextButton.styleFrom(foregroundColor: NylaColors.warning),
+              style: TextButton.styleFrom(foregroundColor: context.nyla.warning),
             ),
           ],
         ],

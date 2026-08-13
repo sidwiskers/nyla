@@ -6,7 +6,9 @@ import 'core/security/app_lock_service.dart';
 import 'core/storage/secure_vault.dart';
 import 'core/sync/background_sync.dart';
 import 'core/sync/sync_run_lock.dart';
+import 'core/theme/nyla_appearance.dart';
 import 'data/database/app_database.dart';
+import 'data/repositories/preferences_repository.dart';
 import 'providers.dart';
 
 Future<void> main() async {
@@ -60,7 +62,8 @@ class _NylaBootstrapState extends State<NylaBootstrap> {
     final deviceId = await _vault.deviceId();
     final database = await AppDatabase.open(databaseKey);
     _activeDatabase = database;
-    return _BootstrapResult.ready(database, deviceId);
+    final appearance = await PreferencesRepository(database).appearance();
+    return _BootstrapResult.ready(database, deviceId, appearance);
   }
 
   Future<void> _resetLocalData() async {
@@ -126,6 +129,7 @@ class _NylaBootstrapState extends State<NylaBootstrap> {
               secureVaultProvider.overrideWithValue(_vault),
               appLockServiceProvider.overrideWithValue(_appLock),
               resetLocalDataProvider.overrideWithValue(_resetLocalData),
+              initialAppearanceProvider.overrideWithValue(result.appearance!),
             ],
             child: const NylaApp(),
           );
@@ -146,25 +150,41 @@ class _NylaBootstrapState extends State<NylaBootstrap> {
 }
 
 class _BootstrapResult {
-  const _BootstrapResult.ready(this.database, this.deviceId) : lockedMessage = null;
+  const _BootstrapResult.ready(this.database, this.deviceId, this.appearance)
+      : lockedMessage = null;
   const _BootstrapResult.locked(this.lockedMessage)
       : database = null,
-        deviceId = null;
+        deviceId = null,
+        appearance = null;
 
   final AppDatabase? database;
   final String? deviceId;
+  final NylaAppearance? appearance;
   final String? lockedMessage;
 }
+
+Brightness get _platformBrightness =>
+    WidgetsBinding.instance.platformDispatcher.platformBrightness;
 
 class _SplashApp extends StatelessWidget {
   const _SplashApp();
 
   @override
   Widget build(BuildContext context) {
+    final dark = _platformBrightness == Brightness.dark;
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        brightness: dark ? Brightness.dark : Brightness.light,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF8269AE),
+          brightness: dark ? Brightness.dark : Brightness.light,
+        ),
+        scaffoldBackgroundColor: dark
+            ? const Color(0xFF151219)
+            : const Color(0xFFFFF9F7),
+      ),
       home: Scaffold(
-        backgroundColor: const Color(0xFFFFF9F7),
         body: Center(
           child: Semantics(
             label: 'Opening Nyla',
@@ -187,10 +207,20 @@ class _LockedApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dark = _platformBrightness == Brightness.dark;
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        brightness: dark ? Brightness.dark : Brightness.light,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF8269AE),
+          brightness: dark ? Brightness.dark : Brightness.light,
+        ),
+        scaffoldBackgroundColor: dark
+            ? const Color(0xFF151219)
+            : const Color(0xFFFFF9F7),
+      ),
       home: Scaffold(
-        backgroundColor: const Color(0xFFFFF9F7),
         body: SafeArea(
           child: Center(
             child: Padding(
