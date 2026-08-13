@@ -8,12 +8,11 @@ enum AppLockAuthResult { success, cancelled, unsupported, failed }
 /// in-progress system PIN/biometric prompt can never race each other.
 class AppLockService {
   AppLockService({
-    required SecureVault vault,
+    required this.vault,
     LocalAuthentication? localAuthentication,
-  })  : _vault = vault,
-        _localAuthentication = localAuthentication ?? LocalAuthentication();
+  }) : _localAuthentication = localAuthentication ?? LocalAuthentication();
 
-  final SecureVault _vault;
+  final SecureVault vault;
   final LocalAuthentication _localAuthentication;
 
   bool _authenticationInProgress = false;
@@ -22,7 +21,7 @@ class AppLockService {
   bool get authenticationInProgress => _authenticationInProgress;
   bool get sessionUnlocked => _sessionUnlocked;
 
-  Future<bool> isEnabled() => _vault.isAppLockEnabled();
+  Future<bool> isEnabled() => vault.isAppLockEnabled();
 
   /// Marks the current foreground session as requiring authentication again.
   /// Calls made while the OS authentication UI is active are intentionally
@@ -65,8 +64,8 @@ class AppLockService {
 
   Future<bool> setEnabled(bool enabled) async {
     try {
-      await _vault.setAppLockEnabled(enabled);
-      final stored = await _vault.isAppLockEnabled();
+      await vault.setAppLockEnabled(enabled);
+      final stored = await vault.isAppLockEnabled();
       if (!enabled) _sessionUnlocked = false;
       return stored == enabled;
     } catch (_) {
