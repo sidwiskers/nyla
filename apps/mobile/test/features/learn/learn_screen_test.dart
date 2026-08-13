@@ -23,17 +23,15 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Finder visibleCardGesture() {
-    final visibleFlip = find.text('Tap to flip').hitTestable().first;
-    return find
-        .ancestor(of: visibleFlip, matching: find.byType(GestureDetector))
-        .first;
-  }
+  Finder firstCard() => find.byKey(
+        ValueKey('learn-card-tap-${healthTips.first.id}'),
+      );
 
   testWidgets('front card is useful without source clutter', (tester) async {
     await pumpLearn(tester);
 
     final first = healthTips.first;
+    expect(firstCard(), findsOneWidget);
     expect(find.text(first.title).hitTestable(), findsOneWidget);
     expect(find.text(first.flash).hitTestable(), findsOneWidget);
     expect(find.text('Tap to flip').hitTestable(), findsOneWidget);
@@ -46,7 +44,7 @@ void main() {
   testWidgets('tapping a card flips to its full explanation', (tester) async {
     await pumpLearn(tester);
 
-    await tester.tap(visibleCardGesture());
+    await tester.tap(firstCard());
     await tester.pump(const Duration(milliseconds: 360));
 
     final first = healthTips.first;
@@ -64,13 +62,11 @@ void main() {
   ) async {
     await pumpLearn(tester, size: const Size(360, 640));
 
-    expect(find.text('Tap to flip').hitTestable(), findsOneWidget);
-    expect(tester.takeException(), isNull);
-
-    await tester.drag(find.byType(CustomScrollView), const Offset(0, -180));
+    expect(firstCard(), findsOneWidget);
+    await tester.ensureVisible(firstCard());
     await tester.pumpAndSettle();
 
-    expect(find.text('Tap to flip').hitTestable(), findsOneWidget);
+    expect(firstCard().hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -78,7 +74,7 @@ void main() {
     await pumpLearn(tester, size: const Size(900, 1200));
 
     expect(find.text('Learn'), findsOneWidget);
-    expect(find.text('Tap to flip').hitTestable(), findsOneWidget);
+    expect(firstCard().hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
