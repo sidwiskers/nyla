@@ -450,8 +450,6 @@ class _FlowCard extends StatelessWidget {
 class _LogTile extends StatelessWidget {
   const _LogTile({required this.definition, required this.summary, required this.onTap});
 
-  static const _loggedGreen = Color(0xFF6F9B82);
-
   final LogDefinition definition;
   final String? summary;
   final VoidCallback onTap;
@@ -501,37 +499,26 @@ class _LogTile extends StatelessWidget {
                   definition.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: NylaColors.ink, fontWeight: FontWeight.w700, fontSize: 14.5),
+                  style: const TextStyle(
+                    color: NylaColors.ink,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14.5,
+                  ),
                 ),
-                const SizedBox(height: 5),
-                Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: active ? _loggedGreen : NylaColors.rose,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    if (active) ...[
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          summary!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                fontSize: 10.8,
-                                color: NylaColors.wine,
-                                fontWeight: FontWeight.w700,
-                                height: 1.1,
-                              ),
+                if (active) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    summary!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontSize: 10.8,
+                          color: NylaColors.wine,
+                          fontWeight: FontWeight.w700,
+                          height: 1.1,
                         ),
-                      ),
-                    ],
-                  ],
-                ),
+                  ),
+                ],
               ],
             ),
           ),
