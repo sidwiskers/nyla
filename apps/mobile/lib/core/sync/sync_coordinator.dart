@@ -26,7 +26,7 @@ final class SyncCoordinator {
         _runLock = runLock ?? SyncRunLock();
 
   static const _editDebounce = Duration(milliseconds: 1200);
-  static const _foregroundSafetyDelay = Duration(seconds: 20);
+  static const _durableFallbackDelay = Duration(seconds: 8);
 
   final SyncService service;
   final AppDatabase database;
@@ -43,7 +43,7 @@ final class SyncCoordinator {
   /// reconciliation. A scheduler failure never blocks the direct sync attempt.
   Future<void> onForeground() async {
     if (!await _canSync()) return;
-    await _tryEnsureDurable(delay: _foregroundSafetyDelay);
+    await _tryEnsureDurable(delay: _durableFallbackDelay);
     unawaited(_runAutomatic());
   }
 
@@ -105,7 +105,7 @@ final class SyncCoordinator {
       service.endpointConfigured && await service.identity() != null;
 
   Future<void> _tryEnsureDurable({
-    Duration delay = const Duration(seconds: 8),
+    Duration delay = _durableFallbackDelay,
   }) async {
     try {
       // WorkManager owns the durable coalescing state. Re-requesting the same
