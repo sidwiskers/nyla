@@ -49,7 +49,7 @@ flutter:
   assets:
     - assets/fonts/OFL.txt
   fonts:
-    - family: NylaSans
+    - family: sans-serif-rounded
       fonts:
         - asset: assets/fonts/Onest-Variable.ttf
     - family: NylaDisplay
