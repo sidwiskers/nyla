@@ -264,54 +264,53 @@ class _KnowledgeCardState extends State<_KnowledgeCard>
     duration: const Duration(milliseconds: 320),
   );
 
-  bool get showingBack => _flip.value >= 0.5;
-
   @override
   void dispose() {
     _flip.dispose();
     super.dispose();
   }
 
-  Future<void> _toggle() async {
-    await NylaHaptics.select();
-    if (_flip.status == AnimationStatus.completed) {
-      await _flip.reverse();
+  void _toggle() {
+    NylaHaptics.select();
+    if (_flip.status == AnimationStatus.completed || _flip.value >= 0.5) {
+      _flip.reverse();
     } else {
-      await _flip.forward();
+      _flip.forward();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final palette = _paletteFor(widget.tip.category);
-    return Semantics(
-      button: true,
-      label: showingBack ? 'Flip card back' : 'Flip card for details',
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: _toggle,
-        child: AnimatedBuilder(
-          animation: _flip,
-          builder: (context, _) {
-            final angle = _flip.value * math.pi;
-            final back = angle >= math.pi / 2;
-            final face = back
-                ? Transform(
-                    alignment: Alignment.center,
-                    transform: Matrix4.identity()..rotateY(math.pi),
-                    child: _BackCard(tip: widget.tip, palette: palette),
-                  )
-                : _FrontCard(tip: widget.tip, palette: palette);
-            return Transform(
+    return AnimatedBuilder(
+      animation: _flip,
+      builder: (context, _) {
+        final angle = _flip.value * math.pi;
+        final back = angle >= math.pi / 2;
+        final face = back
+            ? Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()..rotateY(math.pi),
+                child: _BackCard(tip: widget.tip, palette: palette),
+              )
+            : _FrontCard(tip: widget.tip, palette: palette);
+        return Semantics(
+          button: true,
+          label: back ? 'Flip card back' : 'Flip card for details',
+          child: GestureDetector(
+            key: ValueKey('learn-card-tap-${widget.tip.id}'),
+            behavior: HitTestBehavior.opaque,
+            onTap: _toggle,
+            child: Transform(
               alignment: Alignment.center,
               transform: Matrix4.identity()
                 ..setEntry(3, 2, 0.0011)
                 ..rotateY(angle),
               child: face,
-            );
-          },
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
