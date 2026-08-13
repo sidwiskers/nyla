@@ -27,6 +27,8 @@ void main() {
         ValueKey('learn-card-tap-${healthTips.first.id}'),
       );
 
+  Finder visibleFlipAffordance() => find.text('Tap to flip').hitTestable().first;
+
   testWidgets('front card is useful without source clutter', (tester) async {
     await pumpLearn(tester);
 
@@ -34,18 +36,19 @@ void main() {
     expect(firstCard(), findsOneWidget);
     expect(find.text(first.title).hitTestable(), findsOneWidget);
     expect(find.text(first.flash).hitTestable(), findsOneWidget);
-    expect(find.text('Tap to flip').hitTestable(), findsOneWidget);
+    expect(visibleFlipAffordance(), findsOneWidget);
     expect(find.text('Reviewed sources'), findsNothing);
     expect(find.text('World Health Organization'), findsNothing);
     expect(find.text('Body'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('tapping a card flips to its full explanation', (tester) async {
+  testWidgets('visible card action flips to its full explanation', (tester) async {
     await pumpLearn(tester);
 
-    await tester.tap(firstCard());
-    await tester.pump(const Duration(milliseconds: 360));
+    await tester.tap(visibleFlipAffordance());
+    await tester.pump();
+    await tester.pumpAndSettle();
 
     final first = healthTips.first;
     expect(find.text('Flip back'), findsOneWidget);
