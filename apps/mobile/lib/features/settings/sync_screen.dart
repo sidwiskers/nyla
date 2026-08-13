@@ -31,7 +31,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   Widget build(BuildContext context) {
     final service = ref.watch(syncServiceProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Private sync'), backgroundColor: Colors.transparent),
+      appBar: AppBar(
+        title: const Text('Private sync'),
+        backgroundColor: Colors.transparent,
+      ),
       body: FutureBuilder(
         future: service.identity(),
         builder: (context, snapshot) {
@@ -40,10 +43,15 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             return const Center(child: CircularProgressIndicator(strokeWidth: 2.4));
           }
           if (snapshot.hasError) {
-            return _CenteredError(message: 'Nyla could not read the local sync identity.', onRetry: _refresh);
+            return _CenteredError(
+              message: 'Nyla couldn’t open sync right now.',
+              onRetry: _refresh,
+            );
           }
           final identity = snapshot.data;
-          return identity == null ? _buildNotConnected() : _buildConnected(identity.deviceId);
+          return identity == null
+              ? _buildNotConnected()
+              : _buildConnected(identity.deviceId);
         },
       ),
     );
@@ -53,37 +61,40 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 10, 18, 36),
       children: [
-        _IntroCard(
-          icon: Icons.shield_outlined,
+        const _IntroCard(
+          icon: Icons.sync_rounded,
           tint: NylaColors.sage,
-          title: 'Sync without giving up your privacy.',
-          body:
-              'Nyla encrypts changes on this device. The relay only coordinates signed ciphertext; it never receives the key that can read your menstrual history.',
+          title: 'Keep Nyla in sync',
+          body: 'Use the same Nyla history across your devices. Your private data stays protected automatically.',
         ),
         const SizedBox(height: 18),
         _ActionCard(
-          icon: Icons.cloud_done_outlined,
+          icon: Icons.add_circle_outline_rounded,
           tint: NylaColors.roseSoft,
-          title: 'Create a private sync vault',
-          subtitle: 'Keep this device as the first trusted device.',
+          title: 'Start sync',
+          subtitle: 'Use this as your first Nyla device.',
           onTap: _busy ? null : _createVault,
         ),
         const SizedBox(height: 10),
         _ActionCard(
           icon: Icons.qr_code_scanner_rounded,
           tint: NylaColors.lavender,
-          title: 'Connect to another device',
-          subtitle: 'Scan the one-time QR shown by a device you already trust.',
+          title: 'Connect existing sync',
+          subtitle: 'Scan the code shown on another connected Nyla device.',
           onTap: _busy ? null : _scanPairing,
         ),
         const SizedBox(height: 10),
         _ActionCard(
           icon: Icons.key_rounded,
           tint: NylaColors.peach,
-          title: 'Recover with your recovery code',
-          subtitle: 'Use this only when an existing trusted device is unavailable.',
+          title: 'Recover sync',
+          subtitle: 'Use your recovery code when you don’t have another device.',
           onTap: _busy ? null : _recover,
         ),
+        if (_busy) ...[
+          const SizedBox(height: 18),
+          const Center(child: CircularProgressIndicator(strokeWidth: 2.2)),
+        ],
         if (_message != null) _StatusMessage(_message!),
       ],
     );
@@ -100,40 +111,45 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(18, 10, 18, 36),
         children: [
-          _IntroCard(
-            icon: Icons.lock_rounded,
+          const _IntroCard(
+            icon: Icons.check_rounded,
             tint: NylaColors.sage,
-            title: 'Your vault is connected.',
-            body: 'Readable health data and encryption keys stay on trusted devices. Sync can work even when your other devices are offline.',
+            title: 'Sync is on',
+            body: 'Changes can stay up to date across your connected Nyla devices.',
           ),
           const SizedBox(height: 18),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      const Expanded(child: Text('Sync now', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
-                      FilledButton.tonalIcon(
-                        onPressed: _busy ? null : _syncNow,
-                        icon: _busy
-                            ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.sync_rounded, size: 18),
-                        label: const Text('Sync'),
-                      ),
-                    ],
-                  ),
-                  if (_lastRun != null) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      _lastRun!.pending == 0
-                          ? '${_lastRun!.uploaded} uploaded · ${_lastRun!.downloaded} received · up to date'
-                          : '${_lastRun!.uploaded} uploaded · ${_lastRun!.downloaded} received · ${_lastRun!.pending} still pending',
-                      style: Theme.of(context).textTheme.bodyMedium,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Sync now',
+                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _syncStatusText(),
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton.tonalIcon(
+                    onPressed: _busy ? null : _syncNow,
+                    icon: _busy
+                        ? const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.sync_rounded, size: 18),
+                    label: const Text('Sync'),
+                  ),
                 ],
               ),
             ),
@@ -142,8 +158,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           _ActionCard(
             icon: Icons.add_to_photos_outlined,
             tint: NylaColors.lavender,
-            title: 'Add another device',
-            subtitle: 'Show a short-lived QR. Its secret never needs to be typed into a server.',
+            title: 'Add a device',
+            subtitle: 'Show a QR for your other Nyla device to scan.',
             onTap: _busy ? null : _addDevice,
           ),
           const SizedBox(height: 10),
@@ -151,24 +167,29 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             icon: Icons.key_rounded,
             tint: NylaColors.peach,
             title: 'Recovery code',
-            subtitle: 'View an unsaved code or replace the current recovery code.',
+            subtitle: 'View or replace the code used to recover your sync.',
             onTap: _busy ? null : _recoveryCode,
           ),
           const SizedBox(height: 22),
-          Text('Trusted devices', style: Theme.of(context).textTheme.titleLarge),
+          Text('Connected devices', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           FutureBuilder<List<SyncDevice>>(
             future: _devices,
             builder: (context, snapshot) {
               if (snapshot.connectionState != ConnectionState.done) {
-                return const Card(child: Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator(strokeWidth: 2))));
+                return const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
+                );
               }
               if (snapshot.hasError) {
                 return Card(
                   child: ListTile(
-                    leading: const Icon(Icons.cloud_off_rounded),
-                    title: const Text('Could not load devices'),
-                    subtitle: const Text('Pull down or tap to try again.'),
+                    leading: const Icon(Icons.sync_problem_rounded),
+                    title: const Text('Couldn’t load devices'),
+                    subtitle: const Text('Tap to try again.'),
                     onTap: () => setState(() => _devices = _service.devices()),
                   ),
                 );
@@ -177,14 +198,15 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               return Card(
                 child: Column(
                   children: [
-                    for (var i = 0; i < devices.length; i++) ...[
+                    for (var index = 0; index < devices.length; index++) ...[
                       _DeviceTile(
-                        device: devices[i],
-                        onRemove: devices[i].active && !devices[i].isCurrent
-                            ? () => _removeDevice(devices[i])
+                        device: devices[index],
+                        onRemove: devices[index].active && !devices[index].isCurrent
+                            ? () => _removeDevice(devices[index])
                             : null,
                       ),
-                      if (i != devices.length - 1) const Divider(height: 1, indent: 18, endIndent: 18),
+                      if (index != devices.length - 1)
+                        const Divider(height: 1, indent: 18, endIndent: 18),
                     ],
                   ],
                 ),
@@ -193,30 +215,38 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           ),
           if (_message != null) _StatusMessage(_message!),
           const SizedBox(height: 12),
-          Text(
-            'This device · ${_shortId(deviceId)}',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
+          Semantics(
+            label: 'Current device ${_shortId(deviceId)}',
+            child: const SizedBox.shrink(),
           ),
         ],
       ),
     );
   }
 
+  String _syncStatusText() {
+    final run = _lastRun;
+    if (run == null) return 'Ready';
+    if (run.pending > 0) return '${run.pending} change${run.pending == 1 ? '' : 's'} waiting to sync';
+    final moved = run.uploaded + run.downloaded;
+    if (moved == 0) return 'Up to date';
+    return 'Synced $moved change${moved == 1 ? '' : 's'}';
+  }
+
   Future<void> _createVault() async {
     await _guard(() async {
       final setup = await _service.createVault();
-      final saved = await _showRecoveryVerification(setup.recoveryCode);
-      if (!saved) {
-        setState(() => _message = 'Your vault exists, but Nyla will keep asking you to save its recovery code.');
-      } else {
-        await _service.confirmRecoveryCodeSaved();
-        final result = await _service.syncNow();
-        setState(() {
-          _lastRun = result;
-          _message = 'Private sync is ready.';
-        });
-      }
+      if (!mounted) return;
+      final saved = await _showRecoveryCode(setup.recoveryCode);
+      if (saved) await _service.confirmRecoveryCodeSaved();
+      final result = await _service.syncNow();
+      if (!mounted) return;
+      setState(() {
+        _lastRun = result;
+        _message = saved
+            ? 'Sync is ready.'
+            : 'Sync is ready. You can save your recovery code anytime from this screen.';
+      });
       _refresh();
     });
   }
@@ -224,9 +254,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   Future<void> _syncNow() async {
     await _guard(() async {
       final result = await _service.syncNow();
+      if (!mounted) return;
       setState(() {
         _lastRun = result;
-        _message = result.pending == 0 ? 'Everything is synced.' : '${result.pending} encrypted changes will retry.';
+        _message = result.pending == 0 ? 'Up to date.' : 'Nyla will retry the remaining changes automatically.';
         _devices = _service.devices();
       });
     });
@@ -242,12 +273,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             builder: (context) => _PairingInviteDialog(service: _service, code: code),
           ) ??
           false;
-      if (paired && mounted) {
-        setState(() {
-          _message = 'The new device is trusted and can now sync.';
-          _devices = _service.devices();
-        });
-      }
+      if (!mounted || !paired) return;
+      setState(() {
+        _message = 'Device connected.';
+        _devices = _service.devices();
+      });
     });
   }
 
@@ -261,25 +291,27 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
   Future<void> _joinPairing(String encodedCode) async {
     await _guard(() async {
+      if (mounted) setState(() => _message = 'Connecting…');
       final state = await _service.joinPairing(encodedCode);
-      if (!mounted) return;
-      final completed = await showDialog<bool>(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => _PairingJoinDialog(service: _service, state: state),
-          ) ??
-          false;
-      if (completed) {
-        final result = await _service.syncNow();
-        if (mounted) {
+
+      for (var attempt = 0; attempt < 60; attempt++) {
+        if (!mounted) return;
+        final complete = await _service.completePairing(state);
+        if (complete) {
+          final result = await _service.syncNow();
+          if (!mounted) return;
           setState(() {
             _lastRun = result;
-            _message = 'This device is now connected.';
+            _message = 'Connected. Your Nyla data is syncing now.';
             _devices = _service.devices();
           });
           _refresh();
+          return;
         }
+        await Future<void>.delayed(const Duration(milliseconds: 750));
       }
+
+      throw const SyncTransportException('pairing_timed_out');
     });
   }
 
@@ -287,25 +319,25 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     final code = await _textCodeDialog(
       title: 'Recovery code',
       hint: 'NYLA1.…',
-      description: 'Enter the recovery code you saved when private sync was created.',
+      description: 'Paste or enter the recovery code you saved earlier.',
     );
     if (code == null || code.trim().isEmpty) return;
+
     await _guard(() async {
       final setup = await _service.recoverVault(code);
       if (!mounted) return;
-      final saved = await _showRecoveryVerification(setup.recoveryCode);
+      final saved = await _showRecoveryCode(setup.recoveryCode);
       if (saved) await _service.confirmRecoveryCodeSaved();
       final result = await _service.syncNow();
-      if (mounted) {
-        setState(() {
-          _lastRun = result;
-          _message = saved
-              ? 'Recovery succeeded. The old recovery code has been replaced.'
-              : 'Recovery succeeded. Save the new recovery code before relying on recovery again.';
-          _devices = _service.devices();
-        });
-        _refresh();
-      }
+      if (!mounted) return;
+      setState(() {
+        _lastRun = result;
+        _message = saved
+            ? 'Sync recovered.'
+            : 'Sync recovered. Save the new recovery code when you can.';
+        _devices = _service.devices();
+      });
+      _refresh();
     });
   }
 
@@ -315,11 +347,17 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           builder: (context) => AlertDialog(
             title: const Text('Remove this device?'),
             content: const Text(
-              'Nyla will revoke the device and rotate your vault encryption key. The removed device cannot sync new health data after this completes. You will receive a new recovery code.',
+              'It will stop syncing with Nyla. Your other connected devices will keep working normally.',
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remove securely')),
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Remove device'),
+              ),
             ],
           ),
         ) ??
@@ -329,14 +367,14 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await _guard(() async {
       final result = await _service.rotateAndRevoke(device.deviceId);
       if (!mounted) return;
-      final saved = await _showRecoveryVerification(result.recoveryCode);
+      final saved = await _showRecoveryCode(result.recoveryCode);
       if (saved) await _service.confirmRecoveryCodeSaved();
       if (!mounted) return;
       setState(() {
         _devices = _service.devices();
         _message = saved
-            ? 'Device removed. Your vault key and recovery code were rotated.'
-            : 'Device removed and vault key rotated. Save the new recovery code before relying on recovery.';
+            ? 'Device removed.'
+            : 'Device removed. Save the new recovery code when you can.';
       });
     });
   }
@@ -346,12 +384,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       final pending = await _service.pendingRecoveryCode();
       final code = pending ?? await _service.rotateRecoveryCode();
       if (!mounted) return;
-      final saved = await _showRecoveryVerification(code);
+      final saved = await _showRecoveryCode(code);
       if (saved) {
         await _service.confirmRecoveryCodeSaved();
-        if (mounted) setState(() => _message = 'Recovery code confirmed and saved by you.');
-      } else if (mounted) {
-        setState(() => _message = 'Nyla will keep this recovery code available until you confirm it.');
+        if (mounted) setState(() => _message = 'Recovery code saved.');
       }
     });
   }
@@ -376,13 +412,29 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               controller: controller,
               autocorrect: false,
               enableSuggestions: false,
-              decoration: InputDecoration(hintText: hint),
+              decoration: InputDecoration(
+                hintText: hint,
+                suffixIcon: IconButton(
+                  tooltip: 'Paste',
+                  onPressed: () async {
+                    final data = await Clipboard.getData(Clipboard.kTextPlain);
+                    if (data?.text != null) controller.text = data!.text!.trim();
+                  },
+                  icon: const Icon(Icons.content_paste_rounded),
+                ),
+              ),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Continue')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Continue'),
+          ),
         ],
       ),
     );
@@ -390,33 +442,37 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     return result;
   }
 
-  Future<bool> _showRecoveryVerification(String code) async {
-    final suffix = code.length >= 8 ? code.substring(code.length - 8) : code;
-    final controller = TextEditingController();
+  Future<bool> _showRecoveryCode(String code) async {
     var copied = false;
-    final result = await showDialog<bool>(
+    return await showDialog<bool>(
           context: context,
           barrierDismissible: false,
           builder: (context) => StatefulBuilder(
             builder: (context, setDialogState) => AlertDialog(
-              title: const Text('Save your recovery code'),
+              title: const Text('Recovery code'),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Nyla cannot recover this secret for you. Keep it somewhere only you can access. A person with this code can authorize a new device.',
+                      'Keep this somewhere safe. You only need it if you lose access to all connected devices.',
                     ),
                     const SizedBox(height: 14),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(color: NylaColors.canvas, borderRadius: BorderRadius.circular(16)),
-                      child: SelectableText(code, style: const TextStyle(fontFamily: 'monospace', fontSize: 12.5)),
+                      decoration: BoxDecoration(
+                        color: NylaColors.canvas,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: SelectableText(
+                        code,
+                        style: const TextStyle(fontFamily: 'monospace', fontSize: 12.5),
+                      ),
                     ),
                     const SizedBox(height: 10),
-                    TextButton.icon(
+                    FilledButton.tonalIcon(
                       onPressed: () async {
                         await Clipboard.setData(ClipboardData(text: code));
                         setDialogState(() => copied = true);
@@ -424,39 +480,23 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                       icon: Icon(copied ? Icons.check_rounded : Icons.copy_rounded),
                       label: Text(copied ? 'Copied' : 'Copy code'),
                     ),
-                    const SizedBox(height: 12),
-                    Text('To confirm, enter the last 8 characters: $suffix'),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: controller,
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      decoration: const InputDecoration(hintText: 'Last 8 characters'),
-                    ),
                   ],
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Not yet')),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Later'),
+                ),
                 FilledButton(
-                  onPressed: () {
-                    if (controller.text.trim() == suffix) {
-                      Navigator.pop(context, true);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Those characters do not match the recovery code.')),
-                      );
-                    }
-                  },
-                  child: const Text('Confirm saved'),
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('I’ve saved it'),
                 ),
               ],
             ),
           ),
         ) ??
         false;
-    controller.dispose();
-    return result;
   }
 
   Future<void> _guard(Future<void> Function() action) async {
@@ -468,11 +508,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     try {
       await action();
     } on FormatException {
-      if (mounted) setState(() => _message = 'That Nyla code is not valid.');
+      if (mounted) setState(() => _message = 'That Nyla code isn’t valid.');
     } on SyncTransportException catch (error) {
       if (mounted) setState(() => _message = _friendlySyncError(error.message));
     } catch (_) {
-      if (mounted) setState(() => _message = 'Private sync could not complete that action safely.');
+      if (mounted) setState(() => _message = 'Couldn’t connect right now. Try again.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -484,17 +524,20 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   }
 
   String _friendlySyncError(String code) => switch (code) {
-        'sync_endpoint_not_configured' => 'Private sync is not configured in this build.',
-        'sync_already_configured' => 'This device is already connected to a private sync vault.',
-        'sync_not_configured' => 'Set up private sync first.',
+        'sync_endpoint_not_configured' => 'Sync isn’t available in this build.',
+        'sync_already_configured' => 'This device is already connected.',
+        'sync_not_configured' => 'Start sync on this device first.',
         'recovery_not_found' => 'That recovery code is no longer active.',
         'recovery_rate_limited' => 'Too many recovery attempts. Try again later.',
-        'device_not_authorized' => 'This device is no longer authorized for that vault.',
-        'vault_key_epoch_changed' => 'The vault security key changed on another device. Nyla stopped instead of risking an unsafe merge.',
-        _ => 'Private sync could not complete ($code).',
+        'device_not_authorized' => 'This device is no longer connected to that sync.',
+        'vault_key_epoch_changed' => 'Another device changed the shared sync state. Try syncing again.',
+        'pairing_timed_out' => 'The other device didn’t respond in time. Keep its QR open and try once more.',
+        'not_found' => 'That pairing code has expired. Create a new one on the other device.',
+        _ => 'Couldn’t connect right now. Try again.',
       };
 
-  String _shortId(String id) => id.length <= 10 ? id : '${id.substring(0, 5)}…${id.substring(id.length - 4)}';
+  String _shortId(String id) =>
+      id.length <= 10 ? id : '${id.substring(0, 5)}…${id.substring(id.length - 4)}';
 }
 
 class _PairingInviteDialog extends StatefulWidget {
@@ -511,12 +554,13 @@ class _PairingInviteDialogState extends State<_PairingInviteDialog> {
   Timer? _timer;
   bool _checking = false;
   bool _copied = false;
-  String _status = 'Waiting for the other device to scan…';
+  String _status = 'Waiting for your other device…';
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 2), (_) => _check());
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _check());
+    unawaited(_check());
   }
 
   Future<void> _check() async {
@@ -531,14 +575,10 @@ class _PairingInviteDialogState extends State<_PairingInviteDialog> {
         return;
       }
       setState(() {
-        _status = status.authorized
-            ? 'Device found. Finishing the encrypted handoff…'
-            : status.joined
-                ? 'Device found. Authorizing securely…'
-                : 'Waiting for the other device to scan…';
+        _status = status.joined ? 'Connecting…' : 'Waiting for your other device…';
       });
     } catch (_) {
-      if (mounted) setState(() => _status = 'Could not check pairing. Keep this open and Nyla will retry.');
+      if (mounted) setState(() => _status = 'Still waiting…');
     } finally {
       _checking = false;
     }
@@ -554,109 +594,50 @@ class _PairingInviteDialogState extends State<_PairingInviteDialog> {
   Widget build(BuildContext context) {
     final encoded = widget.code.toString();
     return AlertDialog(
-      title: const Text('Add a trusted device'),
+      title: const Text('Add a device'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('On the other device, open Private sync and scan this one-time QR.'),
+            const Text(
+              'On your other device, open Nyla → Private sync → Connect existing sync, then scan this code.',
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 18),
             Container(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22)),
-              child: QrImageView(data: encoded, size: 220, gapless: false),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: QrImageView(data: encoded, size: 238, gapless: false),
             ),
             const SizedBox(height: 16),
-            Text(_status, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium),
-            const SizedBox(height: 12),
-            ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              title: const Text('Can’t scan?'),
-              children: [
-                SelectableText(encoded, style: const TextStyle(fontFamily: 'monospace', fontSize: 11.5)),
-                TextButton.icon(
-                  onPressed: () async {
-                    await Clipboard.setData(ClipboardData(text: encoded));
-                    if (mounted) setState(() => _copied = true);
-                  },
-                  icon: Icon(_copied ? Icons.check_rounded : Icons.copy_rounded),
-                  label: Text(_copied ? 'Copied' : 'Copy pairing code'),
-                ),
-              ],
-            ),
-            const Text(
-              'Treat this QR like a temporary secret. Close this window if you did not initiate the pairing.',
+            Text(
+              _status,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: NylaColors.mutedInk),
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            FilledButton.tonalIcon(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: encoded));
+                if (mounted) setState(() => _copied = true);
+              },
+              icon: Icon(_copied ? Icons.check_rounded : Icons.copy_rounded),
+              label: Text(_copied ? 'Pairing code copied' : 'Copy pairing code'),
             ),
           ],
         ),
       ),
-      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel'))],
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Close'),
+        ),
+      ],
     );
   }
-}
-
-class _PairingJoinDialog extends StatefulWidget {
-  const _PairingJoinDialog({required this.service, required this.state});
-
-  final SyncService service;
-  final PairingJoinState state;
-
-  @override
-  State<_PairingJoinDialog> createState() => _PairingJoinDialogState();
-}
-
-class _PairingJoinDialogState extends State<_PairingJoinDialog> {
-  Timer? _timer;
-  bool _checking = false;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 2), (_) => _check());
-    unawaited(_check());
-  }
-
-  Future<void> _check() async {
-    if (_checking || !mounted) return;
-    _checking = true;
-    try {
-      final complete = await widget.service.completePairing(widget.state);
-      if (complete && mounted) {
-        _timer?.cancel();
-        Navigator.pop(context, true);
-      }
-    } catch (_) {
-      if (mounted) setState(() => _error = 'The secure handoff could not be completed.');
-    } finally {
-      _checking = false;
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-        title: const Text('Connecting securely'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(strokeWidth: 2.4),
-            const SizedBox(height: 18),
-            Text(
-              _error ?? 'Keep this open for a moment. Your trusted device is encrypting the vault key specifically for this pairing.',
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel'))],
-      );
 }
 
 class _PairingScannerScreen extends StatefulWidget {
@@ -667,22 +648,13 @@ class _PairingScannerScreen extends StatefulWidget {
 }
 
 class _PairingScannerScreenState extends State<_PairingScannerScreen> {
-  late final MobileScannerController _scanner;
-  StreamSubscription<BarcodeCapture>? _subscription;
   bool _handled = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _scanner = MobileScannerController(formats: const [BarcodeFormat.qrCode]);
-    _subscription = _scanner.barcodes.listen(_detected);
-  }
 
   void _detected(BarcodeCapture capture) {
     if (_handled || !mounted) return;
     for (final barcode in capture.barcodes) {
       final value = barcode.rawValue?.trim();
-      if (value != null && value.toUpperCase().startsWith('${PairingCode.prefix}.')) {
+      if (value != null && _looksLikePairingCode(value)) {
         _handled = true;
         Navigator.pop(context, value);
         return;
@@ -690,33 +662,62 @@ class _PairingScannerScreenState extends State<_PairingScannerScreen> {
     }
   }
 
+  bool _looksLikePairingCode(String value) =>
+      value.toUpperCase().startsWith('${PairingCode.prefix}.');
+
   Future<void> _manual() async {
     final controller = TextEditingController();
     final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Enter pairing code'),
-        content: TextField(
-          controller: controller,
-          autocorrect: false,
-          enableSuggestions: false,
-          decoration: const InputDecoration(hintText: 'NYLAP1.…'),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Use pairing code'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Paste the code from your other Nyla device.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: InputDecoration(
+                hintText: 'NYLAP1.…',
+                suffixIcon: IconButton(
+                  tooltip: 'Paste',
+                  onPressed: () async {
+                    final data = await Clipboard.getData(Clipboard.kTextPlain);
+                    if (data?.text != null) controller.text = data!.text!.trim();
+                  },
+                  icon: const Icon(Icons.content_paste_rounded),
+                ),
+              ),
+            ),
+          ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Continue')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (!_looksLikePairingCode(value)) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(content: Text('That doesn’t look like a Nyla pairing code.')),
+                );
+                return;
+              }
+              Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Connect'),
+          ),
         ],
       ),
     );
     controller.dispose();
-    if (result != null && result.isNotEmpty && mounted) Navigator.pop(context, result);
-  }
-
-  @override
-  void dispose() {
-    unawaited(_subscription?.cancel());
-    unawaited(_scanner.dispose());
-    super.dispose();
+    if (result != null && mounted) Navigator.pop(context, result);
   }
 
   @override
@@ -724,20 +725,33 @@ class _PairingScannerScreenState extends State<_PairingScannerScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Scan trusted device'),
+        title: const Text('Scan QR'),
         foregroundColor: Colors.white,
         backgroundColor: Colors.black,
-        actions: [TextButton(onPressed: _manual, child: const Text('Enter code'))],
+        actions: [
+          TextButton(
+            onPressed: _manual,
+            child: const Text('Use code'),
+          ),
+        ],
       ),
       body: Stack(
         fit: StackFit.expand,
         children: [
-          MobileScanner(controller: _scanner),
+          MobileScanner(
+            onDetect: _detected,
+            tapToFocus: true,
+            useAppLifecycleState: true,
+            errorBuilder: (context, error) => _ScannerError(
+              error: error,
+              onUseCode: _manual,
+            ),
+          ),
           IgnorePointer(
             child: Center(
               child: Container(
-                width: 250,
-                height: 250,
+                width: 248,
+                height: 248,
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.white, width: 2),
                   borderRadius: BorderRadius.circular(28),
@@ -749,9 +763,9 @@ class _PairingScannerScreenState extends State<_PairingScannerScreen> {
             child: Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
-                padding: EdgeInsets.all(26),
+                padding: EdgeInsets.fromLTRB(26, 26, 26, 34),
                 child: Text(
-                  'Only scan a QR shown inside Nyla on a device you trust.',
+                  'Point the camera at the QR on your other Nyla device.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                 ),
@@ -759,6 +773,58 @@ class _PairingScannerScreenState extends State<_PairingScannerScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ScannerError extends StatelessWidget {
+  const _ScannerError({required this.error, required this.onUseCode});
+
+  final MobileScannerException error;
+  final VoidCallback onUseCode;
+
+  @override
+  Widget build(BuildContext context) {
+    final denied = error.errorCode == MobileScannerErrorCode.permissionDenied;
+    return ColoredBox(
+      color: Colors.black,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(30),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                denied ? Icons.no_photography_rounded : Icons.qr_code_2_rounded,
+                color: Colors.white,
+                size: 42,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                denied ? 'Camera access is off' : 'Camera isn’t available',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                denied
+                    ? 'You can still connect using the pairing code from your other device.'
+                    : 'Use the pairing code instead.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFFD2D2D2)),
+              ),
+              const SizedBox(height: 18),
+              FilledButton.tonal(
+                onPressed: onUseCode,
+                child: const Text('Use pairing code'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -772,7 +838,7 @@ class _DeviceTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = device.isCurrent ? 'This device' : 'Trusted device';
+    final label = device.isCurrent ? 'This device' : 'Connected device';
     final id = device.deviceId.length <= 10
         ? device.deviceId
         : '${device.deviceId.substring(0, 5)}…${device.deviceId.substring(device.deviceId.length - 4)}';
@@ -785,10 +851,13 @@ class _DeviceTile extends StatelessWidget {
           color: device.active ? NylaColors.sage : NylaColors.peach,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: Icon(device.isCurrent ? Icons.smartphone_rounded : Icons.devices_rounded, size: 20),
+        child: Icon(
+          device.isCurrent ? Icons.smartphone_rounded : Icons.devices_rounded,
+          size: 20,
+        ),
       ),
       title: Text(label),
-      subtitle: Text('$id${device.revokedMs == null ? '' : ' · revoked'}'),
+      subtitle: Text('$id${device.revokedMs == null ? '' : ' · removed'}'),
       trailing: device.isCurrent
           ? const Icon(Icons.check_circle_rounded, color: NylaColors.rose)
           : onRemove == null
@@ -812,8 +881,8 @@ class _EndpointNotConfigured extends StatelessWidget {
           _IntroCard(
             icon: Icons.cloud_off_outlined,
             tint: NylaColors.peach,
-            title: 'Private sync is not enabled in this build.',
-            body: 'Your local encrypted data works normally. A production build enables sync by providing its HTTPS Nyla relay endpoint at build time.',
+            title: 'Sync isn’t available in this build',
+            body: 'Your Nyla data on this device still works normally.',
           ),
         ],
       );
@@ -834,7 +903,10 @@ class _CenteredError extends StatelessWidget {
             children: [
               Text(message, textAlign: TextAlign.center),
               const SizedBox(height: 14),
-              FilledButton.tonal(onPressed: onRetry, child: const Text('Try again')),
+              FilledButton.tonal(
+                onPressed: onRetry,
+                child: const Text('Try again'),
+              ),
             ],
           ),
         ),
@@ -842,7 +914,12 @@ class _CenteredError extends StatelessWidget {
 }
 
 class _IntroCard extends StatelessWidget {
-  const _IntroCard({required this.icon, required this.tint, required this.title, required this.body});
+  const _IntroCard({
+    required this.icon,
+    required this.tint,
+    required this.title,
+    required this.body,
+  });
 
   final IconData icon;
   final Color tint;
@@ -859,7 +936,10 @@ class _IntroCard extends StatelessWidget {
               Container(
                 width: 48,
                 height: 48,
-                decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(17)),
+                decoration: BoxDecoration(
+                  color: tint,
+                  borderRadius: BorderRadius.circular(17),
+                ),
                 child: Icon(icon),
               ),
               const SizedBox(height: 18),
@@ -894,7 +974,10 @@ class _ActionCard extends StatelessWidget {
           leading: Container(
             width: 42,
             height: 42,
-            decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(14)),
+            decoration: BoxDecoration(
+              color: tint,
+              borderRadius: BorderRadius.circular(14),
+            ),
             child: Icon(icon, size: 21),
           ),
           title: Text(title),
@@ -913,6 +996,10 @@ class _StatusMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(4, 16, 4, 0),
-        child: Text(message, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium),
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
       );
 }

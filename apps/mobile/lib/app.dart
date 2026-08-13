@@ -78,7 +78,12 @@ class _PrivacyGateState extends ConsumerState<_PrivacyGate> with WidgetsBindingO
     if (appLock.authenticationInProgress) return;
 
     switch (state) {
+      // `inactive` is also used for short-lived system UI such as camera or
+      // notification permission prompts. Treating that as a real background
+      // transition creates needless lock prompts while the user is still in
+      // Nyla. Only actual background states end the unlocked session.
       case AppLifecycleState.inactive:
+        return;
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
         appLock.lockSession();
