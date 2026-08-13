@@ -40,7 +40,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         builder: (context, snapshot) {
           if (!service.endpointConfigured) return const _EndpointNotConfigured();
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator(strokeWidth: 2.4));
+            return const Center(
+              child: CircularProgressIndicator(strokeWidth: 2.4),
+            );
           }
           if (snapshot.hasError) {
             return _CenteredError(
@@ -129,7 +131,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                       children: [
                         const Text(
                           'Sync now',
-                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -171,7 +176,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             onTap: _busy ? null : _recoveryCode,
           ),
           const SizedBox(height: 22),
-          Text('Connected devices', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'Connected devices',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 8),
           FutureBuilder<List<SyncDevice>>(
             future: _devices,
@@ -180,7 +188,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                 return const Card(
                   child: Padding(
                     padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    child: Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   ),
                 );
               }
@@ -190,7 +200,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     leading: const Icon(Icons.sync_problem_rounded),
                     title: const Text('Couldn’t load devices'),
                     subtitle: const Text('Tap to try again.'),
-                    onTap: () => setState(() => _devices = _service.devices()),
+                    onTap: () => setState(
+                      () => _devices = _service.devices(),
+                    ),
                   ),
                 );
               }
@@ -201,12 +213,17 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     for (var index = 0; index < devices.length; index++) ...[
                       _DeviceTile(
                         device: devices[index],
-                        onRemove: devices[index].active && !devices[index].isCurrent
+                        onRemove: devices[index].active &&
+                                !devices[index].isCurrent
                             ? () => _removeDevice(devices[index])
                             : null,
                       ),
                       if (index != devices.length - 1)
-                        const Divider(height: 1, indent: 18, endIndent: 18),
+                        const Divider(
+                          height: 1,
+                          indent: 18,
+                          endIndent: 18,
+                        ),
                     ],
                   ],
                 ),
@@ -227,7 +244,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   String _syncStatusText() {
     final run = _lastRun;
     if (run == null) return 'Ready';
-    if (run.pending > 0) return '${run.pending} change${run.pending == 1 ? '' : 's'} waiting to sync';
+    if (run.pending > 0) {
+      return '${run.pending} change${run.pending == 1 ? '' : 's'} waiting to sync';
+    }
     final moved = run.uploaded + run.downloaded;
     if (moved == 0) return 'Up to date';
     return 'Synced $moved change${moved == 1 ? '' : 's'}';
@@ -257,7 +276,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       if (!mounted) return;
       setState(() {
         _lastRun = result;
-        _message = result.pending == 0 ? 'Up to date.' : 'Nyla will retry the remaining changes automatically.';
+        _message = result.pending == 0
+            ? 'Up to date.'
+            : 'Nyla will retry the remaining changes automatically.';
         _devices = _service.devices();
       });
     });
@@ -270,7 +291,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       final paired = await showDialog<bool>(
             context: context,
             barrierDismissible: false,
-            builder: (context) => _PairingInviteDialog(service: _service, code: code),
+            builder: (context) => _PairingInviteDialog(
+              service: _service,
+              code: code,
+            ),
           ) ??
           false;
       if (!mounted || !paired) return;
@@ -418,7 +442,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   tooltip: 'Paste',
                   onPressed: () async {
                     final data = await Clipboard.getData(Clipboard.kTextPlain);
-                    if (data?.text != null) controller.text = data!.text!.trim();
+                    if (data?.text != null) {
+                      controller.text = data!.text!.trim();
+                    }
                   },
                   icon: const Icon(Icons.content_paste_rounded),
                 ),
@@ -463,12 +489,17 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: NylaColors.canvas,
+                        color: context.nyla.lavenderMist,
                         borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: context.nyla.outline),
                       ),
                       child: SelectableText(
                         code,
-                        style: const TextStyle(fontFamily: 'monospace', fontSize: 12.5),
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 12.5,
+                          color: context.nyla.ink,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -477,7 +508,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                         await Clipboard.setData(ClipboardData(text: code));
                         setDialogState(() => copied = true);
                       },
-                      icon: Icon(copied ? Icons.check_rounded : Icons.copy_rounded),
+                      icon: Icon(
+                        copied ? Icons.check_rounded : Icons.copy_rounded,
+                      ),
                       label: Text(copied ? 'Copied' : 'Copy code'),
                     ),
                   ],
@@ -512,7 +545,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     } on SyncTransportException catch (error) {
       if (mounted) setState(() => _message = _friendlySyncError(error.message));
     } catch (_) {
-      if (mounted) setState(() => _message = 'Couldn’t connect right now. Try again.');
+      if (mounted) {
+        setState(() => _message = 'Couldn’t connect right now. Try again.');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -536,8 +571,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         _ => 'Couldn’t connect right now. Try again.',
       };
 
-  String _shortId(String id) =>
-      id.length <= 10 ? id : '${id.substring(0, 5)}…${id.substring(id.length - 4)}';
+  String _shortId(String id) => id.length <= 10
+      ? id
+      : '${id.substring(0, 5)}…${id.substring(id.length - 4)}';
 }
 
 class _PairingInviteDialog extends StatefulWidget {
@@ -575,7 +611,9 @@ class _PairingInviteDialogState extends State<_PairingInviteDialog> {
         return;
       }
       setState(() {
-        _status = status.joined ? 'Connecting…' : 'Waiting for your other device…';
+        _status = status.joined
+            ? 'Connecting…'
+            : 'Waiting for your other device…';
       });
     } catch (_) {
       if (mounted) setState(() => _status = 'Still waiting…');
@@ -607,10 +645,17 @@ class _PairingInviteDialogState extends State<_PairingInviteDialog> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
+                // QR contrast must remain absolute in both app appearances.
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(22),
               ),
-              child: QrImageView(data: encoded, size: 238, gapless: false),
+              child: QrImageView(
+                data: encoded,
+                size: 238,
+                gapless: false,
+                eyeStyle: const QrEyeStyle(color: Colors.black),
+                dataModuleStyle: const QrDataModuleStyle(color: Colors.black),
+              ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -624,8 +669,12 @@ class _PairingInviteDialogState extends State<_PairingInviteDialog> {
                 await Clipboard.setData(ClipboardData(text: encoded));
                 if (mounted) setState(() => _copied = true);
               },
-              icon: Icon(_copied ? Icons.check_rounded : Icons.copy_rounded),
-              label: Text(_copied ? 'Pairing code copied' : 'Copy pairing code'),
+              icon: Icon(
+                _copied ? Icons.check_rounded : Icons.copy_rounded,
+              ),
+              label: Text(
+                _copied ? 'Pairing code copied' : 'Copy pairing code',
+              ),
             ),
           ],
         ),
@@ -687,7 +736,9 @@ class _PairingScannerScreenState extends State<_PairingScannerScreen> {
                   tooltip: 'Paste',
                   onPressed: () async {
                     final data = await Clipboard.getData(Clipboard.kTextPlain);
-                    if (data?.text != null) controller.text = data!.text!.trim();
+                    if (data?.text != null) {
+                      controller.text = data!.text!.trim();
+                    }
                   },
                   icon: const Icon(Icons.content_paste_rounded),
                 ),
@@ -705,7 +756,11 @@ class _PairingScannerScreenState extends State<_PairingScannerScreen> {
               final value = controller.text.trim();
               if (!_looksLikePairingCode(value)) {
                 ScaffoldMessenger.of(dialogContext).showSnackBar(
-                  const SnackBar(content: Text('That doesn’t look like a Nyla pairing code.')),
+                  const SnackBar(
+                    content: Text(
+                      'That doesn’t look like a Nyla pairing code.',
+                    ),
+                  ),
                 );
                 return;
               }
@@ -723,6 +778,7 @@ class _PairingScannerScreenState extends State<_PairingScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Camera framing is intentionally appearance-independent.
       backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text('Scan QR'),
@@ -731,6 +787,7 @@ class _PairingScannerScreenState extends State<_PairingScannerScreen> {
         actions: [
           TextButton(
             onPressed: _manual,
+            style: TextButton.styleFrom(foregroundColor: Colors.white),
             child: const Text('Use code'),
           ),
         ],
@@ -767,7 +824,10 @@ class _PairingScannerScreenState extends State<_PairingScannerScreen> {
                 child: Text(
                   'Point the camera at the QR on your other Nyla device.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -796,7 +856,9 @@ class _ScannerError extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                denied ? Icons.no_photography_rounded : Icons.qr_code_2_rounded,
+                denied
+                    ? Icons.no_photography_rounded
+                    : Icons.qr_code_2_rounded,
                 color: Colors.white,
                 size: 42,
               ),
@@ -842,24 +904,26 @@ class _DeviceTile extends StatelessWidget {
     final id = device.deviceId.length <= 10
         ? device.deviceId
         : '${device.deviceId.substring(0, 5)}…${device.deviceId.substring(device.deviceId.length - 4)}';
+    final palette = context.nyla;
     return ListTile(
       leading: Container(
         width: 40,
         height: 40,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: device.active ? NylaColors.sage : NylaColors.peach,
+          color: device.active ? palette.sage : palette.peach,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Icon(
           device.isCurrent ? Icons.smartphone_rounded : Icons.devices_rounded,
           size: 20,
+          color: palette.ink,
         ),
       ),
       title: Text(label),
       subtitle: Text('$id${device.revokedMs == null ? '' : ' · removed'}'),
       trailing: device.isCurrent
-          ? const Icon(Icons.check_circle_rounded, color: NylaColors.rose)
+          ? Icon(Icons.check_circle_rounded, color: palette.rose)
           : onRemove == null
               ? null
               : IconButton(
@@ -913,6 +977,17 @@ class _CenteredError extends StatelessWidget {
       );
 }
 
+Color _adaptiveSyncTint(BuildContext context, Color tint) {
+  final p = context.nyla;
+  if (tint == NylaColors.roseSoft) return p.roseSoft;
+  if (tint == NylaColors.lavender || tint == NylaColors.lavenderSoft) {
+    return p.lavender;
+  }
+  if (tint == NylaColors.sage || tint == NylaColors.sageSoft) return p.sage;
+  if (tint == NylaColors.peach || tint == NylaColors.peachSoft) return p.peach;
+  return p.lavender;
+}
+
 class _IntroCard extends StatelessWidget {
   const _IntroCard({
     required this.icon,
@@ -937,10 +1012,10 @@ class _IntroCard extends StatelessWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: tint,
+                  color: _adaptiveSyncTint(context, tint),
                   borderRadius: BorderRadius.circular(17),
                 ),
-                child: Icon(icon),
+                child: Icon(icon, color: context.nyla.ink),
               ),
               const SizedBox(height: 18),
               Text(title, style: Theme.of(context).textTheme.headlineMedium),
@@ -975,10 +1050,10 @@ class _ActionCard extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: tint,
+              color: _adaptiveSyncTint(context, tint),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, size: 21),
+            child: Icon(icon, size: 21, color: context.nyla.ink),
           ),
           title: Text(title),
           subtitle: Text(subtitle),
