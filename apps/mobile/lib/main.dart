@@ -74,11 +74,13 @@ class _NylaBootstrapState extends State<NylaBootstrap> {
     _activeDatabase = null;
     try {
       // A queued/running WorkManager isolate must never race local erasure.
-      // Once this lock is ours, cancel future work, destroy key material first,
-      // then remove SQLCipher files. A stale worker that wakes later re-checks
-      // secure storage under the same lock and exits without recreating data.
+      // Once this lock is ours, destroy key material first, then remove
+      // SQLCipher files. Cancellation is best-effort only: a stale worker that
+      // wakes later re-checks secure storage under this same lock and exits.
       await _syncRunLock.synchronized(() async {
-        await NylaBackgroundSync.cancelPending();
+        try {
+          await NylaBackgroundSync.cancelPending();
+        } catch (_) {}
         if (database != null) await database.close();
 
         // Destroy the encryption key first. Even if filesystem cleanup is
