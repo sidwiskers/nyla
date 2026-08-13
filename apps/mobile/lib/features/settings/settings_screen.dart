@@ -16,8 +16,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final configAsync = ref.watch(notificationConfigProvider);
     final config = configAsync.value ?? const NotificationConfig();
-    final appearance = ref.watch(appearanceProvider).value ??
-        ref.watch(initialAppearanceProvider);
+    final appearance = ref.watch(effectiveAppearanceProvider);
     final palette = context.nyla;
 
     return Scaffold(
