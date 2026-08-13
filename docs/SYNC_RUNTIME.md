@@ -9,7 +9,7 @@ A health-data edit always completes locally first:
 1. the encrypted SQLCipher database is updated
 2. the same local transaction records a field-scoped outbox mutation
 3. after that commit, the foreground runtime notices that the pending outbox grew
-4. Android is asked to keep one durable network-constrained sync request
+4. Android is asked to retain one durable network-constrained sync intent
 5. while Nyla is open, a short debounce coalesces nearby taps and the normal `SyncService.syncNow()` pipeline is attempted quietly
 
 The edit never waits for Cloudflare and never fails because background scheduling or networking is unavailable.
@@ -46,9 +46,11 @@ A WorkManager callback runs in a separate Dart isolate and can overlap the foreg
 - SQLCipher stays in WAL mode
 - SQLite has a bounded busy timeout
 - Drift transactions use immediate writer acquisition
-- automatic foreground sync and background sync share a cross-isolate advisory file lock
+- automatic foreground sync, background sync and local erasure share a dedicated SQLite guard transaction
 
-Local erasure uses that same lock. It cancels queued work, destroys secure key material first, then removes the SQLCipher database and WAL/SHM/journal sidecars. A stale worker re-checks existing credentials after acquiring the lock and exits if they no longer exist; it never calls key-generating accessors.
+The guard database contains no Nyla data or secrets. It exists only as a connection-aware mutex because ordinary POSIX advisory file locks are not sufficient to serialize separate Flutter isolates inside one process. SQLite releases the guard automatically when its connection/process dies, so it has no stale lock-file recovery problem.
+
+Local erasure acquires that same guard. It best-effort cancels queued work, destroys secure key material first, then removes the SQLCipher database and WAL/SHM/journal sidecars. A stale worker re-checks existing credentials after acquiring the guard and exits if they no longer exist; it never calls key-generating accessors.
 
 ## Security boundary
 
