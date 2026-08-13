@@ -56,18 +56,31 @@ class TodayScreen extends ConsumerWidget {
     final cramps = byKey['cramps'];
     if ((cramps?.severity ?? 0) > 0) return _tip('why-cramps-happen');
     final discharge = byKey['discharge'];
-    if (discharge != null && discharge.value != 'none') return _tip('normal-discharge');
+    if (discharge != null && discharge.value != 'none') {
+      return _tip('normal-discharge');
+    }
     final sleep = byKey['sleep'];
-    if (sleep != null && (sleep.value == 'poor' || sleep.value == 'very_poor')) {
+    if (sleep != null &&
+        (sleep.value == 'poor' || sleep.value == 'very_poor')) {
       return _tip('sleep-and-discomfort');
     }
     final flow = byKey['flow'];
-    if (flow != null && flow.value != 'none') return _tip('hands-before-after-products');
+    if (flow != null && flow.value != 'none') {
+      return _tip('hands-before-after-products');
+    }
 
     final safeGeneral = healthTips
-        .where((tip) => tip.category != TipCategory.seekCare && tip.id != 'tampon-metals-2026')
+        .where(
+          (tip) =>
+              tip.category != TipCategory.seekCare &&
+              tip.id != 'tampon-metals-2026',
+        )
         .toList(growable: false);
-    final index = DateTime.now().difference(DateTime.utc(2026, 1, 1)).inDays.abs() % safeGeneral.length;
+    final index = DateTime.now()
+            .difference(DateTime.utc(2026, 1, 1))
+            .inDays
+            .abs() %
+        safeGeneral.length;
     return safeGeneral[index];
   }
 
@@ -75,7 +88,11 @@ class TodayScreen extends ConsumerWidget {
 }
 
 class _CycleDashboard extends ConsumerWidget {
-  const _CycleDashboard({required this.today, required this.periods, required this.prediction});
+  const _CycleDashboard({
+    required this.today,
+    required this.periods,
+    required this.prediction,
+  });
 
   final LocalDay today;
   final AsyncValue<List<PeriodEntry>> periods;
@@ -89,7 +106,11 @@ class _CycleDashboard extends ConsumerWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFF0E9F8), Color(0xFFFBECEF), Color(0xFFFFF8F4)],
+          colors: [
+            Color(0xFFF0E9F8),
+            Color(0xFFFBECEF),
+            Color(0xFFFFF8F4),
+          ],
           stops: [0, 0.58, 1],
         ),
         borderRadius: BorderRadius.circular(30),
@@ -109,7 +130,7 @@ class _CycleDashboard extends ConsumerWidget {
         ),
         error: (_, _) => const SizedBox(
           height: 250,
-          child: Center(child: Text('Your cycle could not be loaded.')),
+          child: Center(child: Text('Couldn’t load your cycle.')),
         ),
         data: (history) {
           if (history.isEmpty) return _FirstCycle(today: today, ref: ref);
@@ -120,7 +141,8 @@ class _CycleDashboard extends ConsumerWidget {
               height: 250,
               child: Center(child: CircularProgressIndicator()),
             ),
-            error: (_, _) => _CycleBody(today: today, day: cycleDay, estimate: null),
+            error: (_, _) =>
+                _CycleBody(today: today, day: cycleDay, estimate: null),
             data: (result) => _CycleBody(
               today: today,
               day: cycleDay,
@@ -140,49 +162,59 @@ class _FirstCycle extends StatelessWidget {
   final WidgetRef ref;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        height: 250,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const _SoftEyebrow('YOUR CYCLE'),
-            const SizedBox(height: 24),
-            Container(
-              width: 58,
-              height: 58,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              alignment: Alignment.center,
-              child: const Icon(Icons.water_drop_rounded, color: NylaColors.rose, size: 26),
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SoftEyebrow('YOUR CYCLE'),
+          const SizedBox(height: 20),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
             ),
-            const SizedBox(height: 18),
-            Text(
-              'Start with what you know.',
-              style: Theme.of(context).textTheme.headlineMedium,
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.water_drop_rounded,
+              color: NylaColors.rose,
+              size: 23,
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Mark the first day of your period. Nyla learns from your own history instead of assuming every cycle is the same.',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const Spacer(),
-            FilledButton.icon(
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Start your cycle history',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 7),
+          Text(
+            'Mark the first day of your period.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
               onPressed: () async {
                 await NylaHaptics.confirm();
-                await ref.read(cycleRepositoryProvider).recordPeriod(start: today);
+                await ref
+                    .read(cycleRepositoryProvider)
+                    .recordPeriod(start: today);
               },
               icon: const Icon(Icons.water_drop_rounded, size: 17),
               label: const Text('My period started'),
             ),
-          ],
-        ),
+          ),
+        ],
       );
 }
 
 class _CycleBody extends StatelessWidget {
-  const _CycleBody({required this.today, required this.day, required this.estimate});
+  const _CycleBody({
+    required this.today,
+    required this.day,
+    required this.estimate,
+  });
 
   final LocalDay today;
   final int day;
@@ -192,7 +224,9 @@ class _CycleBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final headline = _headline(today, day, estimate);
     final cycleLength = estimate?.predictedCycleLength ?? 28;
-    final progress = day <= 0 ? 0.04 : (day / cycleLength).clamp(0.04, 1.0).toDouble();
+    final progress = day <= 0
+        ? 0.04
+        : (day / cycleLength).clamp(0.04, 1.0).toDouble();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -201,7 +235,8 @@ class _CycleBody extends StatelessWidget {
           children: [
             const _SoftEyebrow('YOUR CYCLE'),
             const Spacer(),
-            if (estimate != null) _ConfidenceBadge(confidence: estimate!.confidence),
+            if (estimate != null)
+              _ConfidenceBadge(confidence: estimate!.confidence),
           ],
         ),
         const SizedBox(height: 18),
@@ -214,12 +249,15 @@ class _CycleBody extends StatelessWidget {
                 children: [
                   Text(
                     headline,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 25),
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineMedium
+                        ?.copyWith(fontSize: 25),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     estimate == null
-                        ? 'A little more history will make your first estimate possible.'
+                        ? 'Add more cycle history for an estimate.'
                         : 'Expected ${rangeText(estimate!.earliestStart, estimate!.latestStart)}',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
@@ -245,12 +283,18 @@ class _CycleBody extends StatelessWidget {
           children: [
             Text(
               day > 0 ? 'Day $day' : 'Building history',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(fontSize: 11.5),
             ),
             const Spacer(),
             Text(
-              estimate == null ? 'More history needed' : '~$cycleLength day rhythm',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
+              estimate == null ? 'More history needed' : '~$cycleLength day cycle',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(fontSize: 11.5),
             ),
           ],
         ),
@@ -263,14 +307,21 @@ class _CycleBody extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(Icons.calendar_month_rounded, color: NylaColors.violet, size: 18),
+              const Icon(
+                Icons.calendar_month_rounded,
+                color: NylaColors.violet,
+                size: 18,
+              ),
               const SizedBox(width: 9),
               Expanded(
                 child: Text(
                   estimate == null
-                      ? 'Predictions start after enough completed history.'
-                      : 'The range gets wider when your cycles vary more.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
+                      ? 'Predictions start after enough completed cycles.'
+                      : 'Expected dates can shift as your cycles change.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontSize: 12),
                 ),
               ),
             ],
@@ -280,8 +331,14 @@ class _CycleBody extends StatelessWidget {
     );
   }
 
-  String _headline(LocalDay today, int cycleDay, CyclePrediction? prediction) {
-    if (prediction == null) return cycleDay > 0 ? 'Cycle day $cycleDay' : 'Building your history';
+  String _headline(
+    LocalDay today,
+    int cycleDay,
+    CyclePrediction? prediction,
+  ) {
+    if (prediction == null) {
+      return cycleDay > 0 ? 'Cycle day $cycleDay' : 'Building your history';
+    }
     final until = today.daysUntil(prediction.likelyStart);
     if (until > 1) return 'Period may start in $until days';
     if (until == 1) return 'Period may start tomorrow';
@@ -390,7 +447,7 @@ class _QuickRow extends StatelessWidget {
             tint: NylaColors.lavenderSoft,
             icon: Icons.calendar_month_rounded,
             title: 'Calendar',
-            subtitle: 'See your rhythm',
+            subtitle: 'Dates & history',
             onTap: () {
               NylaHaptics.select();
               context.go('/calendar');
@@ -448,7 +505,10 @@ class _QuickAction extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontSize: 11.5),
                 ),
               ],
             ),
@@ -495,31 +555,48 @@ class _TodayCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       alignment: Alignment.center,
-                      child: const Icon(Icons.style_rounded, color: NylaColors.violet, size: 17),
+                      child: const Icon(
+                        Icons.style_rounded,
+                        color: NylaColors.violet,
+                        size: 17,
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 15),
                 Text(
                   tip.title,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 23),
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineMedium
+                      ?.copyWith(fontSize: 23),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   tip.flash,
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: NylaColors.wine),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyLarge
+                      ?.copyWith(color: NylaColors.wine),
                 ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
                     Text(
-                      'Open the deck',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(color: NylaColors.violet),
+                      'Open card',
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelLarge
+                          ?.copyWith(color: NylaColors.violet),
                     ),
                     const SizedBox(width: 5),
-                    const Icon(Icons.arrow_forward_rounded, color: NylaColors.violet, size: 17),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: NylaColors.violet,
+                      size: 17,
+                    ),
                   ],
                 ),
               ],
