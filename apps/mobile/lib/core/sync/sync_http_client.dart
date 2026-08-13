@@ -149,12 +149,18 @@ final class SyncHttpClient {
       try {
         decoded = jsonDecode(utf8.decode(bytes));
       } catch (_) {
-        throw SyncTransportException('Sync service returned unreadable data (${streamed.statusCode}).');
+        throw SyncTransportException(
+          'Sync service returned unreadable data (${streamed.statusCode}).',
+          statusCode: streamed.statusCode,
+        );
       }
     }
     if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
       final code = decoded is Map<String, dynamic> ? decoded['error'] : null;
-      throw SyncTransportException(code is String ? code : 'HTTP ${streamed.statusCode}');
+      throw SyncTransportException(
+        code is String ? code : 'HTTP ${streamed.statusCode}',
+        statusCode: streamed.statusCode,
+      );
     }
     if (decoded is! Map<String, dynamic>) throw const SyncTransportException('Sync service returned invalid JSON.');
     return decoded;
@@ -167,9 +173,10 @@ final class SyncHttpClient {
 }
 
 final class SyncTransportException implements Exception {
-  const SyncTransportException(this.message);
+  const SyncTransportException(this.message, {this.statusCode});
 
   final String message;
+  final int? statusCode;
 
   @override
   String toString() => 'SyncTransportException: $message';
