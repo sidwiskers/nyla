@@ -797,7 +797,7 @@ class _AppLockTileState extends ConsumerState<_AppLockTile> {
 
   Future<void> _change(bool next) async {
     if (_busy) return;
-    NylaHaptics.select();
+    await NylaHaptics.select();
     setState(() => _busy = true);
 
     final appLock = ref.read(appLockServiceProvider);
@@ -837,7 +837,7 @@ class _AppLockTileState extends ConsumerState<_AppLockTile> {
       _busy = false;
     });
     if (saved && stored == next) {
-      NylaHaptics.confirm();
+      await NylaHaptics.confirm();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('App lock could not be saved.')),
