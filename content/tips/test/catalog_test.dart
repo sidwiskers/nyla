@@ -40,9 +40,46 @@ void main() {
     }
   });
 
+  test('cycle companion cards stay contextual and non-deterministic', () {
+    expect(cycleCompanionTips, hasLength(4));
+    expect(
+      cycleCompanionTips.map((tip) => tip.id).toSet(),
+      {
+        'cycle-now-period-start',
+        'cycle-now-early',
+        'cycle-now-middle',
+        'cycle-now-before-period',
+      },
+    );
+
+    for (final tip in cycleCompanionTips) {
+      expect(tip.tags, contains('cycle context'));
+      expect(tip.sources, isNotEmpty);
+    }
+
+    final middle = cycleCompanionTips.singleWhere(
+      (tip) => tip.id == 'cycle-now-middle',
+    );
+    expect(
+      middle.details.join(' ').toLowerCase(),
+      contains('cannot confirm'),
+      reason: 'Calendar context must not claim to identify ovulation.',
+    );
+
+    final premenstrual = cycleCompanionTips.singleWhere(
+      (tip) => tip.id == 'cycle-now-before-period',
+    );
+    expect(
+      premenstrual.details.join(' ').toLowerCase(),
+      contains('not everyone'),
+      reason: 'Premenstrual copy must describe possibility, not destiny.',
+    );
+  });
+
   test('search covers titles, body and tags', () {
     expect(healthTips.where((tip) => tip.matches('tampon')), isNotEmpty);
     expect(healthTips.where((tip) => tip.matches('cramps')), isNotEmpty);
     expect(healthTips.where((tip) => tip.matches('cleaning')), isNotEmpty);
+    expect(healthTips.where((tip) => tip.matches('cycle context')), hasLength(4));
   });
 }
