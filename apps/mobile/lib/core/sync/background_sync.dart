@@ -8,6 +8,7 @@ import 'package:workmanager/workmanager.dart';
 import '../../data/database/app_database.dart';
 import '../storage/secure_vault.dart';
 import 'sync_endpoint.dart';
+import 'sync_http_client.dart';
 import 'sync_run_lock.dart';
 import 'sync_service.dart';
 
