@@ -6,6 +6,7 @@ import 'package:health_content/health_content.dart';
 
 import '../../core/haptics/nyla_haptics.dart';
 import '../../core/model/date_text.dart';
+import '../../core/theme/nyla_theme.dart';
 import '../../data/database/app_database.dart';
 import '../../providers.dart';
 import '../../widgets/nyla_page.dart';
@@ -25,6 +26,8 @@ class TodayScreen extends ConsumerWidget {
     final cycleDay = cycleDayFor(today, periods.value);
     final current = experience.value;
     final values = dayValues.value ?? const <DayValueEntry>[];
+    final hasHistory = periods.value?.isNotEmpty ?? false;
+    final hasPersonalEstimate = prediction.value?.prediction != null;
 
     return NylaPage(
       title: 'Today',
@@ -47,6 +50,8 @@ class TodayScreen extends ConsumerWidget {
                 context.go('/learn');
               },
             )
+          else if (hasHistory && !hasPersonalEstimate)
+            _UnestimatedRhythmCard(cycleDay: cycleDay)
           else
             TodayQuietCycleCard(
               today: today,
@@ -128,4 +133,72 @@ class TodayScreen extends ConsumerWidget {
   }
 
   HealthTip _tip(String id) => healthTips.firstWhere((tip) => tip.id == id);
+}
+
+class _UnestimatedRhythmCard extends StatelessWidget {
+  const _UnestimatedRhythmCard({required this.cycleDay});
+
+  final int? cycleDay;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 17, 18, 17),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [palette.lavenderSoft, palette.roseWash],
+        ),
+        borderRadius: BorderRadius.circular(27),
+        border: Border.all(color: palette.glassBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'YOUR RHYTHM',
+                style: TextStyle(
+                  color: palette.violet,
+                  fontSize: 9.2,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.96,
+                ),
+              ),
+              if (cycleDay != null) ...[
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: palette.glass,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    'Day $cycleDay',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: palette.wine,
+                          fontSize: 10.5,
+                        ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Your rhythm is still taking shape',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 19),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'Nyla will bring timing and personal patterns forward once your own history supports them.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.42),
+          ),
+        ],
+      ),
+    );
+  }
 }
