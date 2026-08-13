@@ -108,10 +108,10 @@ final class SyncCoordinator {
     Duration delay = const Duration(seconds: 8),
   }) async {
     try {
-      // WorkManager's unique KEEP policy is the durable source of truth. It is
-      // deliberately safe to request the same work repeatedly: Android keeps a
-      // single unfinished worker and a completed worker never leaves stale
-      // in-memory state that could suppress a later request.
+      // WorkManager owns the durable coalescing state. Re-requesting the same
+      // unique work is intentional: REPLACE leaves one latest request and, if a
+      // previous worker is finishing, gives a newer mutation a successor instead
+      // of relying on an in-memory flag that another isolate cannot update.
       await _scheduleBackground(delay: delay);
     } catch (_) {
       // Android/OEM scheduler failures degrade to foreground/manual sync only;
