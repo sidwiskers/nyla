@@ -23,6 +23,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Finder visibleCardGesture() {
+    final visibleFlip = find.text('Tap to flip').hitTestable().first;
+    return find
+        .ancestor(of: visibleFlip, matching: find.byType(GestureDetector))
+        .first;
+  }
+
   testWidgets('front card is useful without source clutter', (tester) async {
     await pumpLearn(tester);
 
@@ -39,11 +46,11 @@ void main() {
   testWidgets('tapping a card flips to its full explanation', (tester) async {
     await pumpLearn(tester);
 
-    await tester.tap(find.text('Tap to flip').hitTestable());
+    await tester.tap(visibleCardGesture());
     await tester.pump(const Duration(milliseconds: 360));
 
     final first = healthTips.first;
-    expect(find.text('Flip back').hitTestable(), findsOneWidget);
+    expect(find.text('Flip back'), findsOneWidget);
     expect(find.text(first.flash), findsOneWidget);
     for (final paragraph in first.details) {
       expect(find.text(paragraph), findsOneWidget);
@@ -57,7 +64,7 @@ void main() {
   ) async {
     await pumpLearn(tester, size: const Size(360, 640));
 
-    expect(find.text('Tap to flip'), findsOneWidget);
+    expect(find.text('Tap to flip').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -180));
