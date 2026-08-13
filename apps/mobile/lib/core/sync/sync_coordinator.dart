@@ -5,7 +5,7 @@ import 'background_sync.dart';
 import 'sync_run_lock.dart';
 import 'sync_service.dart';
 
-typedef _ScheduleBackground = Future<void> Function({Duration delay});
+typedef SyncBackgroundScheduler = Future<void> Function({Duration delay});
 
 /// Turns local activity into sync attempts without changing sync semantics.
 ///
@@ -18,7 +18,7 @@ final class SyncCoordinator {
   SyncCoordinator({
     required this.service,
     required this.database,
-    _ScheduleBackground? scheduleBackground,
+    SyncBackgroundScheduler? scheduleBackground,
     Future<void> Function()? cancelBackground,
     SyncRunLock? runLock,
   })  : _scheduleBackground = scheduleBackground ?? NylaBackgroundSync.schedule,
@@ -30,7 +30,7 @@ final class SyncCoordinator {
 
   final SyncService service;
   final AppDatabase database;
-  final _ScheduleBackground _scheduleBackground;
+  final SyncBackgroundScheduler _scheduleBackground;
   final Future<void> Function() _cancelBackground;
   final SyncRunLock _runLock;
 
