@@ -23,6 +23,7 @@ Included:
 - medication / pain-relief log as user-entered notes, without dosage advice
 - custom symptoms and private notes
 - cycle predictions with uncertainty
+- cycle-aware educational context
 - personal pattern detection
 - local notifications
 - menstrual-health education
@@ -41,7 +42,7 @@ Excluded by product policy:
 - libido / sexual coaching
 - masturbation / pleasure content
 
-The engine may model cycle phases where needed for menstrual explanations, but Nyla does not present fertility estimates as contraception or conception guidance.
+Nyla may describe where a day sits relative to a recorded period and an uncertain next-period estimate when that helps explain menstrual experiences. It does not turn calendar position into a fertility estimate, contraceptive claim or assertion about an unobserved biological event.
 
 ## Technology
 
@@ -61,7 +62,7 @@ State is managed with Riverpod. Navigation uses `go_router`. Persistence uses Dr
 
 ### Prediction package
 
-`packages/cycle_engine` is pure Dart with no Flutter dependency. It contains date-safe menstrual calculations, robust statistics, prediction confidence and later personal-pattern analysis. Keeping this isolated makes it straightforward to fuzz and property-test.
+`packages/cycle_engine` is pure Dart with no Flutter dependency. It contains date-safe menstrual calculations, robust statistics, prediction confidence, cycle-context placement and personal-pattern analysis. Keeping this isolated makes it straightforward to fuzz and property-test.
 
 ### Sync
 
@@ -147,6 +148,18 @@ The engine uses robust statistics and recency weighting. Extreme historical valu
 
 Predictions are recalculated locally whenever relevant history changes.
 
+## Cycle companion philosophy
+
+Cycle-aware guidance is an education feature, not a hidden fertility model.
+
+`CycleExperienceEngine` places a day into a small number of broad context windows. The first days and early-cycle windows are anchored only to an actually recorded period start. Middle-cycle and approaching-period context is shown only when the existing next-period prediction is available and scales with Nyla's predicted cycle length instead of assuming a universal 28-day cycle.
+
+The engine deliberately does **not** infer hormone levels, detect ovulation, manufacture a fertile window or assign a fixed emotional "phase personality". If a day does not have a useful, defensible context, it returns no experience rather than filling the interface with a guess.
+
+The timing engine and medical copy are separate. Timing remains pure Dart and deterministic; explanations live in the reviewed health-content package with sources, versions and review dates.
+
+Generic guidance can be strengthened by the user's own history, but only when the existing symptom-pattern analyzer has enough explicitly observed cycles to support a repeated pattern. Missing logs remain unknown rather than becoming implicit negative observations. This lets Nyla say what *this user has repeatedly logged* without presenting correlation as cause or diagnosis.
+
 ## Failure philosophy
 
 - Cloud unavailable: local tracking continues normally; queued sync work remains local and retries only from the device.
@@ -156,3 +169,4 @@ Predictions are recalculated locally whenever relevant history changes.
 - Corrupt or unauthenticated remote operation: fail closed and do not advance the sync cursor.
 - Lost recovery key and all authorized devices: encrypted cloud data is intentionally unrecoverable.
 - Prediction has too little history: show uncertainty plainly rather than manufacture precision.
+- Cycle context is not defensible for a day: show no cycle companion card rather than invent one.

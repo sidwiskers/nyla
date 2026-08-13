@@ -1,19 +1,73 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="petalLight" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E9DDF7"/><stop offset="1" stop-color="#C5A9E6"/></linearGradient>
-    <linearGradient id="petalMid" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#CDB4EC"/><stop offset="1" stop-color="#9873C9"/></linearGradient>
-    <linearGradient id="petalDeep" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9D79CF"/><stop offset="1" stop-color="#65469A"/></linearGradient>
-    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#59417F"/><stop offset="1" stop-color="#302454"/></linearGradient>
+    <linearGradient id="nylaDeep" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3E2A50"/>
+      <stop offset="0.58" stop-color="#634576"/>
+      <stop offset="1" stop-color="#8B6AA0"/>
+    </linearGradient>
+    <linearGradient id="nylaRose" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#D2A5B8"/>
+      <stop offset="0.52" stop-color="#B47D99"/>
+      <stop offset="1" stop-color="#875875"/>
+    </linearGradient>
+    <linearGradient id="nylaLilac" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#E2D5EA"/>
+      <stop offset="1" stop-color="#AB91BE"/>
+    </linearGradient>
   </defs>
-  <rect width="1024" height="1024" fill="#FFF8F4"/>
-  <circle cx="796" cy="206" r="22" fill="#E7B18E"/>
-  <path d="M512 548 C510 650 511 736 512 836" fill="none" stroke="#3B2C61" stroke-width="18" stroke-linecap="round"/>
-  <path d="M506 674 C438 635 372 620 308 634 C326 708 390 760 488 735 C499 720 505 697 506 674Z" fill="url(#leaf)"/>
-  <path d="M518 680 C589 638 660 625 725 644 C699 718 631 765 535 735 C524 720 518 700 518 680Z" fill="url(#leaf)"/>
-  <path d="M512 522 C413 500 344 429 332 329 C415 342 477 395 512 483 C547 395 609 342 692 329 C680 429 611 500 512 522Z" fill="url(#petalDeep)"/>
-  <path d="M500 514 C420 469 386 382 413 285 C488 326 526 398 512 489 C498 398 536 326 611 285 C638 382 604 469 524 514Z" fill="url(#petalMid)" opacity="0.98"/>
-  <path d="M512 492 C455 428 448 327 512 220 C576 327 569 428 512 492Z" fill="url(#petalLight)"/>
-  <path d="M512 492 C487 411 492 325 512 220 C532 325 537 411 512 492Z" fill="url(#petalMid)" opacity="0.72"/>
-  <path d="M500 520 C448 523 389 500 342 458 C384 447 433 456 476 486 C487 493 495 504 500 520Z" fill="#8060B3" opacity="0.82"/>
-  <path d="M524 520 C576 523 635 500 682 458 C640 447 591 456 548 486 C537 493 529 504 524 520Z" fill="#8060B3" opacity="0.82"/>
+
+  <rect width="1024" height="1024" fill="#FFF8F5"/>
+
+  <!--
+    Nyla's mark is a continuous-feeling cycle of three soft ribbons around a
+    protected center. It deliberately avoids a literal flower, uterus, calendar,
+    or droplet silhouette so the icon can stand on its own as a product mark.
+  -->
+  <path
+    d="M690 290
+       C559 229 405 254 316 356
+       C232 452 244 594 323 682
+       C392 760 507 795 609 759
+       C541 744 482 703 448 643
+       C397 553 408 455 470 389
+       C523 332 605 308 690 330
+       C718 337 735 305 690 290Z"
+    fill="url(#nylaDeep)"
+  />
+  <path
+    d="M331 626
+       C390 731 513 786 629 747
+       C748 707 807 584 775 472
+       C752 389 688 325 608 299
+       C658 348 685 413 682 481
+       C677 581 613 663 523 696
+       C453 722 383 697 331 626Z"
+    fill="url(#nylaRose)"
+  />
+  <path
+    d="M347 399
+       C383 322 463 274 550 284
+       C640 294 711 358 733 443
+       C695 391 638 359 576 354
+       C493 346 419 386 378 451
+       C352 492 344 448 347 399Z"
+    fill="url(#nylaLilac)"
+  />
+
+  <path
+    d="M512 394
+       C570 420 612 475 608 536
+       C603 610 558 659 512 682
+       C466 659 421 610 416 536
+       C412 475 454 420 512 394Z"
+    fill="#FFF8F5"
+  />
+  <path
+    d="M512 438
+       C545 460 565 493 561 528
+       C557 566 536 592 512 608
+       C488 592 467 566 463 528
+       C459 493 479 460 512 438Z"
+    fill="#513261"
+  />
 </svg>
