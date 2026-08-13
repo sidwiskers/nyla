@@ -10,7 +10,8 @@ import '../../core/theme/nyla_theme.dart';
 import '../../data/database/app_database.dart';
 import '../../providers.dart';
 import '../../widgets/nyla_page.dart';
-import 'today_widgets.dart';
+import 'today_cycle_hero.dart';
+import 'today_widgets.dart' hide TodayCycleMomentHero;
 
 class TodayScreen extends ConsumerWidget {
   const TodayScreen({super.key});
@@ -26,11 +27,12 @@ class TodayScreen extends ConsumerWidget {
     final cycleDay = cycleDayFor(today, periods.value);
     final current = experience.value;
     final values = dayValues.value ?? const <DayValueEntry>[];
+    final estimate = prediction.value?.prediction;
     final hasHistory = periods.value?.isNotEmpty ?? false;
-    final hasPersonalEstimate = prediction.value?.prediction != null;
+    final hasPersonalEstimate = estimate != null;
 
     return NylaPage(
-      title: 'Today',
+      title: _greeting(),
       subtitle: cycleDay == null
           ? friendlyDay(today)
           : '${friendlyDay(today)} · Cycle day $cycleDay',
@@ -45,6 +47,7 @@ class TodayScreen extends ConsumerWidget {
                 moment,
                 patterns.value ?? const <SymptomPattern>[],
               ),
+              estimate: estimate,
               onExplore: () {
                 NylaHaptics.select();
                 context.go('/learn');
@@ -78,6 +81,13 @@ class TodayScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  String _greeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
   }
 
   HealthTip _recommendedTip(List<DayValueEntry> values) {
