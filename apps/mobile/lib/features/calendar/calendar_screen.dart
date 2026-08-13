@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:cycle_engine/cycle_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,12 +22,13 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final periods = ref.watch(periodHistoryProvider).value ?? const <PeriodEntry>[];
+    final periods =
+        ref.watch(periodHistoryProvider).value ?? const <PeriodEntry>[];
     final prediction = ref.watch(cyclePredictionProvider).value?.prediction;
 
     return NylaPage(
       title: 'Calendar',
-      subtitle: 'Recorded days stay clear. Predictions stay visibly uncertain.',
+      subtitle: 'Period history and expected dates.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -39,16 +38,20 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             prediction: prediction,
             onPrevious: () {
               NylaHaptics.select();
-              setState(() => month = DateTime(month.year, month.month - 1));
+              setState(
+                () => month = DateTime(month.year, month.month - 1),
+              );
             },
             onNext: () {
               NylaHaptics.select();
-              setState(() => month = DateTime(month.year, month.month + 1));
+              setState(
+                () => month = DateTime(month.year, month.month + 1),
+              );
             },
           ),
           if (prediction != null) ...[
             const SizedBox(height: 16),
-            _PredictionStory(prediction: prediction),
+            _PredictionCard(prediction: prediction),
           ],
           const SizedBox(height: 15),
           _HistoryAction(
@@ -81,6 +84,7 @@ class _CalendarCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
@@ -88,52 +92,61 @@ class _CalendarCanvas extends StatelessWidget {
             colors: [Color(0xFFF4EEF9), NylaColors.cream, Color(0xFFFFF2ED)],
             stops: [0, 0.56, 1],
           ),
-          borderRadius: BorderRadius.circular(36),
+          borderRadius: BorderRadius.circular(32),
           border: Border.all(color: Colors.white, width: 1.2),
           boxShadow: const [
-            BoxShadow(color: Color(0x1833203E), blurRadius: 30, offset: Offset(0, 13)),
+            BoxShadow(
+              color: Color(0x142B2231),
+              blurRadius: 24,
+              offset: Offset(0, 10),
+            ),
           ],
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
+        child: Column(
           children: [
-            Positioned(
-              right: -72,
-              top: -64,
-              child: CustomPaint(
-                size: const Size.square(190),
-                painter: const _MonthHaloPainter(),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
-              child: Column(
-                children: [
-                  Row(
+            Row(
+              children: [
+                _MonthButton(
+                  icon: Icons.chevron_left_rounded,
+                  tooltip: 'Previous month',
+                  onTap: onPrevious,
+                ),
+                Expanded(
+                  child: Column(
                     children: [
-                      _MonthButton(icon: Icons.chevron_left_rounded, tooltip: 'Previous month', onTap: onPrevious),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Text(
-                              monthYear(month),
-                              style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 26),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(_monthContext(month), style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5)),
-                          ],
-                        ),
+                      Text(
+                        monthYear(month),
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(fontSize: 25),
                       ),
-                      _MonthButton(icon: Icons.chevron_right_rounded, tooltip: 'Next month', onTap: onNext),
+                      const SizedBox(height: 3),
+                      Text(
+                        _monthContext(month),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(fontSize: 11.5),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 18),
-                  _MonthGrid(month: month, periods: periods, prediction: prediction),
-                  const SizedBox(height: 17),
-                  const _Legend(),
-                ],
-              ),
+                ),
+                _MonthButton(
+                  icon: Icons.chevron_right_rounded,
+                  tooltip: 'Next month',
+                  onTap: onNext,
+                ),
+              ],
             ),
+            const SizedBox(height: 18),
+            _MonthGrid(
+              month: month,
+              periods: periods,
+              prediction: prediction,
+            ),
+            const SizedBox(height: 16),
+            const _Legend(),
           ],
         ),
       );
@@ -141,13 +154,17 @@ class _CalendarCanvas extends StatelessWidget {
   String _monthContext(DateTime value) {
     final now = DateTime.now();
     if (value.year == now.year && value.month == now.month) return 'This month';
-    if (value.isBefore(DateTime(now.year, now.month))) return 'Recorded history';
-    return 'Looking ahead';
+    if (value.isBefore(DateTime(now.year, now.month))) return 'History';
+    return 'Upcoming';
   }
 }
 
 class _MonthButton extends StatelessWidget {
-  const _MonthButton({required this.icon, required this.tooltip, required this.onTap});
+  const _MonthButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String tooltip;
@@ -155,7 +172,7 @@ class _MonthButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Colors.white.withValues(alpha: 0.72),
+        color: Colors.white.withValues(alpha: 0.76),
         shape: const CircleBorder(),
         child: IconButton(
           tooltip: tooltip,
@@ -167,7 +184,11 @@ class _MonthButton extends StatelessWidget {
 }
 
 class _MonthGrid extends StatelessWidget {
-  const _MonthGrid({required this.month, required this.periods, required this.prediction});
+  const _MonthGrid({
+    required this.month,
+    required this.periods,
+    required this.prediction,
+  });
 
   final DateTime month;
   final List<PeriodEntry> periods;
@@ -196,8 +217,8 @@ class _MonthGrid extends StatelessWidget {
                     style: const TextStyle(
                       color: NylaColors.faintInk,
                       fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.4,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
                     ),
                   ),
                 ),
@@ -208,20 +229,24 @@ class _MonthGrid extends StatelessWidget {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: cells,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 7),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+          ),
           itemBuilder: (context, index) {
             final number = index - leading + 1;
             if (number < 1 || number > days) return const SizedBox.shrink();
-            final day = LocalDay.fromDateTime(DateTime(month.year, month.month, number));
+            final day = LocalDay.fromDateTime(
+              DateTime(month.year, month.month, number),
+            );
             final actual = _isRecordedPeriod(day);
             final predicted = _isPredicted(day);
-            final isToday = day == today;
             return _DayCell(
               number: number,
               actual: actual,
               predicted: predicted,
-              today: isToday,
-              semanticsLabel: '${friendlyDay(day)}${actual ? ', recorded period' : ''}${predicted ? ', expected range' : ''}',
+              today: day == today,
+              semanticsLabel:
+                  '${friendlyDay(day)}${actual ? ', period' : ''}${predicted && !actual ? ', expected period range' : ''}',
               onTap: () {
                 NylaHaptics.select();
                 context.go('/log?day=${day.toIsoString()}');
@@ -244,7 +269,8 @@ class _MonthGrid extends StatelessWidget {
   bool _isPredicted(LocalDay day) {
     final value = prediction;
     if (value == null) return false;
-    return day.epochDay >= value.earliestStart.epochDay && day.epochDay <= value.latestStart.epochDay;
+    return day.epochDay >= value.earliestStart.epochDay &&
+        day.epochDay <= value.latestStart.epochDay;
   }
 }
 
@@ -258,6 +284,9 @@ class _DayCell extends StatelessWidget {
     required this.onTap,
   });
 
+  static const expectedGreen = Color(0xFF6F9B82);
+  static const expectedFill = Color(0xFFE8F2EC);
+
   final int number;
   final bool actual;
   final bool predicted;
@@ -266,61 +295,70 @@ class _DayCell extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-        button: true,
-        label: semanticsLabel,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: Padding(
-            padding: const EdgeInsets.all(2.5),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    gradient: actual
-                        ? const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [NylaColors.violet, NylaColors.rose],
-                          )
-                        : null,
-                    color: actual ? null : (predicted ? NylaColors.lavenderSoft : Colors.transparent),
-                    shape: BoxShape.circle,
-                    border: predicted && !actual ? Border.all(color: NylaColors.violet.withValues(alpha: 0.7), width: 1.15) : null,
-                    boxShadow: actual
-                        ? const [BoxShadow(color: Color(0x277056A3), blurRadius: 10, offset: Offset(0, 4))]
-                        : null,
+  Widget build(BuildContext context) {
+    final expectedOnly = predicted && !actual;
+    return Semantics(
+      button: true,
+      label: semanticsLabel,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.all(2.5),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOutCubic,
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: actual
+                      ? NylaColors.rose
+                      : expectedOnly
+                          ? expectedFill
+                          : Colors.transparent,
+                  shape: BoxShape.circle,
+                  border: expectedOnly
+                      ? Border.all(color: expectedGreen, width: 1.2)
+                      : null,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '$number',
+                  style: TextStyle(
+                    color: actual
+                        ? Colors.white
+                        : expectedOnly
+                            ? const Color(0xFF4D715D)
+                            : NylaColors.mutedInk,
+                    fontSize: 13,
+                    fontWeight:
+                        actual || today ? FontWeight.w700 : FontWeight.w600,
                   ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '$number',
-                    style: TextStyle(
-                      color: actual ? Colors.white : (predicted ? NylaColors.wine : NylaColors.mutedInk),
-                      fontSize: 13,
-                      fontWeight: actual || today ? FontWeight.w800 : FontWeight.w600,
+                ),
+              ),
+              if (today && !actual && !expectedOnly)
+                const Positioned(
+                  bottom: 2,
+                  child: SizedBox(
+                    width: 4,
+                    height: 4,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: NylaColors.violet,
+                        shape: BoxShape.circle,
+                      ),
                     ),
                   ),
                 ),
-                if (today && !actual)
-                  const Positioned(
-                    bottom: 2,
-                    child: SizedBox(
-                      width: 4,
-                      height: 4,
-                      child: DecoratedBox(decoration: BoxDecoration(color: NylaColors.rose, shape: BoxShape.circle)),
-                    ),
-                  ),
-              ],
-            ),
+            ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _Legend extends StatelessWidget {
@@ -328,82 +366,98 @@ class _Legend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.58),
-          borderRadius: BorderRadius.circular(19),
+          color: Colors.white.withValues(alpha: 0.62),
+          borderRadius: BorderRadius.circular(18),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _LegendItem(kind: _LegendKind.recorded, label: 'Recorded'),
-            SizedBox(width: 20),
-            _LegendItem(kind: _LegendKind.expected, label: 'Expected range'),
+            _LegendDot(color: NylaColors.rose, label: 'Period'),
+            SizedBox(width: 22),
+            _LegendDot(color: Color(0xFF6F9B82), label: 'Expected'),
           ],
         ),
       );
 }
 
-enum _LegendKind { recorded, expected }
+class _LegendDot extends StatelessWidget {
+  const _LegendDot({required this.color, required this.label});
 
-class _LegendItem extends StatelessWidget {
-  const _LegendItem({required this.kind, required this.label});
-
-  final _LegendKind kind;
+  final Color color;
   final String label;
 
   @override
   Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 14,
-            height: 14,
-            decoration: BoxDecoration(
-              gradient: kind == _LegendKind.recorded
-                  ? const LinearGradient(colors: [NylaColors.violet, NylaColors.rose])
-                  : null,
-              color: kind == _LegendKind.expected ? NylaColors.lavenderSoft : null,
-              shape: BoxShape.circle,
-              border: kind == _LegendKind.expected ? Border.all(color: NylaColors.violet, width: 1) : null,
-            ),
+            width: 9,
+            height: 9,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 7),
-          Text(label, style: const TextStyle(color: NylaColors.mutedInk, fontSize: 11.5, fontWeight: FontWeight.w700)),
+          Text(
+            label,
+            style: const TextStyle(
+              color: NylaColors.mutedInk,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       );
 }
 
-class _PredictionStory extends StatelessWidget {
-  const _PredictionStory({required this.prediction});
+class _PredictionCard extends StatelessWidget {
+  const _PredictionCard({required this.prediction});
 
   final CyclePrediction prediction;
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(19, 18, 19, 18),
+        padding: const EdgeInsets.fromLTRB(18, 17, 18, 17),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [NylaColors.lavenderSoft, NylaColors.sageSoft]),
-          borderRadius: BorderRadius.circular(27),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.78)),
+          gradient: const LinearGradient(
+            colors: [NylaColors.lavenderSoft, NylaColors.sageSoft],
+          ),
+          borderRadius: BorderRadius.circular(25),
+          border: Border.all(color: Colors.white),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 48,
-              height: 48,
-              child: CustomPaint(painter: const _PredictionGlyphPainter()),
+            Container(
+              width: 43,
+              height: 43,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.76),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.calendar_today_rounded,
+                color: Color(0xFF6F9B82),
+                size: 19,
+              ),
             ),
-            const SizedBox(width: 13),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Expected ${rangeText(prediction.earliestStart, prediction.latestStart)}', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 5),
                   Text(
-                    'The outlined days are a window, not a promise. Your recent cycle variation is about ${prediction.variabilityDays.toStringAsFixed(1)} days, so Nyla leaves room for uncertainty.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: NylaColors.ink, fontSize: 12.2),
+                    'Expected ${rangeText(prediction.earliestStart, prediction.latestStart)}',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Based on your recent cycles. This range can shift.',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(fontSize: 12),
                   ),
                 ],
               ),
@@ -427,7 +481,7 @@ class _HistoryAction extends StatelessWidget {
           child: Ink(
             padding: const EdgeInsets.fromLTRB(16, 14, 15, 14),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.68),
+              color: Colors.white.withValues(alpha: 0.7),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: Colors.white),
             ),
@@ -436,70 +490,43 @@ class _HistoryAction extends StatelessWidget {
                 Container(
                   width: 40,
                   height: 40,
-                  decoration: BoxDecoration(color: NylaColors.roseWash, borderRadius: BorderRadius.circular(14)),
-                  child: const Icon(Icons.edit_calendar_rounded, color: NylaColors.violet, size: 19),
+                  decoration: BoxDecoration(
+                    color: NylaColors.roseWash,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.edit_calendar_rounded,
+                    color: NylaColors.violet,
+                    size: 19,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Period history', style: Theme.of(context).textTheme.titleMedium),
+                      Text(
+                        'Period history',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                       const SizedBox(height: 2),
-                      Text('Correct or add past dates', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.2)),
+                      Text(
+                        'Add or correct dates',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(fontSize: 11.2),
+                      ),
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded, color: NylaColors.faintInk),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: NylaColors.faintInk,
+                ),
               ],
             ),
           ),
         ),
       );
-}
-
-class _MonthHaloPainter extends CustomPainter {
-  const _MonthHaloPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 16
-      ..color = NylaColors.lavender.withValues(alpha: 0.16);
-    canvas.drawArc(Rect.fromCircle(center: center, radius: size.width * 0.33), -math.pi * 0.85, math.pi * 1.35, false, paint);
-    paint
-      ..strokeWidth = 5
-      ..color = NylaColors.rose.withValues(alpha: 0.12);
-    canvas.drawArc(Rect.fromCircle(center: center, radius: size.width * 0.44), -math.pi * 0.3, math.pi * 0.92, false, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _PredictionGlyphPainter extends CustomPainter {
-  const _PredictionGlyphPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final base = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round
-      ..color = NylaColors.violet.withValues(alpha: 0.22);
-    final active = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round
-      ..color = NylaColors.violet;
-    canvas.drawArc(Rect.fromCircle(center: center, radius: 17), -math.pi / 2, math.pi * 2, false, base);
-    canvas.drawArc(Rect.fromCircle(center: center, radius: 17), -math.pi / 2, math.pi * 1.18, false, active);
-    canvas.drawCircle(center, 4, Paint()..color = NylaColors.rose);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

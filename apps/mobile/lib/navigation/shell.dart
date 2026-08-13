@@ -29,37 +29,43 @@ class NylaShell extends StatelessWidget {
       body: child,
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-        child: Container(
-          height: 70,
-          padding: const EdgeInsets.symmetric(horizontal: 7),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFFCFE).withValues(alpha: 0.96),
-            borderRadius: BorderRadius.circular(27),
-            border: Border.all(color: Colors.white),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x172B2231),
-                blurRadius: 22,
-                offset: Offset(0, 9),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              for (var i = 0; i < _destinations.length; i++)
-                Expanded(
-                  child: _Destination(
-                    entry: _destinations[i],
-                    selected: i == selected,
-                    primary: _destinations[i].path == '/log',
-                    onTap: () {
-                      if (i == selected) return;
-                      NylaHaptics.select();
-                      context.go(_destinations[i].path);
-                    },
+        child: Center(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: Container(
+              height: 70,
+              padding: const EdgeInsets.symmetric(horizontal: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFCFE).withValues(alpha: 0.96),
+                borderRadius: BorderRadius.circular(27),
+                border: Border.all(color: Colors.white),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x172B2231),
+                    blurRadius: 22,
+                    offset: Offset(0, 9),
                   ),
-                ),
-            ],
+                ],
+              ),
+              child: Row(
+                children: [
+                  for (var i = 0; i < _destinations.length; i++)
+                    Expanded(
+                      child: _Destination(
+                        entry: _destinations[i],
+                        selected: i == selected,
+                        primary: _destinations[i].path == '/log',
+                        onTap: () {
+                          if (i == selected) return;
+                          NylaHaptics.select();
+                          context.go(_destinations[i].path);
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -107,7 +113,11 @@ class _Destination extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Icon(Icons.add_rounded, color: Colors.white, size: 25),
+              child: const Icon(
+                Icons.add_rounded,
+                color: Colors.white,
+                size: 25,
+              ),
             ),
           ),
         ),
