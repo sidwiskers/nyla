@@ -11,6 +11,8 @@ final class SyncHttpClient {
       : _client = client ?? http.Client(),
         _crypto = crypto ?? NylaSyncCrypto();
 
+  static const _requestTimeout = Duration(seconds: 20);
+
   final String baseUrl;
   final http.Client _client;
   final NylaSyncCrypto _crypto;
@@ -140,8 +142,8 @@ final class SyncHttpClient {
       request.headers['x-nyla-signature'] = base64UrlNoPadding(signature);
     }
 
-    final streamed = await _client.send(request);
-    final bytes = await streamed.stream.toBytes();
+    final streamed = await _client.send(request).timeout(_requestTimeout);
+    final bytes = await streamed.stream.toBytes().timeout(_requestTimeout);
     Object? decoded;
     if (bytes.isNotEmpty) {
       try {
