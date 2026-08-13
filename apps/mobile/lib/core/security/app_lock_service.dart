@@ -38,7 +38,7 @@ class AppLockService {
       if (!await _localAuthentication.isDeviceSupported()) {
         return AppLockAuthResult.unsupported;
       }
-    } on LocalAuthException {
+    } catch (_) {
       return AppLockAuthResult.failed;
     }
 
@@ -56,7 +56,7 @@ class AppLockService {
       if (!authenticated) return AppLockAuthResult.cancelled;
       _sessionUnlocked = true;
       return AppLockAuthResult.success;
-    } on LocalAuthException {
+    } catch (_) {
       return AppLockAuthResult.failed;
     } finally {
       _authenticationInProgress = false;
