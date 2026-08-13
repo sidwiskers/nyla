@@ -62,6 +62,12 @@ final preferencesRepositoryProvider = Provider<PreferencesRepository>(
 final appearanceProvider = StreamProvider<NylaAppearance>(
   (ref) => ref.watch(preferencesRepositoryProvider).watchAppearance(),
 );
+final effectiveAppearanceProvider = Provider<NylaAppearance>((ref) {
+  final streamed = ref.watch(appearanceProvider);
+  final current = streamed.value;
+  if (current != null) return current;
+  return ref.watch(initialAppearanceProvider);
+});
 final notificationServiceProvider = FutureProvider<NotificationService>((ref) async {
   final service = NotificationService();
   await service.initialize();
