@@ -21,6 +21,8 @@ abstract final class NylaTypography {
     Color? color,
   }) {
     final resolvedSize = size ?? base?.fontSize ?? 24;
+    final resolvedOpticalSize =
+        opticalSize ?? resolvedSize.clamp(16.0, 72.0).toDouble();
     return (base ?? const TextStyle()).copyWith(
       fontFamily: displayFamily,
       fontFamilyFallback: displayFallback,
@@ -30,7 +32,7 @@ abstract final class NylaTypography {
       fontWeight: weight ?? FontWeight.w600,
       color: color,
       fontVariations: <FontVariation>[
-        FontVariation('opsz', opticalSize ?? resolvedSize.clamp(16, 72)),
+        FontVariation('opsz', resolvedOpticalSize),
       ],
     );
   }
