@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:local_auth/local_auth.dart';
 
 import 'app.dart';
+import 'core/security/app_lock_service.dart';
 import 'core/storage/secure_vault.dart';
 import 'data/database/app_database.dart';
 import 'providers.dart';
@@ -21,6 +21,7 @@ class NylaBootstrap extends StatefulWidget {
 
 class _NylaBootstrapState extends State<NylaBootstrap> {
   final SecureVault _vault = const SecureVault();
+  late final AppLockService _appLock;
   Future<_BootstrapResult>? _bootstrap;
   AppDatabase? _activeDatabase;
   bool _resetting = false;
@@ -29,21 +30,19 @@ class _NylaBootstrapState extends State<NylaBootstrap> {
   @override
   void initState() {
     super.initState();
+    _appLock = AppLockService(vault: _vault);
     _bootstrap = _open();
   }
 
   Future<_BootstrapResult> _open() async {
-    if (await _vault.isAppLockEnabled()) {
-      final auth = LocalAuthentication();
-      final supported = await auth.isDeviceSupported();
-      if (!supported) return const _BootstrapResult.locked('Device authentication is unavailable.');
-      try {
-        final unlocked = await auth.authenticate(
-          localizedReason: 'Unlock Nyla',
-          persistAcrossBackgrounding: true,
+    if (await _appLock.isEnabled()) {
+      final result = await _appLock.authenticate(localizedReason: 'Unlock Nyla');
+      if (result == AppLockAuthResult.unsupported) {
+        return const _BootstrapResult.locked(
+          'Device authentication is unavailable.',
         );
-        if (!unlocked) return const _BootstrapResult.locked('Nyla is locked.');
-      } on LocalAuthException {
+      }
+      if (result != AppLockAuthResult.success) {
         return const _BootstrapResult.locked('Nyla is locked.');
       }
     }
@@ -70,6 +69,7 @@ class _NylaBootstrapState extends State<NylaBootstrap> {
       // Destroy the encryption key first. Even if filesystem cleanup is
       // interrupted, remaining SQLCipher pages are cryptographically useless.
       await _vault.clearAll();
+      _appLock.lockSession();
       await AppDatabase.deleteLocalFiles();
     } catch (error, stackTrace) {
       if (!mounted) rethrow;
@@ -106,6 +106,7 @@ class _NylaBootstrapState extends State<NylaBootstrap> {
               databaseProvider.overrideWithValue(result!.database!),
               deviceIdProvider.overrideWithValue(result.deviceId!),
               secureVaultProvider.overrideWithValue(_vault),
+              appLockServiceProvider.overrideWithValue(_appLock),
               resetLocalDataProvider.overrideWithValue(_resetLocalData),
             ],
             child: const NylaApp(),
