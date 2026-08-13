@@ -42,9 +42,10 @@ final class NylaBackgroundSync {
 
   /// Queue one durable reconciliation request.
   ///
-  /// One unique pending worker is enough to mean "this installation needs a
-  /// reconciliation". Repeated edits/open events coalesce into that signal
-  /// instead of growing a chain of redundant jobs while the phone is offline.
+  /// The task has one stable unique name. A newer trigger replaces an unfinished
+  /// stale request instead of being ignored or appended as a chain. That gives
+  /// Nyla one durable "reconcile this installation" intent while also closing
+  /// the race where a local edit lands during the final moments of a worker.
   static Future<void> schedule({Duration delay = const Duration(seconds: 8)}) async {
     if (!supported || !SyncEndpoint.isConfigured) return;
     await initialize();
@@ -53,7 +54,7 @@ final class NylaBackgroundSync {
       _taskName,
       initialDelay: delay,
       constraints: Constraints(networkType: NetworkType.connected),
-      existingWorkPolicy: ExistingWorkPolicy.keep,
+      existingWorkPolicy: ExistingWorkPolicy.replace,
       backoffPolicy: BackoffPolicy.exponential,
       backoffPolicyDelay: const Duration(seconds: 30),
     );
@@ -97,9 +98,9 @@ void nylaSyncCallbackDispatcher() {
           secureVault: vault,
         );
         final result = await service.syncNow();
-        // A mutation can commit after `_pushAll` observes an empty outbox but
-        // before this run finishes pulling. Retry in that narrow race rather
-        // than relying on a second unique WorkRequest being accepted mid-run.
+        // If a local mutation became pending during this pass, ask WorkManager
+        // for another attempt as a second line of defense. Foreground outbox
+        // observation also replaces this worker with a fresh unique request.
         return result.pending == 0;
       } catch (error) {
         // `false` asks Android WorkManager to retry with exponential backoff.
