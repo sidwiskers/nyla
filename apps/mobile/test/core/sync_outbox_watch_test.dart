@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nyla/data/database/app_database.dart';
@@ -14,10 +16,9 @@ void main() {
   });
 
   test('pending outbox stream grows on local mutation and falls on upload', () async {
-    final expectation = expectLater(
-      database.watchPendingMutationCount(),
-      emitsInOrder(<Object>[0, 1, 0]),
-    );
+    final counts = StreamIterator<int>(database.watchPendingMutationCount());
+    expect(await counts.moveNext(), isTrue);
+    expect(counts.current, 0);
 
     await database.into(database.localMutations).insert(
           LocalMutationsCompanion.insert(
@@ -30,8 +31,12 @@ void main() {
             createdMs: 2100000000000,
           ),
         );
-    await database.markMutationsUploaded(const <String>['test-operation-01']);
+    expect(await counts.moveNext(), isTrue);
+    expect(counts.current, 1);
 
-    await expectation;
+    await database.markMutationsUploaded(const <String>['test-operation-01']);
+    expect(await counts.moveNext(), isTrue);
+    expect(counts.current, 0);
+    await counts.cancel();
   });
 }
