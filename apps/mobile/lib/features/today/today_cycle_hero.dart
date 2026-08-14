@@ -6,7 +6,7 @@ import '../../core/theme/nyla_theme.dart';
 
 class TodayCycleMomentHero extends StatelessWidget {
   const TodayCycleMomentHero({
-    required this.experience,
+    required this.phaseContext,
     required this.tip,
     required this.pattern,
     required this.estimate,
@@ -14,7 +14,7 @@ class TodayCycleMomentHero extends StatelessWidget {
     super.key,
   });
 
-  final CycleExperience experience;
+  final CyclePhaseContext phaseContext;
   final HealthTip tip;
   final SymptomPattern? pattern;
   final CyclePrediction? estimate;
@@ -24,23 +24,15 @@ class TodayCycleMomentHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.nyla;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final title = switch (experience.window) {
-      CycleExperienceWindow.periodStart => 'Your period has just started',
-      CycleExperienceWindow.earlyCycle => 'The early days are still shifting',
-      CycleExperienceWindow.middleCycle => 'Around the middle of your cycle',
-      CycleExperienceWindow.approachingPeriod => 'Your next period may be getting closer',
-    };
-    final eyebrow = switch (experience.window) {
-      CycleExperienceWindow.periodStart => 'FIRST DAYS',
-      CycleExperienceWindow.earlyCycle => 'EARLY CYCLE',
-      CycleExperienceWindow.middleCycle => 'AROUND THIS POINT',
-      CycleExperienceWindow.approachingPeriod => 'PERIOD APPROACHING',
-    };
+    final motion = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 420);
+    final identity = _phaseIdentity(phaseContext);
     final why = tip.details.isEmpty ? tip.flash : tip.details.first;
     final cycleLength = estimate?.predictedCycleLength;
     final progress = cycleLength == null || cycleLength <= 0
         ? null
-        : (experience.cycleDay / cycleLength).clamp(0.0, 1.0).toDouble();
+        : (phaseContext.cycleDay / cycleLength).clamp(0.0, 1.0).toDouble();
 
     final headlineColor = dark ? Colors.white : palette.ink;
     final bodyColor = dark ? const Color(0xFFF3EAF5) : palette.wine;
@@ -66,11 +58,7 @@ class TodayCycleMomentHero extends StatelessWidget {
                       Color(0xFF3B2C4D),
                       Color(0xFF624A70),
                     ]
-                  : const [
-                      Color(0xFFF2D7E1),
-                      Color(0xFFE4D9F0),
-                      Color(0xFFF7E1D6),
-                    ],
+                  : _lightGradient(phaseContext.phase),
               stops: const [0, 0.56, 1],
             ),
             borderRadius: BorderRadius.circular(31),
@@ -94,28 +82,46 @@ class TodayCycleMomentHero extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      eyebrow,
-                      style: TextStyle(
-                        color: eyebrowColor,
-                        fontSize: 9.3,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.12,
+                    Expanded(
+                      child: Text(
+                        identity.eyebrow,
+                        style: TextStyle(
+                          color: eyebrowColor,
+                          fontSize: 9.3,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.12,
+                        ),
                       ),
                     ),
-                    const Spacer(),
-                    _CycleDayPill(day: experience.cycleDay, dark: dark),
+                    const SizedBox(width: 10),
+                    _CycleDayPill(day: phaseContext.cycleDay, dark: dark),
                   ],
                 ),
                 const SizedBox(height: 15),
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: headlineColor,
-                        fontSize: 25,
-                        height: 1.08,
-                        letterSpacing: -0.32,
-                      ),
+                AnimatedSwitcher(
+                  duration: motion,
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, 0.035),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    ),
+                  ),
+                  child: Text(
+                    identity.title,
+                    key: ValueKey(phaseContext.phase),
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          color: headlineColor,
+                          fontSize: 25,
+                          height: 1.08,
+                          letterSpacing: -0.32,
+                        ),
+                  ),
                 ),
                 const SizedBox(height: 9),
                 Text(
@@ -126,6 +132,23 @@ class TodayCycleMomentHero extends StatelessWidget {
                         height: 1.43,
                       ),
                 ),
+                if (tip.experiences.isNotEmpty) ...[
+                  const SizedBox(height: 15),
+                  Text(
+                    'YOU MIGHT NOTICE',
+                    style: TextStyle(
+                      color: eyebrowColor,
+                      fontSize: 8.9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.02,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _ExperienceChips(
+                    experiences: tip.experiences,
+                    dark: dark,
+                  ),
+                ],
                 const SizedBox(height: 16),
                 Container(
                   width: double.infinity,
@@ -165,6 +188,15 @@ class TodayCycleMomentHero extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (phaseContext.mucusSupportsPeriOvulatory) ...[
+                  const SizedBox(height: 10),
+                  _EvidenceNote(
+                    dark: dark,
+                    icon: Icons.opacity_rounded,
+                    text:
+                        'Your watery or stretchy discharge log supports this broad context. It still cannot establish an exact ovulation day.',
+                  ),
+                ],
                 if (pattern case final personal?) ...[
                   const SizedBox(height: 10),
                   _PersonalPatternNote(pattern: personal, dark: dark),
@@ -173,9 +205,10 @@ class TodayCycleMomentHero extends StatelessWidget {
                   const SizedBox(height: 17),
                   _CycleProgress(
                     progress: progress,
-                    day: experience.cycleDay,
+                    day: phaseContext.cycleDay,
                     cycleLength: cycleLength,
                     dark: dark,
+                    duration: motion,
                   ),
                 ],
                 const SizedBox(height: 13),
@@ -184,9 +217,7 @@ class TodayCycleMomentHero extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        experience.usesPrediction
-                            ? 'Estimated from your recent cycle history.'
-                            : 'Timed from your recorded period start.',
+                        identity.evidence,
                         style: TextStyle(
                           color: quietColor,
                           fontSize: 10.2,
@@ -218,6 +249,114 @@ class TodayCycleMomentHero extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+({String eyebrow, String title, String evidence}) _phaseIdentity(
+  CyclePhaseContext context,
+) =>
+    switch (context.phase) {
+      CyclePhase.menstruation => (
+          eyebrow: 'MENSTRUATION · EARLY FOLLICULAR',
+          title: 'Menstruation',
+          evidence: context.periodIsObserved
+              ? 'Grounded in your recorded bleeding.'
+              : 'Supported by your recorded period timing.',
+        ),
+      CyclePhase.follicular => (
+          eyebrow: 'FOLLICULAR PHASE',
+          title: 'Follicular phase',
+          evidence: context.predictedCycleLength == null
+              ? 'Grounded in your recorded period start.'
+              : 'Placed from your period start and recent cycle history.',
+        ),
+      CyclePhase.periOvulatory => (
+          eyebrow: context.mucusSupportsPeriOvulatory
+              ? 'PERI-OVULATORY · SUPPORTED'
+              : 'PERI-OVULATORY · ESTIMATED',
+          title: 'Around the ovulatory part of your cycle',
+          evidence: context.mucusSupportsPeriOvulatory
+              ? 'Broad timing estimate, supported by today’s discharge log.'
+              : 'Broad timing estimate from your recent cycle history.',
+        ),
+      CyclePhase.luteal => (
+          eyebrow: 'LUTEAL PHASE · ESTIMATED',
+          title: 'Likely luteal phase',
+          evidence: 'Estimated from your period timing and recent cycle history.',
+        ),
+      CyclePhase.uncertain => (
+          eyebrow: 'CYCLE CONTEXT · LIMITED',
+          title: 'Your phase is not clear enough to name',
+          evidence: 'Nyla is keeping uncertainty visible instead of forcing a label.',
+        ),
+    };
+
+List<Color> _lightGradient(CyclePhase phase) => switch (phase) {
+      CyclePhase.menstruation => const [
+          Color(0xFFF4D4DF),
+          Color(0xFFEADCF0),
+          Color(0xFFF8E0D7),
+        ],
+      CyclePhase.follicular => const [
+          Color(0xFFE8E1F4),
+          Color(0xFFE4F0EA),
+          Color(0xFFF5E9DD),
+        ],
+      CyclePhase.periOvulatory => const [
+          Color(0xFFDDEBE9),
+          Color(0xFFE5DDF2),
+          Color(0xFFF6E4DD),
+        ],
+      CyclePhase.luteal => const [
+          Color(0xFFF1DCE5),
+          Color(0xFFE4DAEF),
+          Color(0xFFF3E5D9),
+        ],
+      CyclePhase.uncertain => const [
+          Color(0xFFEDE8F3),
+          Color(0xFFF0E7EC),
+          Color(0xFFF7ECE6),
+        ],
+    };
+
+class _ExperienceChips extends StatelessWidget {
+  const _ExperienceChips({required this.experiences, required this.dark});
+
+  final List<String> experiences;
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    return Wrap(
+      spacing: 7,
+      runSpacing: 7,
+      children: [
+        for (final experience in experiences.take(4))
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: dark
+                  ? Colors.white.withValues(alpha: 0.09)
+                  : Colors.white.withValues(alpha: 0.52),
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(
+                color: dark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.white.withValues(alpha: 0.68),
+              ),
+            ),
+            child: Text(
+              experience,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: dark ? const Color(0xFFF3EAF5) : palette.wine,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w650,
+                  ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -262,12 +401,14 @@ class _CycleProgress extends StatelessWidget {
     required this.day,
     required this.cycleLength,
     required this.dark,
+    required this.duration,
   });
 
   final double progress;
   final int day;
   final int cycleLength;
   final bool dark;
+  final Duration duration;
 
   @override
   Widget build(BuildContext context) {
@@ -278,13 +419,18 @@ class _CycleProgress extends StatelessWidget {
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(99),
-          child: LinearProgressIndicator(
-            value: progress,
-            minHeight: 7,
-            backgroundColor: dark
-                ? Colors.white.withValues(alpha: 0.13)
-                : Colors.white.withValues(alpha: 0.72),
-            valueColor: AlwaysStoppedAnimation<Color>(palette.rose),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: progress),
+            duration: duration,
+            curve: Curves.easeOutCubic,
+            builder: (context, value, _) => LinearProgressIndicator(
+              value: value,
+              minHeight: 7,
+              backgroundColor: dark
+                  ? Colors.white.withValues(alpha: 0.13)
+                  : Colors.white.withValues(alpha: 0.72),
+              valueColor: AlwaysStoppedAnimation<Color>(palette.rose),
+            ),
           ),
         ),
         const SizedBox(height: 7),
@@ -310,6 +456,51 @@ class _CycleProgress extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _EvidenceNote extends StatelessWidget {
+  const _EvidenceNote({required this.dark, required this.icon, required this.text});
+
+  final bool dark;
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(13, 11, 13, 11),
+      decoration: BoxDecoration(
+        color: dark
+            ? const Color(0xFFC9E4DC).withValues(alpha: 0.09)
+            : Colors.white.withValues(alpha: 0.38),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: dark
+              ? const Color(0xFFD5EFE8).withValues(alpha: 0.1)
+              : palette.sage.withValues(alpha: 0.28),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: dark ? const Color(0xFFCDE9E0) : palette.expectedInk, size: 17),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: dark ? const Color(0xFFE8F4F0) : palette.wine,
+                    fontSize: 11.2,
+                    height: 1.38,
+                  ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -349,7 +540,7 @@ class _PersonalPatternNote extends StatelessWidget {
           const SizedBox(width: 9),
           Expanded(
             child: Text(
-              'Your logs · $label showed up around this point in '
+              'Your logs · $label showed up around this part of the cycle in '
               '${pattern.cyclesPresent} of ${pattern.cyclesObserved} '
               'well-observed cycles.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -373,5 +564,26 @@ String _symptomLabel(String key) => switch (key) {
       'dizziness' => 'Dizziness',
       'back_pain' => 'Back pain',
       'breast_tenderness' => 'Breast tenderness',
-      _ => key.replaceAll('_', ' '),
+      'energy.low' => 'Lower energy',
+      'energy.high' => 'Higher energy',
+      'sleep.poor' => 'Poorer sleep',
+      'appetite.higher' => 'Higher appetite',
+      'appetite.cravings' => 'Cravings',
+      'discharge.estrogenic' => 'Watery or stretchy discharge',
+      'discharge.dry' => 'Drier discharge',
+      'digestion.constipation' => 'Constipation',
+      'digestion.loose_stool' => 'Looser stools',
+      'digestion.gassy' => 'Gas',
+      'flow.heavy' => 'Heavy flow',
+      'mood.sensitive' => 'Feeling more sensitive',
+      'mood.low' => 'Lower mood',
+      'mood.irritable' => 'Irritability',
+      'mood.anxious' => 'Anxiety',
+      'mood.overwhelmed' => 'Feeling overwhelmed',
+      'mood.happy' => 'Feeling happier',
+      'skin.breakout' => 'Breakouts',
+      'skin.oily' => 'Oilier skin',
+      'skin.dry' => 'Drier skin',
+      'skin.sensitive' => 'Sensitive skin',
+      _ => key.replaceAll('.', ' · ').replaceAll('_', ' '),
     };
