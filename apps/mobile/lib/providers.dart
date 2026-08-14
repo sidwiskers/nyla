@@ -86,6 +86,15 @@ final periodHistoryProvider = StreamProvider<List<PeriodEntry>>(
 final cyclePredictionProvider = StreamProvider<PredictionResult>(
   (ref) => ref.watch(cycleRepositoryProvider).watchPrediction(),
 );
+final dayValuesProvider = StreamProvider.family<List<DayValueEntry>, int>(
+  (ref, day) => ref.watch(dayLogRepositoryProvider).watchDay(day),
+);
+final allDayValuesProvider = StreamProvider<List<DayValueEntry>>(
+  (ref) => ref.watch(dayLogRepositoryProvider).watchAll(),
+);
+
+/// Compatibility provider for the original four-window companion model. New
+/// product surfaces should prefer [cyclePhaseContextProvider].
 final cycleExperienceProvider = Provider.family<AsyncValue<CycleExperience?>, int>(
   (ref, epochDay) {
     final periods = ref.watch(periodHistoryProvider);
@@ -93,16 +102,7 @@ final cycleExperienceProvider = Provider.family<AsyncValue<CycleExperience?>, in
     if (periods.isLoading) return const AsyncLoading();
     if (periods.hasError) return AsyncError(periods.error!, periods.stackTrace!);
 
-    final records = (periods.value ?? const <PeriodEntry>[])
-        .map(
-          (row) => PeriodRecord(
-            start: LocalDay(row.startDay),
-            end: row.endDay == null ? null : LocalDay(row.endDay!),
-            excludeFromPrediction: row.excludeFromPrediction,
-          ),
-        )
-        .toList(growable: false);
-
+    final records = _periodRecords(periods.value ?? const <PeriodEntry>[]);
     return AsyncData(
       const CycleExperienceEngine().describe(
         today: LocalDay(epochDay),
@@ -112,12 +112,28 @@ final cycleExperienceProvider = Provider.family<AsyncValue<CycleExperience?>, in
     );
   },
 );
-final dayValuesProvider = StreamProvider.family<List<DayValueEntry>, int>(
-  (ref, day) => ref.watch(dayLogRepositoryProvider).watchDay(day),
+
+final cyclePhaseContextProvider = Provider.family<AsyncValue<CyclePhaseContext?>, int>(
+  (ref, epochDay) {
+    final periods = ref.watch(periodHistoryProvider);
+    final prediction = ref.watch(cyclePredictionProvider);
+    final values = ref.watch(dayValuesProvider(epochDay));
+    if (periods.isLoading || values.isLoading) return const AsyncLoading();
+    if (periods.hasError) return AsyncError(periods.error!, periods.stackTrace!);
+    if (values.hasError) return AsyncError(values.error!, values.stackTrace!);
+
+    final rows = values.value ?? const <DayValueEntry>[];
+    return AsyncData(
+      const CyclePhaseEngine().describe(
+        today: LocalDay(epochDay),
+        records: _periodRecords(periods.value ?? const <PeriodEntry>[]),
+        prediction: prediction.value?.prediction,
+        signals: _daySignals(rows),
+      ),
+    );
+  },
 );
-final allDayValuesProvider = StreamProvider<List<DayValueEntry>>(
-  (ref) => ref.watch(dayLogRepositoryProvider).watchAll(),
-);
+
 final customLogsProvider = StreamProvider<List<CustomLogEntry>>(
   (ref) => ref.watch(customLogRepositoryProvider).watchAll(),
 );
@@ -128,7 +144,54 @@ final symptomPatternsProvider = Provider<AsyncValue<List<SymptomPattern>>>((ref)
   if (periods.hasError) return AsyncError(periods.error!, periods.stackTrace!);
   if (values.hasError) return AsyncError(values.error!, values.stackTrace!);
 
-  const eligibleKeys = {
+  final starts = (periods.value ?? const <PeriodEntry>[])
+      .map((row) => LocalDay(row.startDay))
+      .toList(growable: false);
+  return AsyncData(
+    const SymptomPatternAnalyzer().analyze(
+      periodStarts: starts,
+      observations: _patternObservations(values.value ?? const <DayValueEntry>[]),
+    ),
+  );
+});
+final notificationConfigProvider = StreamProvider<NotificationConfig>(
+  (ref) => ref.watch(preferencesRepositoryProvider).watchNotificationConfig(),
+);
+
+List<PeriodRecord> _periodRecords(List<PeriodEntry> rows) => rows
+    .map(
+      (row) => PeriodRecord(
+        start: LocalDay(row.startDay),
+        end: row.endDay == null ? null : LocalDay(row.endDay!),
+        excludeFromPrediction: row.excludeFromPrediction,
+      ),
+    )
+    .toList(growable: false);
+
+CycleDaySignals _daySignals(List<DayValueEntry> rows) {
+  DayValueEntry? flow;
+  DayValueEntry? discharge;
+  for (final row in rows) {
+    if (row.key == 'flow') flow = row;
+    if (row.key == 'discharge') discharge = row;
+  }
+
+  final bleeding = switch (flow?.value) {
+    'light' || 'medium' || 'heavy' => true,
+    'none' => false,
+    _ => null,
+  };
+  final mucus = switch (discharge?.value) {
+    'watery' || 'stretchy' => CervicalMucusSignal.estrogenic,
+    'creamy' => CervicalMucusSignal.creamy,
+    'dry' || 'sticky' => CervicalMucusSignal.dryOrSticky,
+    _ => CervicalMucusSignal.unknown,
+  };
+  return CycleDaySignals(bleeding: bleeding, cervicalMucus: mucus);
+}
+
+List<BinaryObservation> _patternObservations(List<DayValueEntry> rows) {
+  const severityKeys = {
     'cramps',
     'headache',
     'bloating',
@@ -138,19 +201,74 @@ final symptomPatternsProvider = Provider<AsyncValue<List<SymptomPattern>>>((ref)
     'breast_tenderness',
   };
   final observations = <BinaryObservation>[];
-  for (final row in values.value ?? const <DayValueEntry>[]) {
-    if (!eligibleKeys.contains(row.key) || row.severity == null) continue;
+  final moodByDay = <int, Set<String>>{};
+  final skinByDay = <int, Set<String>>{};
+
+  void add(DayValueEntry row, String key, bool present) {
     observations.add(
-      BinaryObservation(day: LocalDay(row.day), key: row.key, present: row.severity! > 0),
+      BinaryObservation(day: LocalDay(row.day), key: key, present: present),
     );
   }
-  final starts = (periods.value ?? const <PeriodEntry>[])
-      .map((row) => LocalDay(row.startDay))
-      .toList(growable: false);
-  return AsyncData(
-    const SymptomPatternAnalyzer().analyze(periodStarts: starts, observations: observations),
-  );
-});
-final notificationConfigProvider = StreamProvider<NotificationConfig>(
-  (ref) => ref.watch(preferencesRepositoryProvider).watchNotificationConfig(),
-);
+
+  for (final row in rows) {
+    if (severityKeys.contains(row.key) && row.severity != null) {
+      add(row, row.key, row.severity! > 0);
+      continue;
+    }
+
+    switch (row.key) {
+      case 'energy':
+        add(row, 'energy.low', row.value == 'very_low' || row.value == 'low');
+        add(row, 'energy.high', row.value == 'high' || row.value == 'very_high');
+      case 'sleep':
+        add(row, 'sleep.poor', row.value == 'very_poor' || row.value == 'poor');
+      case 'appetite':
+        add(row, 'appetite.higher', row.value == 'higher' || row.value == 'cravings');
+        add(row, 'appetite.cravings', row.value == 'cravings');
+      case 'discharge':
+        add(row, 'discharge.estrogenic', row.value == 'watery' || row.value == 'stretchy');
+        add(row, 'discharge.dry', row.value == 'dry' || row.value == 'sticky');
+      case 'digestion':
+        add(row, 'digestion.constipation', row.value == 'constipation');
+        add(row, 'digestion.loose_stool', row.value == 'loose_stool');
+        add(row, 'digestion.gassy', row.value == 'gassy');
+      case 'flow':
+        add(row, 'flow.heavy', row.value == 'heavy');
+      default:
+        if (row.key.startsWith('mood.')) {
+          moodByDay.putIfAbsent(row.day, () => <String>{}).add(row.key.substring(5));
+        } else if (row.key.startsWith('skin.')) {
+          skinByDay.putIfAbsent(row.day, () => <String>{}).add(row.key.substring(5));
+        }
+    }
+  }
+
+  // A multi-choice group only provides explicit absences on days when at least
+  // one choice was saved. Completely unlogged/cleared days remain unknown.
+  const moodFeatures = ['sensitive', 'low', 'irritable', 'anxious', 'overwhelmed', 'happy'];
+  for (final entry in moodByDay.entries) {
+    for (final feature in moodFeatures) {
+      observations.add(
+        BinaryObservation(
+          day: LocalDay(entry.key),
+          key: 'mood.$feature',
+          present: entry.value.contains(feature),
+        ),
+      );
+    }
+  }
+  const skinFeatures = ['breakout', 'oily', 'dry', 'sensitive'];
+  for (final entry in skinByDay.entries) {
+    for (final feature in skinFeatures) {
+      observations.add(
+        BinaryObservation(
+          day: LocalDay(entry.key),
+          key: 'skin.$feature',
+          present: entry.value.contains(feature),
+        ),
+      );
+    }
+  }
+
+  return observations;
+}
