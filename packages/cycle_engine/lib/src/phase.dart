@@ -41,8 +41,14 @@ final class CyclePhaseEngine {
 
     final recordedBleeding = latest.end != null && today.compareTo(latest.end!) <= 0;
     final onsetObserved = cycleDay == 1;
-    final flowObserved = signals.bleeding == true;
-    final periodObserved = recordedBleeding || onsetObserved || flowObserved;
+
+    // A flow log can support an already-recorded recent period, including a
+    // longer bleed, but it must never create a new period anchor by itself. A
+    // new mid-cycle bleeding log may be intermenstrual bleeding or an unrecorded
+    // new period; either way the honest response is to keep the old cycle anchor
+    // until the user explicitly records a new period start.
+    final flowSupportsRecentPeriod = signals.bleeding == true && cycleDay <= 14;
+    final periodObserved = recordedBleeding || onsetObserved || flowSupportsRecentPeriod;
 
     final personalBleedLength = prediction?.predictedPeriodDurationDays;
     final inferredBleedDays = (personalBleedLength ?? 3).clamp(2, 7).toInt();
