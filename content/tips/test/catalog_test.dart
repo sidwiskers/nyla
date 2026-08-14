@@ -131,9 +131,15 @@ void main() {
       expect(tip.sources, isNotEmpty);
     }
 
+    final sleep = cycleBodyTips.singleWhere((tip) => tip.id == 'cycle-body-sleep');
+    final sleepCopy = '${sleep.flash} ${sleep.details.join(' ')}'.toLowerCase();
     expect(
-      cycleBodyTips.singleWhere((tip) => tip.id == 'cycle-body-sleep').details.join(' ').toLowerCase(),
-      contains('not'),
+      sleepCopy,
+      allOf(
+        contains('inconsistent'),
+        contains('without a matching large change in sleep for everyone'),
+        contains('more useful than assuming'),
+      ),
       reason: 'Sleep context must explicitly resist a universal phase script.',
     );
     expect(
