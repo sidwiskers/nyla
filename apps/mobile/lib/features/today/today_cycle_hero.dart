@@ -300,7 +300,7 @@ class _ExperienceChips extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: palette.wine,
                     fontSize: 10.8,
-                    fontWeight: FontWeight.w650,
+                    fontWeight: FontWeight.w600,
                   ),
             ),
           ),
