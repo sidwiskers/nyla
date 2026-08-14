@@ -56,7 +56,7 @@ void main() {
     expect(result.confidence, PredictionConfidence.low);
   });
 
-  test('one strong outlier does not dominate an established pattern', () {
+  test('one strong outlier does not dominate the center but still widens uncertainty', () {
     final result = predictor.predict([
       p('2025-11-01'),
       p('2025-11-29'),
@@ -64,7 +64,7 @@ void main() {
       p('2026-01-24'),
       p('2026-02-21'),
       p('2026-03-21'),
-      p('2026-05-10'), // 50-day interval preserved in history but filtered.
+      p('2026-05-10'), // 50-day biological-looking outlier preserved in history.
       p('2026-06-07'),
       p('2026-07-05'),
     ]).prediction!;
@@ -72,9 +72,11 @@ void main() {
     expect(result.predictedCycleLength, 28);
     expect(result.rawCompletedCycles, 8);
     expect(result.filteredCompletedCycles, 7);
+    expect(result.predictionRangeRadiusDays, greaterThan(3));
+    expect(result.confidence, isNot(PredictionConfidence.high));
   });
 
-  test('clean multiple of established rhythm is treated as probable missed tracking', () {
+  test('probable missed tracking does not steer center but remains uncertainty evidence', () {
     final result = predictor.predict([
       p('2026-01-01'),
       p('2026-01-29'),
@@ -88,6 +90,8 @@ void main() {
     expect(result.rawCompletedCycles, 5);
     expect(result.suspectedSkippedIntervals, 1);
     expect(result.filteredCompletedCycles, 4);
+    expect(result.predictionRangeRadiusDays, greaterThan(4));
+    expect(result.confidence, PredictionConfidence.low);
   });
 
   test('personal rolling forecast error contributes to uncertainty', () {
