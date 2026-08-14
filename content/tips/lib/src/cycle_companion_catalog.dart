@@ -1,6 +1,6 @@
 import 'models.dart';
 
-final _reviewed = DateTime.utc(2026, 8, 13);
+final _reviewed = DateTime.utc(2026, 8, 14);
 
 final _owhCycle = MedicalSource(
   organization: "U.S. Office on Women's Health",
@@ -16,13 +16,6 @@ final _owhPms = MedicalSource(
   reviewedOn: _reviewed,
 );
 
-final _owhPeriodProblems = MedicalSource(
-  organization: "U.S. Office on Women's Health",
-  title: 'Period problems',
-  url: 'https://womenshealth.gov/menstrual-cycle/period-problems',
-  reviewedOn: _reviewed,
-);
-
 final _endotextCycle = MedicalSource(
   organization: 'National Library of Medicine / Endotext',
   title: 'The Normal Menstrual Cycle and the Control of Ovulation',
@@ -30,10 +23,66 @@ final _endotextCycle = MedicalSource(
   reviewedOn: _reviewed,
 );
 
-final _nhsDischarge = MedicalSource(
-  organization: 'NHS',
-  title: 'Vaginal discharge',
-  url: 'https://www.nhs.uk/symptoms/vaginal-discharge/',
+final _bullCycles = MedicalSource(
+  organization: 'npj Digital Medicine',
+  title: 'Real-world menstrual cycle characteristics of more than 600,000 menstrual cycles',
+  url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC6710244/',
+  reviewedOn: _reviewed,
+);
+
+final _fehringPhases = MedicalSource(
+  organization: 'Journal of Obstetric, Gynecologic & Neonatal Nursing',
+  title: 'Variability in the phases of the menstrual cycle',
+  url: 'https://pubmed.ncbi.nlm.nih.gov/16700687/',
+  reviewedOn: _reviewed,
+);
+
+final _mucusPatterns = MedicalSource(
+  organization: 'Human Reproduction',
+  title: 'Cervical mucus patterns and the fertile window in women without known subfertility',
+  url: 'https://pubmed.ncbi.nlm.nih.gov/33990841/',
+  reviewedOn: _reviewed,
+);
+
+final _appCohort = MedicalSource(
+  organization: 'Fertility and Sterility',
+  title: 'Findings from a mobile application-based cohort are consistent with established knowledge of the menstrual cycle',
+  url: 'https://pubmed.ncbi.nlm.nih.gov/31272722/',
+  reviewedOn: _reviewed,
+);
+
+final _moodProspective = MedicalSource(
+  organization: 'Psychotherapy and Psychosomatics',
+  title: 'Mood and the menstrual cycle',
+  url: 'https://pubmed.ncbi.nlm.nih.gov/23147261/',
+  reviewedOn: _reviewed,
+);
+
+final _moodHormoneVerified = MedicalSource(
+  organization: 'Journal of Psychosomatic Obstetrics & Gynecology',
+  title: 'Associations between menstrual cycle phases and sexuality, well-being and mood in young healthy women',
+  url: 'https://pubmed.ncbi.nlm.nih.gov/40976232/',
+  reviewedOn: _reviewed,
+);
+
+final _normalSymptoms = MedicalSource(
+  organization: 'Psychoneuroendocrinology',
+  title: 'Mood changes and physical complaints during the normal menstrual cycle in healthy young women',
+  url: 'https://pubmed.ncbi.nlm.nih.gov/2359810/',
+  reviewedOn: _reviewed,
+);
+
+final _pmsProspective = MedicalSource(
+  organization: "Journal of Women's Health",
+  title: 'Core symptoms that discriminate premenstrual syndrome',
+  url: 'https://pubmed.ncbi.nlm.nih.gov/21128818/',
+  reviewedOn: _reviewed,
+);
+
+final _prostaglandins = MedicalSource(
+  organization: 'American Journal of Obstetrics and Gynecology',
+  title: 'Relief of dysmenorrhea with ibuprofen: effect on prostaglandin levels in menstrual fluid',
+  url: 'https://pubmed.ncbi.nlm.nih.gov/474640/',
   reviewedOn: _reviewed,
 );
 
@@ -41,113 +90,218 @@ final cycleCompanionTips = <HealthTip>[
   HealthTip(
     id: 'cycle-now-period-start',
     category: TipCategory.cycle,
-    title: 'Why the first days can feel different',
+    title: 'The first days can carry the most physical noise',
     flash:
-        'Cramps, heaviness, headache, tiredness or bowel changes can cluster around the start of a period.',
+        'Cramps, heaviness, headache, tiredness or bowel changes can cluster around the start of bleeding.',
     details: [
-      'As estrogen and progesterone fall, the uterine lining breaks down and is shed. Prostaglandins help the uterus contract, which is one reason cramps can happen.',
-      'The same point in the cycle does not feel identical for everyone or every month. What you actually notice matters more than a generic checklist.',
+      'Estrogen and progesterone are low around menstruation, while prostaglandins help the uterus contract and shed its lining. Higher prostaglandin activity is one reason cramps and some digestive changes can travel together.',
+      'Symptoms often peak around the day before or the first days of bleeding, but the pattern and intensity vary widely between people and between cycles.',
     ],
     practical: [
-      'If you log symptoms during these first days, Nyla can compare them across later cycles instead of assuming they always happen.',
+      'Log only what is useful. Nyla learns more from repeated daily observations than from assuming every period feels the same.',
     ],
     seekCare: [
-      'Pain that is severe, keeps getting worse, or interferes with work, school or normal activities deserves medical attention.',
+      'Pain that is severe, progressively worsening, or regularly disrupts normal activity deserves medical assessment.',
     ],
-    tags: [
-      'cycle context',
-      'period start',
-      'cramps',
-      'headache',
-      'tiredness',
-      'bowel changes',
-      'hormones',
-    ],
-    sources: [_owhCycle, _owhPeriodProblems, _endotextCycle],
-    version: 1,
+    tags: ['cycle context', 'menstruation', 'cramps', 'bowel changes', 'prostaglandins'],
+    experiences: ['Cramps', 'Lower energy', 'Headache', 'Bowel changes'],
+    sources: [_endotextCycle, _prostaglandins, _owhCycle],
+    version: 2,
     lastReviewed: _reviewed,
   ),
   HealthTip(
     id: 'cycle-now-early',
     category: TipCategory.cycle,
-    title: 'The early cycle is a transition, not a switch',
+    title: 'The early follicular phase is a reset, not a personality switch',
     flash:
-        'Bleeding and period symptoms may be settling while hormone levels begin changing again.',
+        'Bleeding may be settling while ovarian follicles continue developing and estrogen begins to rise again.',
     details: [
-      'The first part of the cycle begins on day one of a period. After the low hormone levels around menstruation, estrogen generally rises through the follicular phase.',
-      'That biology does not guarantee a particular mood, energy level or symptom. Your own repeated logs are more useful than phase stereotypes.',
+      'The follicular phase starts on the first day of a period and is the most variable part of the cycle. Its length changes much more than a textbook calendar suggests.',
+      'There is no reliable evidence that everyone should feel more focused, social or energetic here. If your own logs show that pattern, Nyla can learn it; otherwise it stays a possibility, not a promise.',
     ],
-    practical: [
-      'Notice what is true for you without trying to match a prescribed “phase personality.”',
-    ],
-    tags: [
-      'cycle context',
-      'early cycle',
-      'estrogen',
-      'hormones',
-      'period symptoms',
-    ],
-    sources: [_owhCycle, _endotextCycle],
-    version: 1,
+    practical: ['Notice what actually changes for you as bleeding and period symptoms settle.'],
+    tags: ['cycle context', 'follicular phase', 'estrogen', 'cycle variability'],
+    experiences: ['Symptoms may settle', 'Energy may feel steadier', 'Discharge may change'],
+    sources: [_bullCycles, _fehringPhases, _moodHormoneVerified, _endotextCycle],
+    version: 2,
     lastReviewed: _reviewed,
   ),
   HealthTip(
     id: 'cycle-now-middle',
     category: TipCategory.cycle,
-    title: 'Why discharge can change around the middle',
+    title: 'Around the estimated peri-ovulatory part of the cycle',
     flash:
-        'Some people notice clearer, wetter or more slippery discharge around the middle of a cycle.',
+        'Clearer, wetter or stretchier cervical fluid can appear as estrogen rises before ovulation.',
     details: [
-      'Rising estrogen changes cervical mucus. Later in the first part of a cycle it can become clearer, more abundant and more elastic.',
-      'Bodies do not follow a fixed calendar, and this timing alone cannot confirm whether or when ovulation happened. Nyla uses it only as gentle cycle context.',
+      'Estrogen supports more abundant, slippery cervical mucus before ovulation. Some people also report pelvic twinges, breast tenderness, cramps or appetite changes around this part of the cycle.',
+      'Calendar timing alone cannot confirm whether or when ovulation happened. Nyla therefore uses a broad estimated window, and a mucus log can support the interpretation without proving it.',
     ],
-    practical: [
-      'Log discharge only if it is useful to you. A repeated personal pattern is more informative than one isolated day.',
-    ],
-    seekCare: [
-      'Discharge that is unusual for you and comes with a strong smell, itching, soreness, pain when peeing or pelvic pain should be assessed.',
-    ],
-    tags: [
-      'cycle context',
-      'middle cycle',
-      'discharge',
-      'cervical mucus',
-      'estrogen',
-      'hormones',
-    ],
-    sources: [_owhCycle, _endotextCycle, _nhsDischarge],
-    version: 1,
+    practical: ['Treat the phase label as context, not a precise biological measurement.'],
+    tags: ['cycle context', 'peri-ovulatory', 'cervical mucus', 'estrogen', 'discharge'],
+    experiences: ['Wetter discharge', 'Stretchier mucus', 'Pelvic twinges', 'Appetite change'],
+    sources: [_mucusPatterns, _appCohort, _bullCycles, _endotextCycle],
+    version: 2,
     lastReviewed: _reviewed,
   ),
   HealthTip(
     id: 'cycle-now-before-period',
     category: TipCategory.cycle,
-    title: 'Why the days before a period can feel different',
+    title: 'Late luteal days can be more noticeable for some people',
     flash:
-        'Bloating, breast tenderness, headache, tiredness, sleep or appetite changes, and mood shifts can happen before a period.',
+        'Bloating, breast tenderness, headache, appetite or sleep changes, and mood symptoms can rise before a period.',
     details: [
-      'Premenstrual symptoms can appear in the week or two before menstruation. Changing estrogen and progesterone levels are thought to play a role, but researchers do not have one single explanation.',
-      'Not everyone gets PMS, and the same person can have different symptoms from one cycle to the next.',
+      'Premenstrual symptoms are linked to sensitivity to normal ovarian-hormone changes rather than one universally abnormal hormone level. Physical symptoms are often more consistently phase-linked than global mood in healthy populations.',
+      'Not everyone gets PMS, and even when a symptom is common it is more useful to compare it with your own daily pattern across cycles.',
     ],
-    practical: [
-      'Logging what you actually feel over several cycles lets Nyla compare your own pattern instead of assuming.',
+    practical: ['Repeated daily logs can show whether a symptom is truly late-cycle for you.'],
+    seekCare: ['If premenstrual symptoms repeatedly interfere with daily life, discuss them with a clinician.'],
+    tags: ['cycle context', 'luteal phase', 'PMS', 'bloating', 'sleep', 'appetite', 'mood'],
+    experiences: ['Bloating', 'Breast tenderness', 'Cravings', 'Sleep changes', 'Mood changes'],
+    sources: [_pmsProspective, _normalSymptoms, _moodProspective, _owhPms],
+    version: 2,
+    lastReviewed: _reviewed,
+  ),
+  HealthTip(
+    id: 'cycle-phase-menstruation',
+    category: TipCategory.cycle,
+    title: 'Menstruation · early follicular phase',
+    flash:
+        'The uterine lining is being shed while ovarian hormone levels are near their cycle low and a new follicular phase is already beginning.',
+    details: [
+      'Menstruation is a bleeding event and overlaps biologically with the early follicular phase. Calling it a separate “phase” is useful for everyday tracking, but the ovarian cycle is already moving forward.',
+      'Flow, pain and energy can differ from day to day, so Nyla gives your actual logs more weight than a phase stereotype.',
     ],
-    seekCare: [
-      'If premenstrual symptoms are severe enough to disrupt everyday life, talk with a clinician.',
+    tags: ['cycle context', 'phase', 'menstruation', 'follicular phase'],
+    experiences: ['Bleeding', 'Cramps', 'Fatigue', 'Digestive changes'],
+    sources: [_endotextCycle, _owhCycle, _prostaglandins],
+    version: 1,
+    lastReviewed: _reviewed,
+  ),
+  HealthTip(
+    id: 'cycle-phase-follicular',
+    category: TipCategory.cycle,
+    title: 'Follicular phase · the variable half',
+    flash:
+        'Follicles are developing and estrogen generally rises, but the timing of this phase is highly individual.',
+    details: [
+      'Most cycle-length variation comes from the follicular phase and the timing of ovulation. Longer cycles usually do not mean every phase simply stretched equally.',
+      'Many people have few distinctive symptoms here. That absence of a dramatic “phase feeling” is normal too.',
     ],
-    tags: [
-      'cycle context',
-      'before period',
-      'PMS',
-      'bloating',
-      'breast tenderness',
-      'headache',
-      'sleep',
-      'appetite',
-      'mood',
-      'hormones',
+    tags: ['cycle context', 'phase', 'follicular phase', 'estrogen', 'cycle variability'],
+    experiences: ['Often fewer period symptoms', 'Changing discharge', 'No special feeling at all'],
+    sources: [_bullCycles, _fehringPhases, _endotextCycle],
+    version: 1,
+    lastReviewed: _reviewed,
+  ),
+  HealthTip(
+    id: 'cycle-phase-periovulatory',
+    category: TipCategory.cycle,
+    title: 'Peri-ovulatory window · estimated, not measured',
+    flash:
+        'Nyla thinks you may be around the ovulatory part of this cycle, but the window is intentionally broad.',
+    details: [
+      'Ovulation timing moves from cycle to cycle. Nyla estimates this part of the cycle by combining your predicted next period with evidence that the luteal phase is usually less variable than the follicular phase.',
+      'Watery or stretchy cervical fluid can make this interpretation more biologically plausible, but a self-reported mucus pattern still cannot prove an exact ovulation day.',
     ],
-    sources: [_owhPms, _owhCycle],
+    tags: ['cycle context', 'phase', 'peri-ovulatory', 'cervical mucus', 'uncertainty'],
+    experiences: ['Wetter mucus', 'Stretchier discharge', 'Possible pelvic twinges', 'No obvious change'],
+    sources: [_bullCycles, _fehringPhases, _mucusPatterns, _appCohort],
+    version: 1,
+    lastReviewed: _reviewed,
+  ),
+  HealthTip(
+    id: 'cycle-phase-luteal',
+    category: TipCategory.cycle,
+    title: 'Luteal phase · a likely post-ovulatory context',
+    flash:
+        'After ovulation, progesterone normally rises and the uterine lining is maintained while the cycle moves toward its next period.',
+    details: [
+      'The luteal phase varies less than the follicular phase on average, but it is not a fixed 14 days. Nyla therefore keeps this label explicitly estimated when no current-cycle hormone or temperature marker exists.',
+      'Some people notice breast tenderness, bloating or appetite changes later in this phase; others notice very little until bleeding starts.',
+    ],
+    tags: ['cycle context', 'phase', 'luteal phase', 'progesterone', 'cycle variability'],
+    experiences: ['Breast tenderness', 'Bloating', 'Appetite changes', 'No obvious change'],
+    sources: [_bullCycles, _fehringPhases, _normalSymptoms, _endotextCycle],
+    version: 1,
+    lastReviewed: _reviewed,
+  ),
+  HealthTip(
+    id: 'cycle-phase-uncertain',
+    category: TipCategory.cycle,
+    title: 'Your phase is not clear enough to name today',
+    flash:
+        'A quiet “not sure yet” is more useful than forcing your body into a calendar label.',
+    details: [
+      'Cycle and ovulation timing can move meaningfully even within the same person. When history is sparse or a predicted period has passed, Nyla deliberately reduces certainty instead of extending a phase indefinitely.',
+      'Your next period record and daily observations will give the engine better evidence without rewriting what happened this cycle.',
+    ],
+    tags: ['cycle context', 'phase', 'uncertainty', 'cycle variability'],
+    experiences: ['Your own logs matter most'],
+    sources: [_bullCycles, _fehringPhases],
+    version: 1,
+    lastReviewed: _reviewed,
+  ),
+  HealthTip(
+    id: 'cycle-body-prostaglandins',
+    category: TipCategory.body,
+    title: 'Why cramps and bowel changes can arrive together',
+    flash:
+        'Prostaglandins that help the uterus contract can also be part of the wider physical picture around menstruation.',
+    details: [
+      'Menstrual-fluid prostaglandin levels have been linked with primary dysmenorrhea, and reducing prostaglandin synthesis reduces pain in controlled studies.',
+      'Nausea, loose stools and back or abdominal discomfort can cluster with painful periods, but persistent or severe symptoms should not automatically be blamed on the cycle.',
+    ],
+    tags: ['cycle context', 'cramps', 'digestion', 'prostaglandins', 'menstruation'],
+    experiences: ['Cramps', 'Loose stools', 'Nausea', 'Back pain'],
+    sources: [_prostaglandins, _owhCycle],
+    version: 1,
+    lastReviewed: _reviewed,
+  ),
+  HealthTip(
+    id: 'cycle-body-mucus',
+    category: TipCategory.body,
+    title: 'Cervical fluid is a real biological signal—but still a noisy one',
+    flash:
+        'Estrogenic mucus commonly becomes wetter, clearer or stretchier before ovulation and decreases after progesterone rises.',
+    details: [
+      'Prospective cohorts show several days of estrogenic-quality mucus are common, so one watery day is not a timestamp for ovulation.',
+      'Nyla can use a repeated watery/stretchy log to support peri-ovulatory context while deliberately refusing to turn it into an exact date claim.',
+    ],
+    tags: ['cycle context', 'cervical mucus', 'discharge', 'estrogen', 'peri-ovulatory'],
+    experiences: ['Watery discharge', 'Stretchy mucus', 'More noticeable fluid'],
+    sources: [_mucusPatterns, _appCohort],
+    version: 1,
+    lastReviewed: _reviewed,
+  ),
+  HealthTip(
+    id: 'cycle-body-mood-is-personal',
+    category: TipCategory.understanding,
+    title: 'A phase does not prescribe your mood',
+    flash:
+        'Large prospective and hormone-verified studies do not support a universal emotional script for every menstrual phase.',
+    details: [
+      'Mood can be affected by sleep, stress, health, relationships and many other factors alongside ovarian hormone sensitivity.',
+      'If your mood does repeat around the same cycle window, prospective daily logs are the right way to discover that personal pattern.',
+    ],
+    tags: ['cycle context', 'mood', 'personal patterns', 'hormones'],
+    experiences: ['Your mood may not change', 'Personal patterns can still be real'],
+    sources: [_moodProspective, _moodHormoneVerified, _pmsProspective],
+    version: 1,
+    lastReviewed: _reviewed,
+  ),
+  HealthTip(
+    id: 'cycle-body-appetite',
+    category: TipCategory.body,
+    title: 'Appetite can move, but not on one universal schedule',
+    flash:
+        'Some prospective studies find appetite changes around peri-ovulatory or premenstrual days, while individual patterns differ.',
+    details: [
+      'A higher appetite or cravings can appear late in the cycle for some people, but one day is not enough to call it hormone-driven.',
+      'Repeated logs let Nyla distinguish “this happens often for me here” from a generic phase assumption.',
+    ],
+    tags: ['cycle context', 'appetite', 'cravings', 'personal patterns'],
+    experiences: ['Higher appetite', 'Cravings', 'No change'],
+    sources: [_normalSymptoms, _pmsProspective],
     version: 1,
     lastReviewed: _reviewed,
   ),
