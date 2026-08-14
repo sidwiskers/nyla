@@ -71,8 +71,8 @@ final cycleBodyTips = <HealthTip>[
     flash:
         'Tenderness or swelling can rise before a period for some people and may repeat quite consistently within the same person.',
     details: [
-      'Prospective daily data across hundreds of cycles show that breast tenderness and swelling can vary meaningfully with menstrual-cycle and ovulatory patterns.',
-      'A recurring late-cycle pattern can be useful context, but a new lump, focal persistent pain, skin change or nipple change should not be explained away as “just hormones.”',
+      'Prospective daily data across 720 cycles found breast tenderness and swelling peaking in the late luteal phase of ovulatory cycles. Within the same women, tenderness did not consistently distinguish normally ovulatory from ovulatory-disturbed cycles.',
+      'That makes timing useful personal context—not an ovulation test. A new lump, focal persistent pain, skin change or nipple change should not be explained away as “just hormones.”',
     ],
     tags: ['cycle context', 'breast tenderness', 'luteal phase', 'premenstrual', 'personal patterns'],
     experiences: ['Tender breasts', 'Fullness or swelling', 'No change'],
