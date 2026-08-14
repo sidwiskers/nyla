@@ -49,6 +49,29 @@ void main() {
     }
   });
 
+  test('health guidance speaks about the body, not the product internals', () {
+    for (final tip in healthTips) {
+      final visibleCopy = [
+        tip.title,
+        tip.flash,
+        ...tip.details,
+        ...tip.practical,
+        ...tip.seekCare,
+        ...tip.experiences,
+      ].join(' ').toLowerCase();
+      expect(
+        visibleCopy,
+        isNot(contains('nyla')),
+        reason: '${tip.id} should read like curated health guidance, not product narration.',
+      );
+      expect(
+        visibleCopy,
+        isNot(contains('engine')),
+        reason: '${tip.id} should not expose implementation language to the reader.',
+      );
+    }
+  });
+
   test('cycle companion catalog covers the whole cycle without pretending certainty', () {
     expect(cycleCompanionTips, hasLength(13));
     expect(
