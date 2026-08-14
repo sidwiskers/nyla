@@ -134,6 +134,23 @@ class TodayScreen extends ConsumerWidget {
       return _tip('cycle-body-appetite');
     }
 
+    final breast = byKey['breast_tenderness'];
+    if ((breast?.severity ?? 0) > 0) return _tip('cycle-body-breast');
+
+    final digestion = byKey['digestion'];
+    if (digestion != null && digestion.value != 'usual') {
+      return _tip('cycle-body-digestion');
+    }
+
+    final sleep = byKey['sleep'];
+    if (sleep != null && (sleep.value == 'poor' || sleep.value == 'very_poor')) {
+      return _tip('cycle-body-sleep');
+    }
+
+    if (values.any((row) => row.key == 'skin.breakout')) {
+      return _tip('cycle-body-skin');
+    }
+
     if (phase?.phase == CyclePhase.luteal &&
         values.any(
           (row) => row.key.startsWith('mood.') &&
@@ -144,10 +161,6 @@ class TodayScreen extends ConsumerWidget {
     }
 
     if (discharge != null && discharge.value != 'none') return _tip('normal-discharge');
-    final sleep = byKey['sleep'];
-    if (sleep != null && (sleep.value == 'poor' || sleep.value == 'very_poor')) {
-      return _tip('sleep-and-discomfort');
-    }
     final flow = byKey['flow'];
     if (flow != null && flow.value != 'none') return _tip('hands-before-after-products');
 
