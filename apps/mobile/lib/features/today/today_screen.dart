@@ -179,14 +179,17 @@ class TodayScreen extends ConsumerWidget {
     CyclePhaseContext context,
     List<SymptomPattern> patterns,
   ) {
+    final daysUntil = context.daysUntilLikelyPeriod;
     final target = switch (context.phase) {
-      CyclePhase.menstruation => CycleWindow.periodStart,
-      CyclePhase.follicular => CycleWindow.earlyFollicular,
+      CyclePhase.menstruation when context.cycleDay <= 3 => CycleWindow.periodStart,
+      CyclePhase.follicular when context.cycleDay >= 5 && context.cycleDay <= 9 =>
+        CycleWindow.earlyFollicular,
       CyclePhase.periOvulatory => CycleWindow.periOvulatory,
-      CyclePhase.luteal => (context.daysUntilLikelyPeriod ?? 99) <= 4
-          ? CycleWindow.beforePeriod
-          : CycleWindow.midLuteal,
-      CyclePhase.uncertain => null,
+      CyclePhase.luteal when daysUntil != null && daysUntil >= 1 && daysUntil <= 4 =>
+        CycleWindow.beforePeriod,
+      CyclePhase.luteal when daysUntil != null && daysUntil >= 6 && daysUntil <= 10 =>
+        CycleWindow.midLuteal,
+      _ => null,
     };
     if (target == null) return null;
     for (final pattern in patterns) {
