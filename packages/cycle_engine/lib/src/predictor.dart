@@ -78,8 +78,8 @@ final class CyclePredictor {
     // Center and uncertainty intentionally see history differently. A clean
     // multiple of an established rhythm may be missed tracking, and a strong
     // statistical outlier should not dominate the likely date. But either may
-    // also be real biology. They therefore remain in the uncertainty/calibration
-    // history even when they receive little or no weight in the point estimate.
+    // also be real biology. They therefore remain visible to uncertainty even
+    // when they receive little or no weight in the point estimate.
     final centerCandidates = probableTrackedCycleIntervals(limited);
     final suspectedSkipped = limited.length - centerCandidates.length;
     final centerHistory = robustCycleFilter(centerCandidates);
@@ -89,11 +89,14 @@ final class CyclePredictor {
         .clamp(minimumCycleDays, maximumCycleDays)
         .toInt();
 
-    // Do not let robust centering erase evidence that this person's cycle can
-    // move. The full valid recent history determines how cautious the displayed
-    // range should be.
+    // Full valid history still determines dispersion: an interval that looks
+    // like missed tracking might instead be a genuinely long cycle. Forecast
+    // back-testing is slightly different—the already-flagged clean multiples
+    // are omitted there so one probable adherence gap does not make the model
+    // unusably broad for many subsequent months. Non-multiple biological
+    // outliers remain in calibration and can widen the range substantially.
     final variability = robustVariability(limited);
-    final calibrationError = rollingForecastAbsoluteError(limited);
+    final calibrationError = rollingForecastAbsoluteError(centerCandidates);
     final radius = _predictionRadius(
       cycles: limited.length,
       variability: variability,
