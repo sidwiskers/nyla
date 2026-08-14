@@ -17,7 +17,7 @@ final _sleepWearable = MedicalSource(
 );
 
 final _breastProspective = MedicalSource(
-  organization: 'Journal of Obstetrics and Gynaecology Canada',
+  organization: 'PLOS ONE',
   title: 'Breast tenderness and swelling experiences related to menstrual cycles and ovulation in healthy premenopausal women',
   url: 'https://pubmed.ncbi.nlm.nih.gov/40354418/',
   reviewedOn: _reviewed,
