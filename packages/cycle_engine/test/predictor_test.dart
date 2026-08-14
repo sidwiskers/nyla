@@ -53,7 +53,7 @@ void main() {
 
     expect(result.predictedCycleLength, 28);
     expect(result.predictionRangeRadiusDays, 4);
-    expect(result.confidence, PredictionConfidence.insufficient);
+    expect(result.confidence, PredictionConfidence.low);
   });
 
   test('one strong outlier does not dominate an established pattern', () {
