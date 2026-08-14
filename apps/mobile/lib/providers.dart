@@ -220,20 +220,26 @@ List<BinaryObservation> _patternObservations(List<DayValueEntry> rows) {
       case 'energy':
         add(row, 'energy.low', row.value == 'very_low' || row.value == 'low');
         add(row, 'energy.high', row.value == 'high' || row.value == 'very_high');
+        continue;
       case 'sleep':
         add(row, 'sleep.poor', row.value == 'very_poor' || row.value == 'poor');
+        continue;
       case 'appetite':
         add(row, 'appetite.higher', row.value == 'higher' || row.value == 'cravings');
         add(row, 'appetite.cravings', row.value == 'cravings');
+        continue;
       case 'discharge':
         add(row, 'discharge.estrogenic', row.value == 'watery' || row.value == 'stretchy');
         add(row, 'discharge.dry', row.value == 'dry' || row.value == 'sticky');
+        continue;
       case 'digestion':
         add(row, 'digestion.constipation', row.value == 'constipation');
         add(row, 'digestion.loose_stool', row.value == 'loose_stool');
         add(row, 'digestion.gassy', row.value == 'gassy');
+        continue;
       case 'flow':
         add(row, 'flow.heavy', row.value == 'heavy');
+        continue;
       default:
         if (row.key.startsWith('mood.')) {
           moodByDay.putIfAbsent(row.day, () => <String>{}).add(row.key.substring(5));
