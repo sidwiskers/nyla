@@ -389,31 +389,34 @@ class _PredictionContext extends StatelessWidget {
             return const _StoryPanel(
               icon: Icons.auto_awesome_rounded,
               title: 'Still learning your rhythm',
-              body: 'Nyla needs completed cycle intervals before it can describe your personal variation.',
+              body:
+                  'A few completed cycle intervals are needed before your personal variation becomes meaningful.',
             );
           }
 
-          final pieces = <String>[
-            'This estimate uses ${value.completedCyclesUsed} recent completed cycle${value.completedCyclesUsed == 1 ? '' : 's'}',
-            'the current date range is ±${value.predictionRangeRadiusDays} day${value.predictionRangeRadiusDays == 1 ? '' : 's'}',
+          final sentences = <String>[
+            'Based on ${value.completedCyclesUsed} recent completed cycle${value.completedCyclesUsed == 1 ? '' : 's'}, the current window extends about ${value.predictionRangeRadiusDays} day${value.predictionRangeRadiusDays == 1 ? '' : 's'} on either side of the likely date.',
           ];
           if (value.calibrationErrorDays case final error?) {
-            pieces.add(
-              'recent back-testing error is about ${error.toStringAsFixed(1)} days at the cautious end',
+            sentences.add(
+              'Recent predictions have usually landed within about ${error.toStringAsFixed(1)} days at the cautious end.',
             );
           } else {
-            pieces.add('there is not enough history yet to back-test forecast error');
-          }
-          if (value.suspectedSkippedIntervals > 0) {
-            pieces.add(
-              '${value.suspectedSkippedIntervals} long interval${value.suspectedSkippedIntervals == 1 ? '' : 's'} looked like missed tracking and did not steer the estimate',
+            sentences.add(
+              'There is not enough history yet to judge how closely recent predictions have matched.',
             );
           }
+          if (value.suspectedSkippedIntervals > 0) {
+            sentences.add(
+              '${value.suspectedSkippedIntervals} unusually long gap${value.suspectedSkippedIntervals == 1 ? '' : 's'} may reflect missed tracking, so ${value.suspectedSkippedIntervals == 1 ? 'it was' : 'they were'} treated cautiously.',
+            );
+          }
+          sentences.add('A date range is more useful than presenting one day as certain.');
 
           return _StoryPanel(
             icon: Icons.blur_on_rounded,
             title: _confidenceTitle(value.confidence),
-            body: '${pieces.join('. ')}. Nyla shows uncertainty instead of turning one date into a promise.',
+            body: sentences.join(' '),
           );
         },
       );
@@ -498,7 +501,7 @@ class _PatternsSection extends StatelessWidget {
               title: 'No strong repeated pattern yet',
               body: periodCount < 4
                   ? 'A repeated pattern needs observations across at least four periods. Keep logging only what matters to you.'
-                  : 'Nyla has not found a well-supported repeated pattern yet. Missing days stay unknown rather than being treated as “no symptom.”',
+                  : 'No well-supported repeated pattern has emerged yet. Missing days stay unknown rather than being treated as “no symptom.”',
             );
           }
           final palette = context.nyla;
@@ -616,12 +619,12 @@ class _PatternCard extends StatelessWidget {
                 Text('$label tends to repeat', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 6),
                 Text(
-                  'You logged $label $timing in ${pattern.cyclesPresent} of ${pattern.cyclesObserved} adequately observed cycles.',
+                  'You logged $label $timing in ${pattern.cyclesPresent} of ${pattern.cyclesObserved} well-observed cycles.',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 7),
                 Text(
-                  'At least ${pattern.coverageRequiredPerCycle} logged days were required in each counted cycle.',
+                  'Only cycles with enough daily entries are counted, so missing days are not treated as symptom-free.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontSize: 10.8,
                         color: palette.faintInk,
