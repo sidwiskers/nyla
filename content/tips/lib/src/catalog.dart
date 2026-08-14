@@ -154,11 +154,11 @@ final healthTips = <HealthTip>[
     flash: 'Dates, flow and symptoms can reveal patterns that memory easily blurs.',
     details: [
       'A menstrual record can help you notice changes in timing, bleeding or symptoms and can also give a clinician clearer information if you seek care.',
-      'Nyla describes what you logged; it does not turn a pattern into a diagnosis.',
+      'A recurring pattern can be useful evidence without being a diagnosis; clinical assessment is what determines a medical condition.',
     ],
     tags: ['tracking', 'history', 'symptoms'],
     sources: [cdcHygiene, nhsHeavy],
-    version: 1,
+    version: 2,
     lastReviewed: _reviewed,
   ),
   HealthTip(
@@ -415,11 +415,11 @@ final healthTips = <HealthTip>[
     flash: 'Timing symptoms across your cycle can be more useful than remembering the worst day later.',
     details: [
       'NHS guidance notes that a symptom diary across the menstrual cycle can help show what happens and when.',
-      'That is why Nyla keeps symptoms attached to individual days instead of turning them into a single monthly score.',
+      'Keeping symptoms attached to individual days makes timing easier to see than reducing a whole month to one score.',
     ],
     tags: ['tracking', 'symptoms', 'pattern', 'history'],
     sources: [nhsPeriodProblems],
-    version: 1,
+    version: 2,
     lastReviewed: _reviewed,
   ),
   HealthTip(
@@ -543,12 +543,12 @@ final healthTips = <HealthTip>[
     flash: 'Endometriosis is one condition associated with persistent pelvic pain and painful periods.',
     details: [
       'Endometriosis involves tissue similar to the uterine lining growing outside the uterus. Symptoms vary and some people have no symptoms.',
-      'A tracker cannot diagnose endometriosis. Its useful role is preserving a clear history of pain, bleeding and how symptoms affect daily life.',
+      'Diagnosis requires clinical assessment; a clear history of pain, bleeding and daily-life impact can make that conversation much more useful.',
     ],
-    seekCare: ['Discuss persistent or severe pelvic/period pain with a healthcare professional rather than relying on an app to identify the cause.'],
+    seekCare: ['Discuss persistent or severe pelvic or period pain with a healthcare professional rather than assuming it is simply part of menstruation.'],
     tags: ['endometriosis', 'pelvic pain', 'period pain'],
     sources: [acogEndometriosis],
-    version: 1,
+    version: 2,
     lastReviewed: _reviewed,
   ),
   HealthTip(
@@ -558,12 +558,12 @@ final healthTips = <HealthTip>[
     flash: 'PCOS is one possible cause of irregular or infrequent periods, but irregularity alone does not diagnose it.',
     details: [
       'PCOS can involve irregular or absent periods alongside signs such as acne, oily skin or excess facial/body hair, but diagnosis requires clinical assessment and exclusion of other causes.',
-      'Nyla should show a changing pattern clearly without assigning a condition to it.',
+      'A changing cycle pattern is worth preserving clearly without treating it as a diagnosis on its own.',
     ],
     seekCare: ['If your cycle pattern changes substantially or irregular periods concern you, bring the history to a healthcare professional.'],
     tags: ['PCOS', 'irregular', 'acne', 'cycle'],
     sources: [whoPcos],
-    version: 1,
+    version: 2,
     lastReviewed: _reviewed,
   ),
 ];
