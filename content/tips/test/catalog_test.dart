@@ -114,11 +114,42 @@ void main() {
     );
   });
 
+  test('cycle body catalog uses researched context for richer existing logs', () {
+    expect(cycleBodyTips, hasLength(4));
+    expect(
+      cycleBodyTips.map((tip) => tip.id).toSet(),
+      {
+        'cycle-body-sleep',
+        'cycle-body-breast',
+        'cycle-body-digestion',
+        'cycle-body-skin',
+      },
+    );
+    for (final tip in cycleBodyTips) {
+      expect(tip.tags, contains('cycle context'));
+      expect(tip.experiences, isNotEmpty);
+      expect(tip.sources, isNotEmpty);
+    }
+
+    expect(
+      cycleBodyTips.singleWhere((tip) => tip.id == 'cycle-body-sleep').details.join(' ').toLowerCase(),
+      contains('not'),
+      reason: 'Sleep context must explicitly resist a universal phase script.',
+    );
+    expect(
+      cycleBodyTips.singleWhere((tip) => tip.id == 'cycle-body-skin').details.join(' ').toLowerCase(),
+      contains('own repeated'),
+      reason: 'Skin timing must remain a personal-pattern observation, not a phase detector.',
+    );
+  });
+
   test('search covers titles, body, tags and experience cues', () {
     expect(healthTips.where((tip) => tip.matches('tampon')), isNotEmpty);
     expect(healthTips.where((tip) => tip.matches('cramps')), isNotEmpty);
     expect(healthTips.where((tip) => tip.matches('cleaning')), isNotEmpty);
-    expect(healthTips.where((tip) => tip.matches('cycle context')), hasLength(13));
+    expect(healthTips.where((tip) => tip.matches('cycle context')), hasLength(17));
     expect(healthTips.where((tip) => tip.matches('stretchier mucus')), isNotEmpty);
+    expect(healthTips.where((tip) => tip.matches('breast tenderness')), isNotEmpty);
+    expect(healthTips.where((tip) => tip.matches('sleep quality')), isNotEmpty);
   });
 }
