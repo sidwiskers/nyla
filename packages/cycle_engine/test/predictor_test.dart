@@ -24,7 +24,7 @@ void main() {
     expect(result.isAvailable, isFalse);
   });
 
-  test('predicts from stable recent cycles and retains a range', () {
+  test('stable recent cycles retain honest finite-history uncertainty', () {
     final result = predictor.predict([
       p('2026-01-01', '2026-01-05'),
       p('2026-01-29', '2026-02-02'),
@@ -37,10 +37,23 @@ void main() {
 
     expect(result.predictedCycleLength, 28);
     expect(result.likelyStart.toIsoString(), '2026-07-16');
-    expect(result.earliestStart.toIsoString(), '2026-07-15');
-    expect(result.latestStart.toIsoString(), '2026-07-17');
+    expect(result.earliestStart.toIsoString(), '2026-07-14');
+    expect(result.latestStart.toIsoString(), '2026-07-18');
+    expect(result.predictionRangeRadiusDays, 2);
     expect(result.predictedPeriodDurationDays, 5);
     expect(result.confidence, PredictionConfidence.high);
+  });
+
+  test('sparse history is not presented as precise even when identical', () {
+    final result = predictor.predict([
+      p('2026-01-01'),
+      p('2026-01-29'),
+      p('2026-02-26'),
+    ]).prediction!;
+
+    expect(result.predictedCycleLength, 28);
+    expect(result.predictionRangeRadiusDays, 4);
+    expect(result.confidence, PredictionConfidence.insufficient);
   });
 
   test('one strong outlier does not dominate an established pattern', () {
@@ -59,6 +72,37 @@ void main() {
     expect(result.predictedCycleLength, 28);
     expect(result.rawCompletedCycles, 8);
     expect(result.filteredCompletedCycles, 7);
+  });
+
+  test('clean multiple of established rhythm is treated as probable missed tracking', () {
+    final result = predictor.predict([
+      p('2026-01-01'),
+      p('2026-01-29'),
+      p('2026-02-26'),
+      p('2026-03-26'),
+      p('2026-05-21'), // 56 days: very close to two established 28-day cycles.
+      p('2026-06-18'),
+    ]).prediction!;
+
+    expect(result.predictedCycleLength, 28);
+    expect(result.rawCompletedCycles, 5);
+    expect(result.suspectedSkippedIntervals, 1);
+    expect(result.filteredCompletedCycles, 4);
+  });
+
+  test('personal rolling forecast error contributes to uncertainty', () {
+    final result = predictor.predict([
+      p('2026-01-01'),
+      p('2026-01-29'), // 28
+      p('2026-02-28'), // 30
+      p('2026-03-27'), // 27
+      p('2026-04-27'), // 31
+      p('2026-05-26'), // 29
+      p('2026-06-24'), // 29
+    ]).prediction!;
+
+    expect(result.calibrationErrorDays, isNotNull);
+    expect(result.predictionRangeRadiusDays, greaterThanOrEqualTo(2));
   });
 
   test('explicitly excluded record does not steer prediction', () {
