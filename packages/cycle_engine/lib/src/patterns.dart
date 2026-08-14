@@ -1,6 +1,12 @@
 import 'local_day.dart';
 
-enum CycleWindow { beforePeriod, periodStart }
+enum CycleWindow {
+  beforePeriod,
+  periodStart,
+  earlyFollicular,
+  periOvulatory,
+  midLuteal,
+}
 
 final class BinaryObservation {
   const BinaryObservation({required this.day, required this.key, required this.present});
@@ -31,8 +37,10 @@ final class SymptomPattern {
 /// Finds repeated descriptive patterns without converting them into diagnoses.
 ///
 /// A cycle only enters the denominator if the user explicitly recorded the
-/// symptom on enough days inside the window. Missing data is therefore unknown,
-/// not an implicit "no".
+/// feature on enough days inside the window. Missing data is therefore unknown,
+/// not an implicit "no". Peri-ovulatory windows are retrospective, broad, and
+/// based on the next observed period plus a population luteal prior; they are
+/// not evidence that ovulation occurred on a particular day.
 final class SymptomPatternAnalyzer {
   const SymptomPatternAnalyzer({
     this.minimumObservedCycles = 4,
@@ -63,43 +71,93 @@ final class SymptomPatternAnalyzer {
 
     final patterns = <SymptomPattern>[];
     for (final entry in byKeyAndDay.entries) {
-      for (final definition in const [
-        _WindowDefinition(CycleWindow.beforePeriod, -3, -1, 2),
-        _WindowDefinition(CycleWindow.periodStart, 0, 1, 2),
-      ]) {
-        var observedCycles = 0;
-        var presentCycles = 0;
-        final byDay = entry.value;
+      final byDay = entry.value;
 
-        for (final start in starts) {
-          var explicitDays = 0;
-          var cyclePresent = false;
-          for (var offset = definition.startOffset; offset <= definition.endOffset; offset++) {
-            final value = byDay[start.addDays(offset).epochDay];
-            if (value == null) continue;
-            explicitDays += 1;
-            if (value) cyclePresent = true;
-          }
-          if (explicitDays < definition.minimumCoverageDays) continue;
-          observedCycles += 1;
-          if (cyclePresent) presentCycles += 1;
-        }
+      _maybeAdd(
+        patterns,
+        key: entry.key,
+        window: CycleWindow.periodStart,
+        evaluations: [
+          for (final start in starts)
+            _evaluateFixed(byDay, start: start, from: 0, to: 2, minimumCoverage: 2),
+        ],
+        coverageRequired: 2,
+      );
 
-        if (observedCycles < minimumObservedCycles) continue;
-        if (presentCycles < 3) continue;
-        final rate = presentCycles / observedCycles;
-        if (rate < minimumOccurrenceRate) continue;
+      // A known period start is enough to retrospectively anchor the preceding
+      // four days. We do not need an earlier period record if those daily logs
+      // were explicitly captured.
+      _maybeAdd(
+        patterns,
+        key: entry.key,
+        window: CycleWindow.beforePeriod,
+        evaluations: [
+          for (final start in starts)
+            _evaluateFixed(byDay, start: start, from: -4, to: -1, minimumCoverage: 2),
+        ],
+        coverageRequired: 2,
+      );
 
-        patterns.add(
-          SymptomPattern(
-            key: entry.key,
-            window: definition.window,
-            cyclesPresent: presentCycles,
-            cyclesObserved: observedCycles,
-            coverageRequiredPerCycle: definition.minimumCoverageDays,
+      // Likewise, early-follicular days after the latest known period are
+      // directly anchored by that start even before the current cycle ends.
+      _maybeAdd(
+        patterns,
+        key: entry.key,
+        window: CycleWindow.earlyFollicular,
+        evaluations: [
+          for (final start in starts)
+            _evaluateFixed(byDay, start: start, from: 4, to: 8, minimumCoverage: 2),
+        ],
+        coverageRequired: 2,
+      );
+
+      final periEvaluations = <_CycleEvaluation>[];
+      final lutealEvaluations = <_CycleEvaluation>[];
+      for (var i = 0; i < starts.length - 1; i++) {
+        final start = starts[i];
+        final next = starts[i + 1];
+        final cycleLength = start.daysUntil(next);
+        if (cycleLength < 18 || cycleLength > 60) continue;
+
+        // Retrospective broad proxy only. Mean luteal length in large marker-
+        // based cohorts is around 12 days but varies materially, so use ±3 days
+        // around a 13-days-before-next-period center rather than one magic day.
+        final estimatedOvulationOffset = cycleLength - 13;
+        periEvaluations.add(
+          _evaluateFixed(
+            byDay,
+            start: start,
+            from: estimatedOvulationOffset - 3,
+            to: estimatedOvulationOffset + 3,
+            minimumCoverage: 2,
+          ),
+        );
+
+        lutealEvaluations.add(
+          _evaluateFixed(
+            byDay,
+            start: next,
+            from: -10,
+            to: -6,
+            minimumCoverage: 2,
           ),
         );
       }
+
+      _maybeAdd(
+        patterns,
+        key: entry.key,
+        window: CycleWindow.periOvulatory,
+        evaluations: periEvaluations,
+        coverageRequired: 2,
+      );
+      _maybeAdd(
+        patterns,
+        key: entry.key,
+        window: CycleWindow.midLuteal,
+        evaluations: lutealEvaluations,
+        coverageRequired: 2,
+      );
     }
 
     patterns.sort((a, b) {
@@ -113,13 +171,63 @@ final class SymptomPatternAnalyzer {
     });
     return List.unmodifiable(patterns);
   }
+
+  _CycleEvaluation _evaluateFixed(
+    Map<int, bool> byDay, {
+    required LocalDay start,
+    required int from,
+    required int to,
+    required int minimumCoverage,
+  }) {
+    var explicitDays = 0;
+    var present = false;
+    for (var offset = from; offset <= to; offset++) {
+      final value = byDay[start.addDays(offset).epochDay];
+      if (value == null) continue;
+      explicitDays += 1;
+      if (value) present = true;
+    }
+    return _CycleEvaluation(
+      observed: explicitDays >= minimumCoverage,
+      present: present,
+    );
+  }
+
+  void _maybeAdd(
+    List<SymptomPattern> destination, {
+    required String key,
+    required CycleWindow window,
+    required List<_CycleEvaluation> evaluations,
+    required int coverageRequired,
+  }) {
+    var observedCycles = 0;
+    var presentCycles = 0;
+    for (final evaluation in evaluations) {
+      if (!evaluation.observed) continue;
+      observedCycles += 1;
+      if (evaluation.present) presentCycles += 1;
+    }
+
+    if (observedCycles < minimumObservedCycles) return;
+    if (presentCycles < 3) return;
+    final rate = presentCycles / observedCycles;
+    if (rate < minimumOccurrenceRate) return;
+
+    destination.add(
+      SymptomPattern(
+        key: key,
+        window: window,
+        cyclesPresent: presentCycles,
+        cyclesObserved: observedCycles,
+        coverageRequiredPerCycle: coverageRequired,
+      ),
+    );
+  }
 }
 
-final class _WindowDefinition {
-  const _WindowDefinition(this.window, this.startOffset, this.endOffset, this.minimumCoverageDays);
+final class _CycleEvaluation {
+  const _CycleEvaluation({required this.observed, required this.present});
 
-  final CycleWindow window;
-  final int startOffset;
-  final int endOffset;
-  final int minimumCoverageDays;
+  final bool observed;
+  final bool present;
 }

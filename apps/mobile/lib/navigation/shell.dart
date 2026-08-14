@@ -24,10 +24,38 @@ class NylaShell extends StatelessWidget {
         .indexWhere((entry) => location.startsWith(entry.path))
         .clamp(0, _destinations.length - 1);
     final palette = context.nyla;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final pageMotion = reduceMotion ? Duration.zero : const Duration(milliseconds: 210);
 
     return Scaffold(
       extendBody: true,
-      body: child,
+      body: AnimatedSwitcher(
+        duration: pageMotion,
+        reverseDuration: pageMotion,
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        layoutBuilder: (currentChild, previousChildren) => Stack(
+          fit: StackFit.expand,
+          children: [
+            ...previousChildren,
+            ?currentChild,
+          ],
+        ),
+        transitionBuilder: (transitionChild, animation) => FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.008),
+              end: Offset.zero,
+            ).animate(animation),
+            child: transitionChild,
+          ),
+        ),
+        child: KeyedSubtree(
+          key: ValueKey(location),
+          child: child,
+        ),
+      ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
         child: Center(
@@ -57,6 +85,7 @@ class NylaShell extends StatelessWidget {
                         entry: _destinations[i],
                         selected: i == selected,
                         primary: _destinations[i].path == '/log',
+                        reduceMotion: reduceMotion,
                         onTap: () {
                           if (i == selected) return;
                           NylaHaptics.select();
@@ -79,17 +108,20 @@ class _Destination extends StatelessWidget {
     required this.entry,
     required this.selected,
     required this.primary,
+    required this.reduceMotion,
     required this.onTap,
   });
 
   final ({String path, IconData icon, String label}) entry;
   final bool selected;
   final bool primary;
+  final bool reduceMotion;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.nyla;
+    final duration = reduceMotion ? Duration.zero : const Duration(milliseconds: 170);
     if (primary) {
       return Semantics(
         selected: selected,
@@ -100,7 +132,7 @@ class _Destination extends StatelessWidget {
           borderRadius: BorderRadius.circular(24),
           child: Center(
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 170),
+              duration: duration,
               curve: Curves.easeOutCubic,
               width: 44,
               height: 44,
@@ -139,7 +171,7 @@ class _Destination extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             AnimatedContainer(
-              duration: const Duration(milliseconds: 170),
+              duration: duration,
               curve: Curves.easeOutCubic,
               width: selected ? 38 : 31,
               height: 30,
@@ -158,12 +190,11 @@ class _Destination extends StatelessWidget {
             Text(
               entry.label,
               maxLines: 1,
-              style: TextStyle(
-                fontFamily: 'sans-serif-rounded',
-                fontSize: 9.4,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                color: selected ? palette.wine : palette.mutedInk,
-              ),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontSize: 9.4,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    color: selected ? palette.wine : palette.mutedInk,
+                  ),
             ),
           ],
         ),

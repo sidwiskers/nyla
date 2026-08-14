@@ -74,17 +74,34 @@ final class CyclePredictor {
     final limited = allIntervals.length > historyLimit
         ? allIntervals.sublist(allIntervals.length - historyLimit)
         : allIntervals;
-    final filtered = robustCycleFilter(limited);
 
-    final estimated = recencyWeightedMean(filtered)
+    // Center and uncertainty intentionally see history differently. A clean
+    // multiple of an established rhythm may be missed tracking, and a strong
+    // statistical outlier should not dominate the likely date. But either may
+    // also be real biology. They therefore remain visible to uncertainty even
+    // when they receive little or no weight in the point estimate.
+    final centerCandidates = probableTrackedCycleIntervals(limited);
+    final suspectedSkipped = limited.length - centerCandidates.length;
+    final centerHistory = robustCycleFilter(centerCandidates);
+
+    final estimated = recencyWeightedMean(centerHistory)
         .round()
         .clamp(minimumCycleDays, maximumCycleDays)
         .toInt();
-    final variability = robustVariability(filtered);
 
-    // A range is always shown. Even exceptionally consistent history gets a
-    // minimum one-day uncertainty in either direction.
-    final radius = math.max(1, (variability * 1.5).ceil()).clamp(1, 21).toInt();
+    // Full valid history still determines dispersion: an interval that looks
+    // like missed tracking might instead be a genuinely long cycle. Forecast
+    // back-testing is slightly different—the already-flagged clean multiples
+    // are omitted there so one probable adherence gap does not make the model
+    // unusably broad for many subsequent months. Non-multiple biological
+    // outliers remain in calibration and can widen the range substantially.
+    final variability = robustVariability(limited);
+    final calibrationError = rollingForecastAbsoluteError(centerCandidates);
+    final radius = _predictionRadius(
+      cycles: limited.length,
+      variability: variability,
+      calibrationError: calibrationError,
+    );
 
     // An unusual/excluded period is still a real period start and therefore
     // the correct anchor for the current cycle. Exclusion changes what Nyla
@@ -107,19 +124,51 @@ final class CyclePredictor {
         latestStart: likely.addDays(radius),
         predictedCycleLength: estimated,
         predictedPeriodDurationDays: predictedDuration,
-        confidence: _confidence(filtered.length, variability),
-        completedCyclesUsed: filtered.length,
+        confidence: _confidence(centerHistory.length, variability, radius),
+        completedCyclesUsed: centerHistory.length,
         variabilityDays: variability,
         rawCompletedCycles: allIntervals.length,
-        filteredCompletedCycles: filtered.length,
+        filteredCompletedCycles: centerHistory.length,
+        predictionRangeRadiusDays: radius,
+        calibrationErrorDays: calibrationError,
+        suspectedSkippedIntervals: suspectedSkipped,
       ),
     );
   }
 
-  PredictionConfidence _confidence(int cycles, double variability) {
+  int _predictionRadius({
+    required int cycles,
+    required double variability,
+    required double? calibrationError,
+  }) {
+    // Sparse history deserves visibly wider uncertainty even when the handful
+    // of recorded intervals happen to be identical.
+    final finiteHistoryFloor = switch (cycles) {
+      <= 1 => 5,
+      2 => 4,
+      3 => 3,
+      4 || 5 => 2,
+      _ => 2,
+    };
+
+    final dispersionRadius = (variability * 1.5).ceil();
+    final calibratedRadius = calibrationError == null
+        ? 0
+        : (calibrationError + 1).ceil();
+    return math
+        .max(finiteHistoryFloor, math.max(dispersionRadius, calibratedRadius))
+        .clamp(2, 21)
+        .toInt();
+  }
+
+  PredictionConfidence _confidence(int cycles, double variability, int radius) {
     if (cycles < 2) return PredictionConfidence.insufficient;
-    if (cycles >= 6 && variability <= 2.5) return PredictionConfidence.high;
-    if (cycles >= 3 && variability <= 5.0) return PredictionConfidence.medium;
+    if (cycles >= 6 && variability <= 2.5 && radius <= 3) {
+      return PredictionConfidence.high;
+    }
+    if (cycles >= 3 && variability <= 5.5 && radius <= 6) {
+      return PredictionConfidence.medium;
+    }
     return PredictionConfidence.low;
   }
 }

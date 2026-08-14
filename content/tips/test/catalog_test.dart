@@ -22,7 +22,16 @@ void main() {
 
   test('catalog contains no excluded product modules', () {
     final corpus = healthTips
-        .expand((tip) => [tip.id, tip.title, tip.flash, ...tip.details, ...tip.tags])
+        .expand(
+          (tip) => [
+            tip.id,
+            tip.title,
+            tip.flash,
+            ...tip.details,
+            ...tip.tags,
+            ...tip.experiences,
+          ],
+        )
         .join(' ')
         .toLowerCase();
     for (final excluded in [
@@ -40,8 +49,8 @@ void main() {
     }
   });
 
-  test('cycle companion cards stay contextual and non-deterministic', () {
-    expect(cycleCompanionTips, hasLength(4));
+  test('cycle companion catalog covers the whole cycle without pretending certainty', () {
+    expect(cycleCompanionTips, hasLength(13));
     expect(
       cycleCompanionTips.map((tip) => tip.id).toSet(),
       {
@@ -49,12 +58,32 @@ void main() {
         'cycle-now-early',
         'cycle-now-middle',
         'cycle-now-before-period',
+        'cycle-phase-menstruation',
+        'cycle-phase-follicular',
+        'cycle-phase-periovulatory',
+        'cycle-phase-luteal',
+        'cycle-phase-uncertain',
+        'cycle-body-prostaglandins',
+        'cycle-body-mucus',
+        'cycle-body-mood-is-personal',
+        'cycle-body-appetite',
       },
     );
 
     for (final tip in cycleCompanionTips) {
       expect(tip.tags, contains('cycle context'));
       expect(tip.sources, isNotEmpty);
+    }
+
+    for (final id in [
+      'cycle-phase-menstruation',
+      'cycle-phase-follicular',
+      'cycle-phase-periovulatory',
+      'cycle-phase-luteal',
+      'cycle-phase-uncertain',
+    ]) {
+      final phase = cycleCompanionTips.singleWhere((tip) => tip.id == id);
+      expect(phase.experiences, isNotEmpty, reason: '$id should have gentle experience cues.');
     }
 
     final middle = cycleCompanionTips.singleWhere(
@@ -64,6 +93,15 @@ void main() {
       middle.details.join(' ').toLowerCase(),
       contains('cannot confirm'),
       reason: 'Calendar context must not claim to identify ovulation.',
+    );
+
+    final peri = cycleCompanionTips.singleWhere(
+      (tip) => tip.id == 'cycle-phase-periovulatory',
+    );
+    expect(
+      peri.details.join(' ').toLowerCase(),
+      contains('cannot prove'),
+      reason: 'A mucus observation can support context but must not establish an exact day.',
     );
 
     final premenstrual = cycleCompanionTips.singleWhere(
@@ -76,10 +114,48 @@ void main() {
     );
   });
 
-  test('search covers titles, body and tags', () {
+  test('cycle body catalog uses researched context for richer existing logs', () {
+    expect(cycleBodyTips, hasLength(4));
+    expect(
+      cycleBodyTips.map((tip) => tip.id).toSet(),
+      {
+        'cycle-body-sleep',
+        'cycle-body-breast',
+        'cycle-body-digestion',
+        'cycle-body-skin',
+      },
+    );
+    for (final tip in cycleBodyTips) {
+      expect(tip.tags, contains('cycle context'));
+      expect(tip.experiences, isNotEmpty);
+      expect(tip.sources, isNotEmpty);
+    }
+
+    final sleep = cycleBodyTips.singleWhere((tip) => tip.id == 'cycle-body-sleep');
+    final sleepCopy = '${sleep.flash} ${sleep.details.join(' ')}'.toLowerCase();
+    expect(
+      sleepCopy,
+      allOf(
+        contains('inconsistent'),
+        contains('without a matching large change in sleep for everyone'),
+        contains('more useful than assuming'),
+      ),
+      reason: 'Sleep context must explicitly resist a universal phase script.',
+    );
+    expect(
+      cycleBodyTips.singleWhere((tip) => tip.id == 'cycle-body-skin').details.join(' ').toLowerCase(),
+      contains('own repeated'),
+      reason: 'Skin timing must remain a personal-pattern observation, not a phase detector.',
+    );
+  });
+
+  test('search covers titles, body, tags and experience cues', () {
     expect(healthTips.where((tip) => tip.matches('tampon')), isNotEmpty);
     expect(healthTips.where((tip) => tip.matches('cramps')), isNotEmpty);
     expect(healthTips.where((tip) => tip.matches('cleaning')), isNotEmpty);
-    expect(healthTips.where((tip) => tip.matches('cycle context')), hasLength(4));
+    expect(healthTips.where((tip) => tip.matches('cycle context')), hasLength(17));
+    expect(healthTips.where((tip) => tip.matches('stretchier mucus')), isNotEmpty);
+    expect(healthTips.where((tip) => tip.matches('breast tenderness')), isNotEmpty);
+    expect(healthTips.where((tip) => tip.matches('sleep quality')), isNotEmpty);
   });
 }

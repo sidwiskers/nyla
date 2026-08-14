@@ -22,11 +22,10 @@ void main() {
     }
 
     final patterns = analyzer.analyze(periodStarts: starts, observations: observations);
-    expect(patterns, hasLength(1));
-    expect(patterns.single.key, 'headache');
-    expect(patterns.single.window, CycleWindow.beforePeriod);
-    expect(patterns.single.cyclesPresent, 5);
-    expect(patterns.single.cyclesObserved, 6);
+    final pattern = patterns.singleWhere((item) => item.window == CycleWindow.beforePeriod);
+    expect(pattern.key, 'headache');
+    expect(pattern.cyclesPresent, 5);
+    expect(pattern.cyclesObserved, 6);
   });
 
   test('missing logs never count as symptom absence', () {
@@ -50,7 +49,7 @@ void main() {
     expect(analyzer.analyze(periodStarts: starts, observations: observations), isEmpty);
   });
 
-  test('detects first-two-days pattern separately from pre-period pattern', () {
+  test('detects first-days pattern separately from pre-period pattern', () {
     final observations = <BinaryObservation>[];
     for (final start in starts) {
       observations.add(BinaryObservation(day: start, key: 'cramps', present: true));
@@ -58,7 +57,72 @@ void main() {
     }
 
     final patterns = analyzer.analyze(periodStarts: starts, observations: observations);
-    expect(patterns.single.window, CycleWindow.periodStart);
-    expect(patterns.single.cyclesPresent, starts.length);
+    final pattern = patterns.singleWhere((item) => item.window == CycleWindow.periodStart);
+    expect(pattern.cyclesPresent, starts.length);
+  });
+
+  test('finds a repeated early-follicular pattern', () {
+    final observations = <BinaryObservation>[];
+    for (var index = 0; index < starts.length - 1; index++) {
+      final start = starts[index];
+      observations.add(BinaryObservation(day: start.addDays(4), key: 'energy.high', present: true));
+      observations.add(BinaryObservation(day: start.addDays(6), key: 'energy.high', present: index != 3));
+    }
+
+    final patterns = analyzer.analyze(periodStarts: starts, observations: observations);
+    final pattern = patterns.singleWhere((item) => item.window == CycleWindow.earlyFollicular);
+    expect(pattern.key, 'energy.high');
+    expect(pattern.cyclesObserved, 5);
+  });
+
+  test('finds broad retrospective peri-ovulatory patterns without naming a day', () {
+    final observations = <BinaryObservation>[];
+    for (var index = 0; index < starts.length - 1; index++) {
+      final start = starts[index];
+      // All intervals in this fixture are 28 days. The broad proxy is centered
+      // at offset 15 and spans offsets 12..18.
+      observations.add(
+        BinaryObservation(
+          day: start.addDays(13),
+          key: 'discharge.estrogenic',
+          present: index != 3,
+        ),
+      );
+      observations.add(
+        BinaryObservation(
+          day: start.addDays(16),
+          key: 'discharge.estrogenic',
+          present: true,
+        ),
+      );
+    }
+
+    final patterns = analyzer.analyze(periodStarts: starts, observations: observations);
+    final pattern = patterns.singleWhere((item) => item.window == CycleWindow.periOvulatory);
+    expect(pattern.key, 'discharge.estrogenic');
+    expect(pattern.cyclesObserved, 5);
+    expect(pattern.cyclesPresent, 5);
+  });
+
+  test('finds a repeated mid-luteal pattern separately from late-luteal days', () {
+    final observations = <BinaryObservation>[];
+    for (var index = 1; index < starts.length; index++) {
+      final nextStart = starts[index];
+      observations.add(
+        BinaryObservation(day: nextStart.addDays(-9), key: 'appetite.higher', present: true),
+      );
+      observations.add(
+        BinaryObservation(
+          day: nextStart.addDays(-7),
+          key: 'appetite.higher',
+          present: index != 4,
+        ),
+      );
+    }
+
+    final patterns = analyzer.analyze(periodStarts: starts, observations: observations);
+    final pattern = patterns.singleWhere((item) => item.window == CycleWindow.midLuteal);
+    expect(pattern.key, 'appetite.higher');
+    expect(pattern.cyclesObserved, 5);
   });
 }

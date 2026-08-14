@@ -22,14 +22,48 @@ class TodayScreen extends ConsumerWidget {
     final periods = ref.watch(periodHistoryProvider);
     final prediction = ref.watch(cyclePredictionProvider);
     final dayValues = ref.watch(dayValuesProvider(today.epochDay));
-    final experience = ref.watch(cycleExperienceProvider(today.epochDay));
+    final phase = ref.watch(cyclePhaseContextProvider(today.epochDay));
     final patterns = ref.watch(symptomPatternsProvider);
     final cycleDay = cycleDayFor(today, periods.value);
-    final current = experience.value;
+    final current = phase.value;
     final values = dayValues.value ?? const <DayValueEntry>[];
     final estimate = prediction.value?.prediction;
     final hasHistory = periods.value?.isNotEmpty ?? false;
     final hasPersonalEstimate = estimate != null;
+    final motion = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 300);
+
+    final cycleCard = current != null
+        ? TodayCycleMomentHero(
+            key: ValueKey('phase-${current.phase.name}'),
+            phaseContext: current,
+            tip: _phaseTip(current.phase),
+            pattern: _matchingPattern(
+              current,
+              patterns.value ?? const <SymptomPattern>[],
+            ),
+            estimate: estimate,
+            onExplore: () {
+              NylaHaptics.select();
+              context.go('/learn');
+            },
+          )
+        : hasHistory && !hasPersonalEstimate
+            ? _UnestimatedRhythmCard(
+                key: const ValueKey('unestimated'),
+                cycleDay: cycleDay,
+              )
+            : TodayQuietCycleCard(
+                key: const ValueKey('quiet-cycle'),
+                today: today,
+                periods: periods,
+                prediction: prediction,
+                onStartPeriod: () async {
+                  await NylaHaptics.confirm();
+                  await ref.read(cycleRepositoryProvider).recordPeriod(start: today);
+                },
+              );
 
     return NylaPage(
       title: _greeting(),
@@ -39,39 +73,29 @@ class TodayScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (current case final moment?)
-            TodayCycleMomentHero(
-              experience: moment,
-              tip: _experienceTip(moment.window),
-              pattern: _matchingPattern(
-                moment,
-                patterns.value ?? const <SymptomPattern>[],
+          AnimatedSwitcher(
+            duration: motion,
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.018),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
               ),
-              estimate: estimate,
-              onExplore: () {
-                NylaHaptics.select();
-                context.go('/learn');
-              },
-            )
-          else if (hasHistory && !hasPersonalEstimate)
-            _UnestimatedRhythmCard(cycleDay: cycleDay)
-          else
-            TodayQuietCycleCard(
-              today: today,
-              periods: periods,
-              prediction: prediction,
-              onStartPeriod: () async {
-                await NylaHaptics.confirm();
-                await ref.read(cycleRepositoryProvider).recordPeriod(start: today);
-              },
             ),
+            child: cycleCard,
+          ),
           const SizedBox(height: 13),
           TodayQuickCheckIn(today: today, values: values),
           const SizedBox(height: 13),
           TodayUpcomingCard(today: today, prediction: prediction),
           const SizedBox(height: 13),
           TodayWorthKnowingCard(
-            tip: _recommendedTip(values),
+            tip: _recommendedTip(values, current),
             onTap: () {
               NylaHaptics.select();
               context.go('/learn');
@@ -90,16 +114,53 @@ class TodayScreen extends ConsumerWidget {
     return 'Good evening';
   }
 
-  HealthTip _recommendedTip(List<DayValueEntry> values) {
+  HealthTip _recommendedTip(
+    List<DayValueEntry> values,
+    CyclePhaseContext? phase,
+  ) {
     final byKey = {for (final value in values) value.key: value};
     final cramps = byKey['cramps'];
-    if ((cramps?.severity ?? 0) > 0) return _tip('why-cramps-happen');
+    if ((cramps?.severity ?? 0) > 0) return _tip('cycle-body-prostaglandins');
+
     final discharge = byKey['discharge'];
-    if (discharge != null && discharge.value != 'none') return _tip('normal-discharge');
+    if (discharge != null &&
+        (discharge.value == 'watery' || discharge.value == 'stretchy')) {
+      return _tip('cycle-body-mucus');
+    }
+
+    final appetite = byKey['appetite'];
+    if (appetite != null &&
+        (appetite.value == 'higher' || appetite.value == 'cravings')) {
+      return _tip('cycle-body-appetite');
+    }
+
+    final breast = byKey['breast_tenderness'];
+    if ((breast?.severity ?? 0) > 0) return _tip('cycle-body-breast');
+
+    final digestion = byKey['digestion'];
+    if (digestion != null && digestion.value != 'usual') {
+      return _tip('cycle-body-digestion');
+    }
+
     final sleep = byKey['sleep'];
     if (sleep != null && (sleep.value == 'poor' || sleep.value == 'very_poor')) {
-      return _tip('sleep-and-discomfort');
+      return _tip('cycle-body-sleep');
     }
+
+    if (values.any((row) => row.key == 'skin.breakout')) {
+      return _tip('cycle-body-skin');
+    }
+
+    if (phase?.phase == CyclePhase.luteal &&
+        values.any(
+          (row) => row.key.startsWith('mood.') &&
+              const {'sensitive', 'low', 'irritable', 'anxious', 'overwhelmed'}
+                  .contains(row.value),
+        )) {
+      return _tip('cycle-body-mood-is-personal');
+    }
+
+    if (discharge != null && discharge.value != 'none') return _tip('normal-discharge');
     final flow = byKey['flow'];
     if (flow != null && flow.value != 'none') return _tip('hands-before-after-products');
 
@@ -108,7 +169,7 @@ class TodayScreen extends ConsumerWidget {
           (tip) =>
               tip.category != TipCategory.seekCare &&
               tip.id != 'tampon-metals-2026' &&
-              !tip.id.startsWith('cycle-now-'),
+              !tip.id.startsWith('cycle-'),
         )
         .toList(growable: false);
     final index = DateTime.now()
@@ -119,21 +180,29 @@ class TodayScreen extends ConsumerWidget {
     return safeGeneral[index];
   }
 
-  HealthTip _experienceTip(CycleExperienceWindow window) => switch (window) {
-        CycleExperienceWindow.periodStart => _tip('cycle-now-period-start'),
-        CycleExperienceWindow.earlyCycle => _tip('cycle-now-early'),
-        CycleExperienceWindow.middleCycle => _tip('cycle-now-middle'),
-        CycleExperienceWindow.approachingPeriod => _tip('cycle-now-before-period'),
+  HealthTip _phaseTip(CyclePhase phase) => switch (phase) {
+        CyclePhase.menstruation => _tip('cycle-phase-menstruation'),
+        CyclePhase.follicular => _tip('cycle-phase-follicular'),
+        CyclePhase.periOvulatory => _tip('cycle-phase-periovulatory'),
+        CyclePhase.luteal => _tip('cycle-phase-luteal'),
+        CyclePhase.uncertain => _tip('cycle-phase-uncertain'),
       };
 
   SymptomPattern? _matchingPattern(
-    CycleExperience experience,
+    CyclePhaseContext context,
     List<SymptomPattern> patterns,
   ) {
-    final target = switch (experience.window) {
-      CycleExperienceWindow.periodStart => CycleWindow.periodStart,
-      CycleExperienceWindow.approachingPeriod => CycleWindow.beforePeriod,
-      CycleExperienceWindow.earlyCycle || CycleExperienceWindow.middleCycle => null,
+    final daysUntil = context.daysUntilLikelyPeriod;
+    final target = switch (context.phase) {
+      CyclePhase.menstruation when context.cycleDay <= 3 => CycleWindow.periodStart,
+      CyclePhase.follicular when context.cycleDay >= 5 && context.cycleDay <= 9 =>
+        CycleWindow.earlyFollicular,
+      CyclePhase.periOvulatory => CycleWindow.periOvulatory,
+      CyclePhase.luteal when daysUntil != null && daysUntil >= 1 && daysUntil <= 4 =>
+        CycleWindow.beforePeriod,
+      CyclePhase.luteal when daysUntil != null && daysUntil >= 6 && daysUntil <= 10 =>
+        CycleWindow.midLuteal,
+      _ => null,
     };
     if (target == null) return null;
     for (final pattern in patterns) {
@@ -146,7 +215,7 @@ class TodayScreen extends ConsumerWidget {
 }
 
 class _UnestimatedRhythmCard extends StatelessWidget {
-  const _UnestimatedRhythmCard({required this.cycleDay});
+  const _UnestimatedRhythmCard({required this.cycleDay, super.key});
 
   final int? cycleDay;
 
