@@ -53,15 +53,15 @@ final cycleBodyTips = <HealthTip>[
         'Some people report poorer sleep quality before or during a period, but objective sleep changes are often small or inconsistent.',
     details: [
       'Prospective daily ratings in healthy ovulating women found lower perceived sleep quality in the few days before menstruation and during bleeding, while sleep duration and continuity were largely unchanged.',
-      'Wearable studies also find physiological cycle signals without a matching large change in sleep for everyone. Your repeated sleep logs are therefore more useful than assuming a phase should make you sleep badly.',
+      'Wearable studies also find physiological cycle signals without a matching large change in sleep for everyone. Your repeated sleep pattern is more useful than assuming a phase should make you sleep badly.',
     ],
     practical: [
-      'If poor sleep repeats in the same part of your cycle, Nyla can learn the timing without claiming the cycle is the only cause.',
+      'If poor sleep repeats around the same part of your cycle, that timing is worth noticing alongside stress, routine and other possible influences.',
     ],
     tags: ['cycle context', 'sleep', 'premenstrual', 'menstruation', 'personal patterns'],
     experiences: ['Poorer sleep quality', 'More tiredness', 'No obvious sleep change'],
     sources: [_sleepDaily, _sleepWearable],
-    version: 1,
+    version: 2,
     lastReviewed: _reviewed,
   ),
   HealthTip(
@@ -77,7 +77,7 @@ final cycleBodyTips = <HealthTip>[
     tags: ['cycle context', 'breast tenderness', 'luteal phase', 'premenstrual', 'personal patterns'],
     experiences: ['Tender breasts', 'Fullness or swelling', 'No change'],
     sources: [_breastProspective],
-    version: 1,
+    version: 2,
     lastReviewed: _reviewed,
   ),
   HealthTip(
@@ -93,7 +93,7 @@ final cycleBodyTips = <HealthTip>[
     tags: ['cycle context', 'digestion', 'nausea', 'loose stool', 'menstruation', 'cramps'],
     experiences: ['Abdominal discomfort', 'Nausea', 'Looser stools', 'Bloating'],
     sources: [_giDaily, _giHealthy],
-    version: 1,
+    version: 2,
     lastReviewed: _reviewed,
   ),
   HealthTip(
@@ -104,12 +104,12 @@ final cycleBodyTips = <HealthTip>[
         'Premenstrual acne flares are documented, but they are not universal and a single breakout says little about cycle phase.',
     details: [
       'Quantitative lesion counts across repeated cycles have documented a late-luteal increase in inflammatory acne lesions in many—but not all—adult women who experience premenstrual acne.',
-      'Nyla should learn this only from your own repeated skin logs rather than treating acne as a phase detector.',
+      'Your own repeated skin pattern is more informative than treating a breakout as a phase detector.',
     ],
     tags: ['cycle context', 'skin', 'breakout', 'acne', 'premenstrual', 'personal patterns'],
     experiences: ['Breakouts', 'Oilier skin', 'No skin change'],
     sources: [_acneQuantitative],
-    version: 1,
+    version: 2,
     lastReviewed: _reviewed,
   ),
 ];
