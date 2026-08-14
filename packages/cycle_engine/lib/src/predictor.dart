@@ -75,21 +75,27 @@ final class CyclePredictor {
         ? allIntervals.sublist(allIntervals.length - historyLimit)
         : allIntervals;
 
-    // A clean multiple of an established rhythm is often a missed tracking
-    // event rather than a newly-discovered 2x/3x biological cycle. This guard
-    // activates only with enough personal history and never changes stored data.
-    final adherenceAdjusted = probableTrackedCycleIntervals(limited);
-    final suspectedSkipped = limited.length - adherenceAdjusted.length;
-    final filtered = robustCycleFilter(adherenceAdjusted);
+    // Center and uncertainty intentionally see history differently. A clean
+    // multiple of an established rhythm may be missed tracking, and a strong
+    // statistical outlier should not dominate the likely date. But either may
+    // also be real biology. They therefore remain in the uncertainty/calibration
+    // history even when they receive little or no weight in the point estimate.
+    final centerCandidates = probableTrackedCycleIntervals(limited);
+    final suspectedSkipped = limited.length - centerCandidates.length;
+    final centerHistory = robustCycleFilter(centerCandidates);
 
-    final estimated = recencyWeightedMean(filtered)
+    final estimated = recencyWeightedMean(centerHistory)
         .round()
         .clamp(minimumCycleDays, maximumCycleDays)
         .toInt();
-    final variability = robustVariability(filtered);
-    final calibrationError = rollingForecastAbsoluteError(filtered);
+
+    // Do not let robust centering erase evidence that this person's cycle can
+    // move. The full valid recent history determines how cautious the displayed
+    // range should be.
+    final variability = robustVariability(limited);
+    final calibrationError = rollingForecastAbsoluteError(limited);
     final radius = _predictionRadius(
-      cycles: filtered.length,
+      cycles: limited.length,
       variability: variability,
       calibrationError: calibrationError,
     );
@@ -115,11 +121,11 @@ final class CyclePredictor {
         latestStart: likely.addDays(radius),
         predictedCycleLength: estimated,
         predictedPeriodDurationDays: predictedDuration,
-        confidence: _confidence(filtered.length, variability, radius),
-        completedCyclesUsed: filtered.length,
+        confidence: _confidence(centerHistory.length, variability, radius),
+        completedCyclesUsed: centerHistory.length,
         variabilityDays: variability,
         rawCompletedCycles: allIntervals.length,
-        filteredCompletedCycles: filtered.length,
+        filteredCompletedCycles: centerHistory.length,
         predictionRangeRadiusDays: radius,
         calibrationErrorDays: calibrationError,
         suspectedSkippedIntervals: suspectedSkipped,
