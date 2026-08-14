@@ -89,7 +89,7 @@ class TodayScreen extends ConsumerWidget {
             ),
             child: cycleCard,
           ),
-          const SizedBox(height: 13),
+          const SizedBox(height: 18),
           TodayQuickCheckIn(today: today, values: values),
           const SizedBox(height: 13),
           TodayUpcomingCard(today: today, prediction: prediction),
@@ -273,7 +273,7 @@ class _UnestimatedRhythmCard extends StatelessWidget {
           ),
           const SizedBox(height: 5),
           Text(
-            'Nyla will bring timing and personal patterns forward once your own history supports them.',
+            'A few completed cycles will make timing and personal patterns more meaningful.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.42),
           ),
         ],
