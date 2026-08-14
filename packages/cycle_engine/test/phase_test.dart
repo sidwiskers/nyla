@@ -65,6 +65,20 @@ void main() {
     expect(context.phase, CyclePhase.follicular);
   });
 
+  test('mid-cycle flow does not silently create a new menstruation phase', () {
+    const start = LocalDay(22000);
+    final context = engine.describe(
+      today: start.addDays(19),
+      records: [PeriodRecord(start: start, end: start.addDays(4))],
+      prediction: prediction(latestStart: start),
+      signals: const CycleDaySignals(bleeding: true),
+    )!;
+
+    expect(context.phase, isNot(CyclePhase.menstruation));
+    expect(context.cycleDay, 20);
+    expect(context.periodIsObserved, isFalse);
+  });
+
   test('without a prediction later cycle timing becomes uncertain', () {
     const start = LocalDay(22000);
     final context = engine.describe(
