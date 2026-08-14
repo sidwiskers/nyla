@@ -118,10 +118,13 @@ final cyclePhaseContextProvider = Provider.family<AsyncValue<CyclePhaseContext?>
     final periods = ref.watch(periodHistoryProvider);
     final prediction = ref.watch(cyclePredictionProvider);
     final values = ref.watch(dayValuesProvider(epochDay));
-    if (periods.isLoading || values.isLoading) return const AsyncLoading();
+    if (periods.isLoading) return const AsyncLoading();
     if (periods.hasError) return AsyncError(periods.error!, periods.stackTrace!);
-    if (values.hasError) return AsyncError(values.error!, values.stackTrace!);
 
+    // Today's flow/mucus observations can strengthen the interpretation, but
+    // they are optional evidence. Do not make the phase card wait or disappear
+    // while the local day stream is still opening (or if that optional stream
+    // fails independently).
     final rows = values.value ?? const <DayValueEntry>[];
     return AsyncData(
       const CyclePhaseEngine().describe(
