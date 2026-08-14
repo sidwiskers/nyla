@@ -27,6 +27,7 @@ final class HealthTip {
     this.practical = const [],
     this.seekCare = const [],
     this.tags = const [],
+    this.experiences = const [],
   });
 
   final String id;
@@ -37,6 +38,11 @@ final class HealthTip {
   final List<String> practical;
   final List<String> seekCare;
   final List<String> tags;
+
+  /// Short, non-deterministic experiences that can be surfaced as gentle
+  /// "you might notice" cues. They are never promises or diagnoses.
+  final List<String> experiences;
+
   final List<MedicalSource> sources;
   final int version;
   final DateTime lastReviewed;
@@ -44,7 +50,14 @@ final class HealthTip {
   bool matches(String query) {
     final needle = query.trim().toLowerCase();
     if (needle.isEmpty) return true;
-    return <String>[title, flash, ...details, ...practical, ...seekCare, ...tags]
-        .any((value) => value.toLowerCase().contains(needle));
+    return <String>[
+      title,
+      flash,
+      ...details,
+      ...practical,
+      ...seekCare,
+      ...tags,
+      ...experiences,
+    ].any((value) => value.toLowerCase().contains(needle));
   }
 }
