@@ -8,7 +8,19 @@ The engine separates three kinds of information:
 2. **Personally inferred** — estimates learned from the person's own completed-cycle history and repeated daily observations.
 3. **Biologically plausible context** — population evidence used only as a broad prior when direct evidence is unavailable.
 
-The UI should preserve that distinction. An estimate may be helpful; it must not be styled or worded as a measurement.
+The UI must preserve that distinction. An estimate may be useful; it must not be styled or worded as a measurement.
+
+## Scope
+
+The phase model describes spontaneous menstrual-cycle physiology from menstrual history and self-observation. A calendar-only tracker cannot determine whether ovulation occurred, measure hormones, diagnose a condition, or know whether hormonal contraception, pregnancy/postpartum physiology, perimenopause, endocrine disease, medication or another factor has altered ovarian cycling unless the product explicitly has that information.
+
+For that reason Nyla:
+
+- never exposes an exact ovulation date or fertile window;
+- visibly labels peri-ovulatory and luteal placement as estimated;
+- widens or removes phase certainty when the person's timing is not sufficiently supported;
+- treats the person's recorded observations as stronger evidence than a population stereotype;
+- does not use phase labels for contraception or conception guidance.
 
 ## Prediction model
 
@@ -27,9 +39,11 @@ The predictor:
 
 A suspected missed-tracking interval is never removed from the database or rewritten. It simply does not steer the current forecast.
 
+The estimator is a product prediction model, not a clinically validated diagnostic model. Its job is to be transparent, conservative and personally calibrated.
+
 ### Why tracking adherence matters
 
-Large self-tracking datasets show that missed logging can materially affect menstrual-cycle prediction. The prediction model therefore treats obvious tracking gaps separately from ordinary biological variability, but only under conservative personal-history conditions.
+Large self-tracking datasets show that missed logging can materially affect next-cycle prediction. The model therefore treats only obvious, high-confidence tracking gaps separately from ordinary biological variability.
 
 Relevant evidence:
 
@@ -48,16 +62,16 @@ Nyla presents everyday phase context as:
 
 ### Why there are not four equal calendar quarters
 
-The follicular phase and ovulation timing account for much of menstrual-cycle variability. The luteal phase is less variable on average, but it is not a fixed 14 days. A textbook "day 14" rule is therefore inappropriate for individual phase placement.
+The follicular phase and timing of ovulation account for much of menstrual-cycle variability. The luteal phase is less variable on average, but it is not a fixed 14 days. A textbook "day 14" rule is therefore inappropriate for individual phase placement.
 
-Nyla centers a **broad** peri-ovulatory estimate approximately 13 days before the personally predicted next period, using a ~12-day luteal duration as a population prior. Prediction uncertainty widens the window. The result is contextual education, not an ovulation measurement.
+Nyla centers a **broad** peri-ovulatory estimate approximately 13 days before the personally predicted next period, using a roughly 12-day luteal duration as a population prior. Personal prediction uncertainty widens the window. The result is contextual education, not an ovulation measurement.
 
 Relevant evidence:
 
 - Bull JR, Rowland SP, Scherwitzl EB, et al. *Real-world menstrual cycle characteristics of more than 600,000 menstrual cycles.* npj Digital Medicine. 2019. https://pmc.ncbi.nlm.nih.gov/articles/PMC6710244/
 - Fehring RJ, Schneider M, Raviele K. *Variability in the phases of the menstrual cycle.* Journal of Obstetric, Gynecologic & Neonatal Nursing. 2006. https://pubmed.ncbi.nlm.nih.gov/16700687/
 - Najmabadi S, Schliep KC, Simonsen SE, et al. *Menstrual bleeding, cycle length, and follicular and luteal phase lengths in women without known subfertility: a pooled analysis of three cohorts.* Paediatric and Perinatal Epidemiology. 2020. https://pubmed.ncbi.nlm.nih.gov/31444894/
-- Soumpasis I, Grace B, Johnson S. *Real-life insights on menstrual cycles and ovulation using big data.* Human Reproduction Open / related app cohort evidence. https://pubmed.ncbi.nlm.nih.gov/31272722/
+- Faust L, Bradley D, Landau E, et al. *Findings from a mobile application-based cohort are consistent with established knowledge of the menstrual cycle, fertile window, and conception.* Fertility and Sterility. 2019. https://pubmed.ncbi.nlm.nih.gov/31272722/
 
 ## Cervical-fluid evidence
 
@@ -70,12 +84,12 @@ It does **not**:
 - create a contraceptive or conception recommendation;
 - override a recorded period.
 
-Several days of estrogenic-quality mucus can occur around the ovulatory process, and self-observation is inherently noisy.
+Prospective cohorts show that several days of estrogenic-quality mucus are common and that the pattern varies substantially within the same person, so one watery day is not a biological timestamp.
 
 Relevant evidence:
 
-- Stanford JB, White GL, Hatasaka H. *Cervical mucus patterns and the fertile window in women without known subfertility.* Human Reproduction. 2021. https://pubmed.ncbi.nlm.nih.gov/33990841/
-- Fehring RJ. Cervical-mucus and ovulation-marker validation literature. The engine uses mucus only as supportive context, never as proof.
+- Najmabadi S, Schliep KC, Simonsen SE, et al. *Cervical mucus patterns and the fertile window in women without known subfertility: a pooled analysis of three cohorts.* Human Reproduction. 2021. https://pubmed.ncbi.nlm.nih.gov/33990841/
+- Faust L, Bradley D, Landau E, et al. *Findings from a mobile application-based cohort are consistent with established knowledge of the menstrual cycle, fertile window, and conception.* Fertility and Sterility. 2019. https://pubmed.ncbi.nlm.nih.gov/31272722/
 
 ## Personal-pattern intelligence
 
@@ -104,37 +118,36 @@ For multi-choice logs such as mood and skin, explicit absences are inferred only
 
 ### Why prospective logs matter
 
-Premenstrual disorders and recurring menstrual symptoms are best evaluated with prospective daily ratings across cycles. Retrospective memory alone can overstate or blur timing.
+Premenstrual and recurring cycle-related symptoms are much more defensibly timed with prospective daily observations than with retrospective memory.
 
 Relevant evidence:
 
-- Freeman EW, Halbreich U, Grubb GS, et al. *An overview of four studies of a continuous oral contraceptive (levonorgestrel 90 mcg/ethinyl estradiol 20 mcg) on premenstrual dysphoric disorder and premenstrual syndrome.* Daily-rating literature and prospective symptom methodology.
-- Yonkers KA, O'Brien PMS, Eriksson E. *Premenstrual syndrome.* Lancet. 2008; prospective daily symptom assessment is central to reliable timing.
-- Freeman EW, et al. *Core symptoms that discriminate premenstrual syndrome.* Journal of Women's Health. 2011. https://pubmed.ncbi.nlm.nih.gov/21128818/
+- Freeman EW, Halberstadt SM, Rickels K, Legler JM, Lin H, Sammel MD. *Core symptoms that discriminate premenstrual syndrome.* Journal of Women's Health. 2011. Prospective daily symptom ratings from 1,081 women were used to discriminate recurring premenstrual symptoms. https://pubmed.ncbi.nlm.nih.gov/21128818/
+- Romans SE, Kreindler D, Asllani E, et al. *Mood and the menstrual cycle.* Psychotherapy and Psychosomatics. 2013. Daily mood and health data were collected prospectively across six months. https://pubmed.ncbi.nlm.nih.gov/23147261/
 
 ## "You might notice" contract
 
 Population evidence can suggest experiences worth explaining, but Nyla must never tell someone what their personality, productivity, libido or mood *should* be because of a phase.
 
-Examples of appropriate population context:
+Appropriate population context includes:
 
 - cramps and some gastrointestinal symptoms around menstruation;
 - cervical-fluid changes as estrogen rises before ovulation;
 - breast tenderness, bloating, appetite/sleep changes or mood symptoms for some people in later luteal days.
 
-Examples of inappropriate deterministic claims:
+Inappropriate deterministic claims include:
 
 - "you will feel focused in the follicular phase";
 - "you are most confident at ovulation";
 - "the luteal phase makes you emotional";
 - universal energy/productivity scripts.
 
-Hormone-verified and prospective studies do not show one universal phase-linked mood or well-being pattern in healthy people. Nyla therefore gives a person's repeated logs precedence over generic experience cues.
+Prospective and hormone-verified studies do not show one universal phase-linked mood or well-being pattern in healthy people. Nyla therefore gives a person's repeated logs precedence over generic experience cues.
 
 Relevant evidence:
 
-- Romans SE, Clarkson R, Gill T, et al. *Mood and the menstrual cycle: a review of prospective data studies.* Psychotherapy and Psychosomatics. https://pubmed.ncbi.nlm.nih.gov/23147261/
-- Recent hormone-verified longitudinal work: *Associations between menstrual cycle phases and sexuality, well-being and mood in young healthy women.* https://pubmed.ncbi.nlm.nih.gov/40976232/
+- Romans SE, Kreindler D, Asllani E, et al. *Mood and the menstrual cycle.* Psychotherapy and Psychosomatics. 2013. https://pubmed.ncbi.nlm.nih.gov/23147261/
+- *Associations between menstrual cycle phases and sexuality, well-being and mood in young healthy women.* Hormone-verified longitudinal study. https://pubmed.ncbi.nlm.nih.gov/40976232/
 - Van Goozen SHM, et al. *Mood changes and physical complaints during the normal menstrual cycle in healthy young women.* https://pubmed.ncbi.nlm.nih.gov/2359810/
 
 ## Menstrual pain and prostaglandins
@@ -166,7 +179,7 @@ Any future change that makes a biological claim should answer four questions bef
 
 1. Is the input observed, personally inferred, or population-derived?
 2. Does the UI communicate that evidence level?
-3. Does a primary/authoritative source support the mechanism or timing claim?
-4. Could the wording be mistaken for a diagnosis, exact ovulation measurement, or deterministic phase stereotype?
+3. Does a primary or authoritative source support the mechanism or timing claim?
+4. Could the wording be mistaken for a diagnosis, exact ovulation measurement, fertility guidance, or deterministic phase stereotype?
 
 If the fourth answer is yes, the wording or feature needs to be redesigned.
