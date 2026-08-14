@@ -84,23 +84,28 @@ final class SymptomPatternAnalyzer {
         coverageRequired: 2,
       );
 
+      // A known period start is enough to retrospectively anchor the preceding
+      // four days. We do not need an earlier period record if those daily logs
+      // were explicitly captured.
       _maybeAdd(
         patterns,
         key: entry.key,
         window: CycleWindow.beforePeriod,
         evaluations: [
-          for (final start in starts.skip(1))
+          for (final start in starts)
             _evaluateFixed(byDay, start: start, from: -4, to: -1, minimumCoverage: 2),
         ],
         coverageRequired: 2,
       );
 
+      // Likewise, early-follicular days after the latest known period are
+      // directly anchored by that start even before the current cycle ends.
       _maybeAdd(
         patterns,
         key: entry.key,
         window: CycleWindow.earlyFollicular,
         evaluations: [
-          for (final start in starts.take(starts.length - 1))
+          for (final start in starts)
             _evaluateFixed(byDay, start: start, from: 4, to: 8, minimumCoverage: 2),
         ],
         coverageRequired: 2,
