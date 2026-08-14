@@ -47,7 +47,7 @@ Large self-tracking datasets show that missed logging can materially affect next
 
 Relevant evidence:
 
-- Li K, Urteaga I, Wiggins CH, et al. *A predictive model for next cycle start date that accounts for adherence in menstrual self-tracking.* Journal of the American Medical Informatics Association. 2022. https://pubmed.ncbi.nlm.nih.gov/35986610/
+- Li K, Urteaga I, Shea A, Vitzthum VJ, Wiggins CH, Elhadad N. *A predictive model for next cycle start date that accounts for adherence in menstrual self-tracking.* Journal of the American Medical Informatics Association. 2022. https://pubmed.ncbi.nlm.nih.gov/34534312/
 - Bull JR, Rowland SP, Scherwitzl EB, et al. *Real-world menstrual cycle characteristics of more than 600,000 menstrual cycles.* npj Digital Medicine. 2019. https://pmc.ncbi.nlm.nih.gov/articles/PMC6710244/
 
 ## Phase model
