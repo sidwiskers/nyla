@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:cycle_engine/cycle_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,8 +19,17 @@ class NylaApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final today = LocalDay.fromDateTime(DateTime.now());
     ref.listen(cyclePredictionProvider, (_, _) => unawaited(_refreshNotifications(ref)));
     ref.listen(notificationConfigProvider, (_, _) => unawaited(_refreshNotifications(ref)));
+    ref.listen(
+      dayValuesProvider(today.epochDay),
+      (_, _) => unawaited(_refreshNotifications(ref)),
+    );
+    ref.listen(
+      cyclePhaseContextProvider(today.epochDay),
+      (_, _) => unawaited(_refreshNotifications(ref)),
+    );
     ref.listen(notificationNavigationProvider, (_, next) {
       final route = next.value;
       if (route != null && nylaRouter.state.uri.path != route) nylaRouter.go(route);
@@ -60,9 +70,21 @@ class NylaApp extends ConsumerWidget {
   Future<void> _refreshNotifications(WidgetRef ref) async {
     final config = ref.read(notificationConfigProvider).value;
     if (config == null) return;
+
+    final today = LocalDay.fromDateTime(DateTime.now());
     final prediction = ref.read(cyclePredictionProvider).value?.prediction;
+    final dayValues =
+        ref.read(dayValuesProvider(today.epochDay)).value ?? const [];
+    final phaseContext =
+        ref.read(cyclePhaseContextProvider(today.epochDay)).value;
     final service = await ref.read(notificationServiceProvider.future);
-    await service.reschedule(config: config, prediction: prediction);
+    await service.reschedule(
+      config: config,
+      prediction: prediction,
+      today: today,
+      phaseContext: phaseContext,
+      dayValues: dayValues,
+    );
   }
 }
 
