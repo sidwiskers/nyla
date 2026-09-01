@@ -35,6 +35,16 @@ void main() {
     expect(plan.careBody, isNotNull);
   });
 
+  test('strong cramps outside a period still keep safety context', () {
+    final plan = companionNotificationPlan(
+      context(severities: const {'cramps': 3}),
+    );
+
+    expect(plan.dailyBody.toLowerCase(), contains('cramp'));
+    expect(plan.dailyBody.toLowerCase(), contains('help'));
+    expect(plan.careBody, isNotNull);
+  });
+
   test('early period days are cared for even without a symptom log', () {
     final plan = companionNotificationPlan(
       context(phase: CyclePhase.menstruation, cycleDay: 2),
@@ -88,6 +98,22 @@ void main() {
     );
 
     expect(plan.dailyBody.toLowerCase(), contains('dizz'));
+    expect(plan.dailyBody.toLowerCase(), contains('help'));
+    expect(plan.careBody, isNotNull);
+  });
+
+  test('strong headache stays specific even when other rough signals exist', () {
+    final plan = companionNotificationPlan(
+      context(
+        severities: const {
+          'headache': 3,
+          'cramps': 2,
+          'bloating': 2,
+        },
+      ),
+    );
+
+    expect(plan.dailyBody.toLowerCase(), contains('headache'));
     expect(plan.dailyBody.toLowerCase(), contains('help'));
     expect(plan.careBody, isNotNull);
   });
