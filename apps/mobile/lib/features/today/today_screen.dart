@@ -10,9 +10,9 @@ import '../../core/theme/nyla_theme.dart';
 import '../../data/database/app_database.dart';
 import '../../providers.dart';
 import '../../widgets/nyla_page.dart';
-import 'today_cycle_hero.dart';
+import 'today_companion_card.dart';
 import 'today_quiet_cycle_card.dart';
-import 'today_widgets.dart' hide TodayCycleMomentHero, TodayQuietCycleCard;
+import 'today_widgets.dart';
 
 class TodayScreen extends ConsumerWidget {
   const TodayScreen({super.key});
@@ -24,7 +24,6 @@ class TodayScreen extends ConsumerWidget {
     final prediction = ref.watch(cyclePredictionProvider);
     final dayValues = ref.watch(dayValuesProvider(today.epochDay));
     final phase = ref.watch(cyclePhaseContextProvider(today.epochDay));
-    final patterns = ref.watch(symptomPatternsProvider);
     final cycleDay = cycleDayFor(today, periods.value);
     final current = phase.value;
     final values = dayValues.value ?? const <DayValueEntry>[];
@@ -36,15 +35,10 @@ class TodayScreen extends ConsumerWidget {
         : const Duration(milliseconds: 300);
 
     final cycleCard = current != null
-        ? TodayCycleMomentHero(
-            key: ValueKey('phase-${current.phase.name}'),
+        ? TodayCompanionCard(
+            key: ValueKey('companion-${current.phase.name}-${values.length}'),
             phaseContext: current,
-            tip: _phaseTip(current.phase),
-            pattern: _matchingPattern(
-              current,
-              patterns.value ?? const <SymptomPattern>[],
-            ),
-            estimate: estimate,
+            values: values,
             onExplore: () {
               NylaHaptics.select();
               context.go('/learn');
@@ -67,10 +61,8 @@ class TodayScreen extends ConsumerWidget {
               );
 
     return NylaPage(
-      title: _greeting(),
-      subtitle: cycleDay == null
-          ? friendlyDay(today)
-          : '${friendlyDay(today)} · Cycle day $cycleDay',
+      title: _greeting(current, values),
+      subtitle: _subtitle(today, current),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -108,11 +100,27 @@ class TodayScreen extends ConsumerWidget {
     );
   }
 
-  String _greeting() {
+  String _greeting(CyclePhaseContext? phase, List<DayValueEntry> values) {
+    final cramps = values
+        .where((row) => row.key == 'cramps')
+        .map((row) => row.severity ?? 0)
+        .fold<int>(0, (a, b) => a > b ? a : b);
+    if (phase?.phase == CyclePhase.menstruation && cramps >= 3) {
+      return 'I’m here with you';
+    }
+    if (phase?.phase == CyclePhase.menstruation) return 'Take today gently';
+
     final hour = DateTime.now().hour;
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
+  }
+
+  String _subtitle(LocalDay today, CyclePhaseContext? phase) {
+    if (phase?.phase == CyclePhase.menstruation) {
+      return '${friendlyDay(today)} · Period day ${phase!.cycleDay}';
+    }
+    return friendlyDay(today);
   }
 
   HealthTip _recommendedTip(
@@ -181,37 +189,6 @@ class TodayScreen extends ConsumerWidget {
     return safeGeneral[index];
   }
 
-  HealthTip _phaseTip(CyclePhase phase) => switch (phase) {
-        CyclePhase.menstruation => _tip('cycle-phase-menstruation'),
-        CyclePhase.follicular => _tip('cycle-phase-follicular'),
-        CyclePhase.periOvulatory => _tip('cycle-phase-periovulatory'),
-        CyclePhase.luteal => _tip('cycle-phase-luteal'),
-        CyclePhase.uncertain => _tip('cycle-phase-uncertain'),
-      };
-
-  SymptomPattern? _matchingPattern(
-    CyclePhaseContext context,
-    List<SymptomPattern> patterns,
-  ) {
-    final daysUntil = context.daysUntilLikelyPeriod;
-    final target = switch (context.phase) {
-      CyclePhase.menstruation when context.cycleDay <= 3 => CycleWindow.periodStart,
-      CyclePhase.follicular when context.cycleDay >= 5 && context.cycleDay <= 9 =>
-        CycleWindow.earlyFollicular,
-      CyclePhase.periOvulatory => CycleWindow.periOvulatory,
-      CyclePhase.luteal when daysUntil != null && daysUntil >= 1 && daysUntil <= 4 =>
-        CycleWindow.beforePeriod,
-      CyclePhase.luteal when daysUntil != null && daysUntil >= 6 && daysUntil <= 10 =>
-        CycleWindow.midLuteal,
-      _ => null,
-    };
-    if (target == null) return null;
-    for (final pattern in patterns) {
-      if (pattern.window == target) return pattern;
-    }
-    return null;
-  }
-
   HealthTip _tip(String id) => healthTips.firstWhere((tip) => tip.id == id);
 }
 
@@ -240,7 +217,7 @@ class _UnestimatedRhythmCard extends StatelessWidget {
           Row(
             children: [
               Text(
-                'YOUR RHYTHM',
+                'GETTING TO KNOW YOU',
                 style: TextStyle(
                   color: palette.violet,
                   fontSize: 9.2,
@@ -269,12 +246,12 @@ class _UnestimatedRhythmCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Your rhythm is still taking shape',
+            'I’m still learning your rhythm',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 19),
           ),
           const SizedBox(height: 5),
           Text(
-            'A few completed cycles will make timing and personal patterns more meaningful.',
+            'Keep logging what feels useful. After a few cycles, Nyla can make the timing more personal without making your day about numbers.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.42),
           ),
         ],
