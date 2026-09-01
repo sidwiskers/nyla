@@ -47,10 +47,6 @@ class TodayScreen extends ConsumerWidget {
             key: ValueKey('companion-${current.phase.name}-${values.length}'),
             phaseContext: current,
             values: values,
-            onExplore: () {
-              NylaHaptics.select();
-              context.go('/learn');
-            },
           )
         : hasHistory && !hasPersonalEstimate
             ? _UnestimatedRhythmCard(
