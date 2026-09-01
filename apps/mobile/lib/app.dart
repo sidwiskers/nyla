@@ -24,7 +24,6 @@ class NylaApp extends ConsumerWidget {
     ref.listen(
       notificationConfigProvider,
       (_, _) => unawaited(_refreshNotifications(ref)),
-      fireImmediately: true,
     );
     ref.listen(
       dayValuesProvider(today.epochDay),
