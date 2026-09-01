@@ -16,6 +16,7 @@ class NotificationService {
   static const _periodApproachingId = 41001;
   static const _windowStartsId = 41002;
   static const _dailyLogId = 41003;
+  static const _careNudgeId = 41004;
   static const _channelId = 'nyla_reminders_v1';
   static const _allowedRoutes = {'/calendar', '/log'};
 
@@ -133,7 +134,10 @@ class NotificationService {
         day: reminderDay,
         hour: 9,
         minute: 0,
-        body: _copy(config.privacy, contextual: 'Your expected period window is getting closer.'),
+        body: _copy(
+          config.privacy,
+          contextual: 'Your period may be getting close. Maybe keep the comfy things nearby.',
+        ),
         payload: '/calendar',
       );
     }
@@ -143,13 +147,67 @@ class NotificationService {
         day: prediction.earliestStart,
         hour: 9,
         minute: 0,
-        body: _copy(config.privacy, contextual: 'Your expected period window starts around today.'),
+        body: _copy(
+          config.privacy,
+          contextual: 'Your period could start around now. Be a little extra kind to yourself today.',
+        ),
         payload: '/calendar',
       );
     }
     if (config.dailyLogReminder) {
       await _scheduleDaily(config);
+    } else {
+      await _plugin.cancel(id: _careNudgeId);
     }
+  }
+
+  /// Schedules one gentle, contextual nudge while a recorded period is active.
+  ///
+  /// This deliberately piggybacks on the user's existing daily check-in opt-in
+  /// rather than creating a surprise notification category. It is one-shot so
+  /// stale period context can never keep repeating after the app stops seeing
+  /// an active period.
+  Future<void> schedulePeriodCareNudge({
+    required NotificationConfig config,
+    required int periodDay,
+    required int crampsSeverity,
+  }) async {
+    await initialize();
+    await _plugin.cancel(id: _careNudgeId);
+    if (!config.dailyLogReminder) return;
+
+    final now = tz.TZDateTime.now(tz.local);
+    tz.TZDateTime scheduled;
+    if (now.hour < 8) {
+      scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, 9);
+    } else if (now.hour >= 20) {
+      final tomorrow = now.add(const Duration(days: 1));
+      scheduled = tz.TZDateTime(
+        tz.local,
+        tomorrow.year,
+        tomorrow.month,
+        tomorrow.day,
+        9,
+      );
+    } else {
+      scheduled = now.add(const Duration(hours: 2));
+    }
+
+    final contextual = crampsSeverity >= 3
+        ? 'Crampy day? Be gentle with yourself. A little rest still counts as taking care of things.'
+        : periodDay <= 2
+            ? 'Early period days can be a lot. Drink something, get comfortable, and take today at your pace.'
+            : 'Just checking in. How is your body feeling today?';
+
+    await _plugin.zonedSchedule(
+      id: _careNudgeId,
+      title: 'Nyla',
+      body: _copy(config.privacy, contextual: contextual),
+      scheduledDate: scheduled,
+      notificationDetails: _details,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      payload: '/log',
+    );
   }
 
   Future<void> _scheduleDaily(NotificationConfig config) async {
@@ -159,7 +217,10 @@ class NotificationService {
     await _plugin.zonedSchedule(
       id: _dailyLogId,
       title: 'Nyla',
-      body: _copy(config.privacy, contextual: 'Time for today’s check-in.'),
+      body: _copy(
+        config.privacy,
+        contextual: 'How are you feeling today? No perfect log needed — just a small check-in with yourself.',
+      ),
       scheduledDate: next,
       notificationDetails: _details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -191,7 +252,7 @@ class NotificationService {
   }
 
   String _copy(NotificationPrivacy privacy, {required String contextual}) =>
-      privacy == NotificationPrivacy.private ? 'Nyla reminder.' : contextual;
+      privacy == NotificationPrivacy.private ? 'Nyla is thinking of you.' : contextual;
 
   static const _details = NotificationDetails(
     android: AndroidNotificationDetails(
