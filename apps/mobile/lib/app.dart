@@ -21,7 +21,11 @@ class NylaApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final today = LocalDay.fromDateTime(DateTime.now());
     ref.listen(cyclePredictionProvider, (_, _) => unawaited(_refreshNotifications(ref)));
-    ref.listen(notificationConfigProvider, (_, _) => unawaited(_refreshNotifications(ref)));
+    ref.listen(
+      notificationConfigProvider,
+      (_, _) => unawaited(_refreshNotifications(ref)),
+      fireImmediately: true,
+    );
     ref.listen(
       dayValuesProvider(today.epochDay),
       (_, _) => unawaited(_refreshNotifications(ref)),
