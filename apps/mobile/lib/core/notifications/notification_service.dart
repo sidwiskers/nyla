@@ -7,6 +7,8 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../../data/database/app_database.dart';
+import 'companion_notification.dart';
 import 'notification_config.dart';
 
 class NotificationService {
@@ -17,11 +19,14 @@ class NotificationService {
   static const _windowStartsId = 41002;
   static const _dailyLogId = 41003;
   static const _careNudgeId = 41004;
+  static const _dailyFallbackId = 41005;
   static const _channelId = 'nyla_reminders_v1';
   static const _allowedRoutes = {'/calendar', '/log'};
 
   final FlutterLocalNotificationsPlugin _plugin;
-  final StreamController<String> _navigationController = StreamController<String>.broadcast();
+  final StreamController<String> _navigationController =
+      StreamController<String>.broadcast();
+  Future<void> _rescheduleTail = Future<void>.value();
   bool _initialized = false;
   String? _initialLaunchRoute;
 
@@ -56,20 +61,27 @@ class NotificationService {
       requestSoundPermission: false,
     );
     await _plugin.initialize(
-      settings: const InitializationSettings(android: android, iOS: apple, macOS: apple),
+      settings: const InitializationSettings(
+        android: android,
+        iOS: apple,
+        macOS: apple,
+      ),
       onDidReceiveNotificationResponse: _onNotificationResponse,
     );
 
     final launch = await _plugin.getNotificationAppLaunchDetails();
     if (launch?.didNotificationLaunchApp == true) {
-      _initialLaunchRoute = routeFromPayload(launch?.notificationResponse?.payload);
+      _initialLaunchRoute =
+          routeFromPayload(launch?.notificationResponse?.payload);
     }
     _initialized = true;
   }
 
   void _onNotificationResponse(NotificationResponse response) {
     final route = routeFromPayload(response.payload);
-    if (route != null && !_navigationController.isClosed) _navigationController.add(route);
+    if (route != null && !_navigationController.isClosed) {
+      _navigationController.add(route);
+    }
   }
 
   Future<void> cancelAll() async {
@@ -81,18 +93,21 @@ class NotificationService {
     await initialize();
     if (Platform.isAndroid) {
       return _plugin
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
           ?.areNotificationsEnabled();
     }
     if (Platform.isIOS) {
       final options = await _plugin
-          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+          .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin>()
           ?.checkPermissions();
       return options?.isEnabled;
     }
     if (Platform.isMacOS) {
       final options = await _plugin
-          .resolvePlatformSpecificImplementation<MacOSFlutterLocalNotificationsPlugin>()
+          .resolvePlatformSpecificImplementation<
+              MacOSFlutterLocalNotificationsPlugin>()
           ?.checkPermissions();
       return options?.isEnabled;
     }
@@ -104,31 +119,74 @@ class NotificationService {
     bool granted = true;
     if (Platform.isAndroid) {
       granted = await _plugin
-              .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+              .resolvePlatformSpecificImplementation<
+                  AndroidFlutterLocalNotificationsPlugin>()
               ?.requestNotificationsPermission() ??
           true;
     } else if (Platform.isIOS) {
       granted = await _plugin
-              .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+              .resolvePlatformSpecificImplementation<
+                  IOSFlutterLocalNotificationsPlugin>()
               ?.requestPermissions(alert: true, badge: false, sound: true) ??
           false;
     } else if (Platform.isMacOS) {
       granted = await _plugin
-              .resolvePlatformSpecificImplementation<MacOSFlutterLocalNotificationsPlugin>()
+              .resolvePlatformSpecificImplementation<
+                  MacOSFlutterLocalNotificationsPlugin>()
               ?.requestPermissions(alert: true, badge: false, sound: true) ??
           false;
     }
     return granted;
   }
 
-  Future<void> reschedule({required NotificationConfig config, CyclePrediction? prediction}) async {
+  Future<void> reschedule({
+    required NotificationConfig config,
+    CyclePrediction? prediction,
+    LocalDay? today,
+    CyclePhaseContext? phaseContext,
+    List<DayValueEntry> dayValues = const <DayValueEntry>[],
+  }) {
+    final day = today ?? LocalDay.fromDateTime(DateTime.now());
+    final plan = _companionPlan(
+      day: day,
+      phaseContext: phaseContext,
+      dayValues: dayValues,
+    );
+
+    final next = _rescheduleTail.then(
+      (_) => _rescheduleNow(
+        config: config,
+        prediction: prediction,
+        today: day,
+        plan: plan,
+      ),
+      onError: (_) => _rescheduleNow(
+        config: config,
+        prediction: prediction,
+        today: day,
+        plan: plan,
+      ),
+    );
+    _rescheduleTail = next;
+    return next;
+  }
+
+  Future<void> _rescheduleNow({
+    required NotificationConfig config,
+    required LocalDay today,
+    required CompanionNotificationPlan plan,
+    CyclePrediction? prediction,
+  }) async {
     await initialize();
     await _plugin.cancel(id: _periodApproachingId);
     await _plugin.cancel(id: _windowStartsId);
     await _plugin.cancel(id: _dailyLogId);
+    await _plugin.cancel(id: _careNudgeId);
+    await _plugin.cancel(id: _dailyFallbackId);
 
     if (prediction != null && config.periodApproaching) {
-      final reminderDay = prediction.earliestStart.addDays(-config.periodDaysBefore);
+      final reminderDay =
+          prediction.earliestStart.addDays(-config.periodDaysBefore);
       await _scheduleIfFuture(
         id: _periodApproachingId,
         day: reminderDay,
@@ -136,11 +194,13 @@ class NotificationService {
         minute: 0,
         body: _copy(
           config.privacy,
-          contextual: 'Your period may be getting close. Maybe keep the comfy things nearby.',
+          contextual:
+              'Your period may be getting close. Maybe keep the comfy things nearby.',
         ),
         payload: '/calendar',
       );
     }
+
     if (prediction != null && config.expectedWindowStarts) {
       await _scheduleIfFuture(
         id: _windowStartsId,
@@ -149,82 +209,152 @@ class NotificationService {
         minute: 0,
         body: _copy(
           config.privacy,
-          contextual: 'Your period could start around now. Be a little extra kind to yourself today.',
+          contextual:
+              'Your period could start around now. Be a little extra kind to yourself today.',
         ),
         payload: '/calendar',
       );
     }
-    if (config.dailyLogReminder) {
-      await _scheduleDaily(config);
-    } else {
-      await _plugin.cancel(id: _careNudgeId);
-    }
-  }
 
-  /// Schedules one gentle, contextual nudge while a recorded period is active.
-  ///
-  /// This deliberately piggybacks on the user's existing daily check-in opt-in
-  /// rather than creating a surprise notification category. It is one-shot so
-  /// stale period context can never keep repeating after the app stops seeing
-  /// an active period.
-  Future<void> schedulePeriodCareNudge({
-    required NotificationConfig config,
-    required int periodDay,
-    required int crampsSeverity,
-  }) async {
-    await initialize();
-    await _plugin.cancel(id: _careNudgeId);
     if (!config.dailyLogReminder) return;
 
-    final now = tz.TZDateTime.now(tz.local);
-    tz.TZDateTime scheduled;
-    if (now.hour < 8) {
-      scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, 9);
-    } else if (now.hour >= 20) {
-      final tomorrow = now.add(const Duration(days: 1));
-      scheduled = tz.TZDateTime(
-        tz.local,
-        tomorrow.year,
-        tomorrow.month,
-        tomorrow.day,
-        9,
-      );
-    } else {
-      scheduled = now.add(const Duration(hours: 2));
+    await _scheduleDaily(
+      config: config,
+      today: today,
+      plan: plan,
+    );
+    await _scheduleCareNudgeIfUseful(
+      config: config,
+      today: today,
+      plan: plan,
+    );
+  }
+
+  CompanionNotificationPlan _companionPlan({
+    required LocalDay day,
+    required CyclePhaseContext? phaseContext,
+    required List<DayValueEntry> dayValues,
+  }) {
+    final values = <String, String>{};
+    final severities = <String, int>{};
+    final moods = <String>{};
+
+    for (final row in dayValues) {
+      if (row.key.startsWith('mood.')) {
+        moods.add(row.key.substring('mood.'.length));
+        continue;
+      }
+      values[row.key] = row.value;
+      if (row.severity != null) severities[row.key] = row.severity!;
     }
 
-    final contextual = crampsSeverity >= 3
-        ? 'Crampy day? Be gentle with yourself. A little rest still counts as taking care of things.'
-        : periodDay <= 2
-            ? 'Early period days can be a lot. Drink something, get comfortable, and take today at your pace.'
-            : 'Just checking in. How is your body feeling today?';
+    return companionNotificationPlan(
+      CompanionNotificationContext(
+        phase: phaseContext?.phase,
+        cycleDay: phaseContext?.cycleDay,
+        daysUntilLikelyPeriod: phaseContext?.daysUntilLikelyPeriod,
+        values: values,
+        severities: severities,
+        moods: moods,
+        daySeed: day.epochDay,
+      ),
+    );
+  }
 
+  Future<void> _scheduleDaily({
+    required NotificationConfig config,
+    required LocalDay today,
+    required CompanionNotificationPlan plan,
+  }) async {
+    final now = tz.TZDateTime.now(tz.local);
+    final date = today.utcDate;
+    final todayAtReminder = tz.TZDateTime(
+      tz.local,
+      date.year,
+      date.month,
+      date.day,
+      config.dailyHour,
+      config.dailyMinute,
+    );
+
+    tz.TZDateTime fallbackStart;
+    if (todayAtReminder.isAfter(now)) {
+      await _plugin.zonedSchedule(
+        id: _dailyLogId,
+        title: 'Nyla',
+        body: _copy(
+          config.privacy,
+          contextual: plan.dailyBody,
+          private: privateCompanionBody(today.epochDay),
+        ),
+        scheduledDate: todayAtReminder,
+        notificationDetails: _details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: '/log',
+      );
+      fallbackStart = todayAtReminder.add(const Duration(days: 1));
+    } else {
+      fallbackStart = todayAtReminder.add(const Duration(days: 1));
+    }
+
+    // Today's message can use today's context. Future days intentionally fall
+    // back to a generic repeating check-in so yesterday's cramps, mood or sleep
+    // can never be repeated as though they were still current. Opening Nyla or
+    // changing a log replaces the next occurrence with fresh context again.
     await _plugin.zonedSchedule(
-      id: _careNudgeId,
+      id: _dailyFallbackId,
       title: 'Nyla',
-      body: _copy(config.privacy, contextual: contextual),
-      scheduledDate: scheduled,
+      body: _copy(
+        config.privacy,
+        contextual:
+            'How are you feeling today? No perfect log needed — just a small check-in with yourself.',
+        private: privateCompanionBody(today.epochDay + 1),
+      ),
+      scheduledDate: fallbackStart,
       notificationDetails: _details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.time,
       payload: '/log',
     );
   }
 
-  Future<void> _scheduleDaily(NotificationConfig config) async {
+  Future<void> _scheduleCareNudgeIfUseful({
+    required NotificationConfig config,
+    required LocalDay today,
+    required CompanionNotificationPlan plan,
+  }) async {
+    final careBody = plan.careBody;
+    if (careBody == null) return;
+
+    final date = today.utcDate;
+    final scheduled = tz.TZDateTime(
+      tz.local,
+      date.year,
+      date.month,
+      date.day,
+      14,
+    );
     final now = tz.TZDateTime.now(tz.local);
-    var next = tz.TZDateTime(tz.local, now.year, now.month, now.day, config.dailyHour, config.dailyMinute);
-    if (!next.isAfter(now)) next = next.add(const Duration(days: 1));
+    if (!scheduled.isAfter(now)) return;
+
+    // Do not stack two Nyla notifications close together. If the user's chosen
+    // daily check-in is around the daytime care window, that personalized daily
+    // notification is enough.
+    final dailyMinutes = config.dailyHour * 60 + config.dailyMinute;
+    const careMinutes = 14 * 60;
+    if ((dailyMinutes - careMinutes).abs() <= 90) return;
+
     await _plugin.zonedSchedule(
-      id: _dailyLogId,
+      id: _careNudgeId,
       title: 'Nyla',
       body: _copy(
         config.privacy,
-        contextual: 'How are you feeling today? No perfect log needed — just a small check-in with yourself.',
+        contextual: careBody,
+        private: privateCompanionBody(today.epochDay + 17),
       ),
-      scheduledDate: next,
+      scheduledDate: scheduled,
       notificationDetails: _details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      matchDateTimeComponents: DateTimeComponents.time,
       payload: '/log',
     );
   }
@@ -238,7 +368,8 @@ class NotificationService {
     required String payload,
   }) async {
     final date = day.utcDate;
-    final scheduled = tz.TZDateTime(tz.local, date.year, date.month, date.day, hour, minute);
+    final scheduled =
+        tz.TZDateTime(tz.local, date.year, date.month, date.day, hour, minute);
     if (!scheduled.isAfter(tz.TZDateTime.now(tz.local))) return;
     await _plugin.zonedSchedule(
       id: id,
@@ -251,8 +382,12 @@ class NotificationService {
     );
   }
 
-  String _copy(NotificationPrivacy privacy, {required String contextual}) =>
-      privacy == NotificationPrivacy.private ? 'Nyla is thinking of you.' : contextual;
+  String _copy(
+    NotificationPrivacy privacy, {
+    required String contextual,
+    String private = 'Nyla is thinking of you.',
+  }) =>
+      privacy == NotificationPrivacy.private ? private : contextual;
 
   static const _details = NotificationDetails(
     android: AndroidNotificationDetails(
