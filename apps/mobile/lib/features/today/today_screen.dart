@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cycle_engine/cycle_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,6 +35,12 @@ class TodayScreen extends ConsumerWidget {
     final motion = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : const Duration(milliseconds: 300);
+
+    if (current?.phase == CyclePhase.menstruation) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_schedulePeriodCareNudge(ref, current!, values));
+      });
+    }
 
     final cycleCard = current != null
         ? TodayCompanionCard(
@@ -97,6 +105,25 @@ class TodayScreen extends ConsumerWidget {
           const SizedBox(height: 88),
         ],
       ),
+    );
+  }
+
+  Future<void> _schedulePeriodCareNudge(
+    WidgetRef ref,
+    CyclePhaseContext phase,
+    List<DayValueEntry> values,
+  ) async {
+    final config = ref.read(notificationConfigProvider).value;
+    if (config == null || !config.dailyLogReminder) return;
+    final cramps = values
+        .where((row) => row.key == 'cramps')
+        .map((row) => row.severity ?? 0)
+        .fold<int>(0, (a, b) => a > b ? a : b);
+    final service = await ref.read(notificationServiceProvider.future);
+    await service.schedulePeriodCareNudge(
+      config: config,
+      periodDay: phase.cycleDay,
+      crampsSeverity: cramps,
     );
   }
 
