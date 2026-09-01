@@ -1,0 +1,62 @@
+name: Cleanup release artifacts
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: nyla-artifact-cleanup
+  cancel-in-progress: true
+
+jobs:
+  cleanup:
+    name: Remove transient release artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Delete artifacts older than six hours
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          cutoff="$(date -u -d '6 hours ago' +%s)"
+          deleted=0
+
+          while IFS=$'\t' read -r id name created expired; do
+            [[ -n "$id" ]] || continue
+
+            # Release APKs are named nyla-<version>. Failed-build diagnostics
+            # use nyla-build-diagnostics-<run id>. Keep the one-time signing
+            # bootstrap artifact untouched even though it also starts with nyla-.
+            case "$name" in
+              nyla-build-diagnostics-*) ;;
+              nyla-[0-9]*) ;;
+              *) continue ;;
+            esac
+
+            [[ "$expired" == "false" ]] || continue
+            created_epoch="$(date -u -d "$created" +%s)"
+            if (( created_epoch > cutoff )); then
+              continue
+            fi
+
+            echo "Deleting $name (artifact $id, created $created)"
+            gh api --method DELETE \
+              -H 'Accept: application/vnd.github+json' \
+              "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"
+            deleted=$((deleted + 1))
+          done < <(
+            gh api --paginate \
+              -H 'Accept: application/vnd.github+json' \
+              "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
+              --jq '.artifacts[] | [.id, .name, .created_at, .expired] | @tsv'
+          )
+
+          echo "Removed $deleted transient artifact(s)." >> "$GITHUB_STEP_SUMMARY"
