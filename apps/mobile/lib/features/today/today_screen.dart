@@ -14,7 +14,7 @@ import '../../providers.dart';
 import '../../widgets/nyla_page.dart';
 import 'today_companion_card.dart';
 import 'today_quiet_cycle_card.dart';
-import 'today_widgets.dart';
+import 'today_widgets.dart' hide TodayQuietCycleCard;
 
 class TodayScreen extends ConsumerWidget {
   const TodayScreen({super.key});
