@@ -276,8 +276,16 @@ class NotificationService {
       config.dailyHour,
       config.dailyMinute,
     );
+    final tomorrow = today.addDays(1).utcDate;
+    final fallbackStart = tz.TZDateTime(
+      tz.local,
+      tomorrow.year,
+      tomorrow.month,
+      tomorrow.day,
+      config.dailyHour,
+      config.dailyMinute,
+    );
 
-    tz.TZDateTime fallbackStart;
     if (todayAtReminder.isAfter(now)) {
       await _plugin.zonedSchedule(
         id: _dailyLogId,
@@ -292,9 +300,6 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         payload: '/log',
       );
-      fallbackStart = todayAtReminder.add(const Duration(days: 1));
-    } else {
-      fallbackStart = todayAtReminder.add(const Duration(days: 1));
     }
 
     // Today's message can use today's context. Future days intentionally fall
@@ -393,7 +398,7 @@ class NotificationService {
     android: AndroidNotificationDetails(
       _channelId,
       'Nyla reminders',
-      channelDescription: 'Private period and optional daily logging reminders',
+      channelDescription: 'Private period reminders and optional Nyla check-ins',
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
       visibility: NotificationVisibility.private,
