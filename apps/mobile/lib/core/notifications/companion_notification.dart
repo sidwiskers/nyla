@@ -76,6 +76,8 @@ CompanionNotificationPlan companionNotificationPlan(
   if (flow == 'heavy') roughSignals++;
   if (digestion != null && digestion != 'usual') roughSignals++;
 
+  // High-signal observations stay ahead of the general "rough day" collapse
+  // so useful safety context is never hidden by several simultaneous logs.
   if (dizziness >= 3) {
     return CompanionNotificationPlan(
       dailyBody: _pick(context.daySeed, const [
@@ -87,17 +89,12 @@ CompanionNotificationPlan companionNotificationPlan(
     );
   }
 
-  if (roughSignals >= 3) {
-    return CompanionNotificationPlan(
-      dailyBody: _pick(context.daySeed, const [
-        'Your body has had a lot to say today. You do not have to push through every bit of it at once.',
-        'That sounds like a lot for one day. Keep things simple where you can and give yourself permission to do less.',
-        'A few things seem to be piling up today. Be on your own side and make the day a little easier where you can.',
-      ]),
-      careBody: _pick(context.daySeed + 1, const [
-        'Just checking in. If today feels like a lot, doing less is allowed.',
-        'Nyla check-in: keep today gentle. You do not need to win against a rough body day.',
-      ]),
+  if (headache >= 3) {
+    return const CompanionNotificationPlan(
+      dailyBody:
+          'Headache day? Lower the noise where you can, drink normally, and give yourself a little room to rest. If it is severe, unusual or worrying, please get medical help.',
+      careBody:
+          'How is your head feeling now? If the headache is still severe, unusual, or worrying, please get medical help.',
     );
   }
 
@@ -114,12 +111,12 @@ CompanionNotificationPlan companionNotificationPlan(
     );
   }
 
-  if (headache >= 3) {
-    return CompanionNotificationPlan(
+  if (cramps >= 3) {
+    return const CompanionNotificationPlan(
       dailyBody:
-          'Headache day? Lower the noise where you can, drink normally, and give yourself a little room to rest.',
+          'Strong cramps today? Take things gently and choose whatever feels comfortable. If the pain is severe, unusual or worrying, please get medical help.',
       careBody:
-          'How is your head feeling now? If the headache is severe, unusual, or worrying, please get medical help.',
+          'How are those cramps now? You do not need to push through severe or unusual pain — please get help if you need it.',
     );
   }
 
@@ -138,6 +135,29 @@ CompanionNotificationPlan companionNotificationPlan(
           'Your back is asking for some kindness today. Change position when you need to and do not force comfort.',
       careBody:
           'Still achy? Give yourself permission to choose the comfortable option today.',
+    );
+  }
+
+  if (flow == 'heavy') {
+    return const CompanionNotificationPlan(
+      dailyBody:
+          'Heavier-flow day? Keep what you need nearby and take a little extra care of yourself. If bleeding is unusually heavy or you feel faint, please get medical help.',
+      careBody:
+          'A Nyla check-in: keep supplies nearby, and please get medical help if the bleeding feels unusually heavy or you feel faint.',
+    );
+  }
+
+  if (roughSignals >= 3) {
+    return CompanionNotificationPlan(
+      dailyBody: _pick(context.daySeed, const [
+        'Your body has had a lot to say today. You do not have to push through every bit of it at once.',
+        'That sounds like a lot for one day. Keep things simple where you can and give yourself permission to do less.',
+        'A few things seem to be piling up today. Be on your own side and make the day a little easier where you can.',
+      ]),
+      careBody: _pick(context.daySeed + 1, const [
+        'Just checking in. If today feels like a lot, doing less is allowed.',
+        'Nyla check-in: keep today gentle. You do not need to win against a rough body day.',
+      ]),
     );
   }
 
@@ -210,13 +230,6 @@ CompanionNotificationPlan companionNotificationPlan(
         'A more sensitive day is still just a day, not a verdict on you. Give yourself a little space.',
         'Your mood feels heavier today. Notice it without making yourself fight it.',
       ]),
-    );
-  }
-
-  if (flow == 'heavy') {
-    return const CompanionNotificationPlan(
-      dailyBody:
-          'Heavier-flow day? Keep what you need nearby and take a little extra care of yourself. If bleeding is unusually heavy or you feel faint, please get medical help.',
     );
   }
 
