@@ -11,6 +11,7 @@ enum CyclePetMood {
   bright,
   playful,
   calm,
+  affectionate,
 }
 
 @immutable
@@ -39,6 +40,7 @@ class CyclePetDisposition {
         CyclePetMood.bright => 'looking bright and alert',
         CyclePetMood.playful => 'looking playful',
         CyclePetMood.calm => 'looking calm',
+        CyclePetMood.affectionate => 'looking especially fond',
       };
 
   @override
@@ -166,6 +168,9 @@ CyclePetDisposition cyclePetDisposition(CyclePetSignals signals) {
 
   final variant = ((signals.cycleDay ?? 1) - 1).abs() % 3;
 
+  // Actual logged state always outranks cycle rhythm or relationship warmth.
+  // The cat supports a rough day; it never performs a cheerful phase stereotype
+  // over information the user just logged.
   if (dizziness >= 3 ||
       headache >= 3 ||
       nausea >= 3 ||
@@ -256,7 +261,26 @@ CyclePetDisposition cyclePetDisposition(CyclePetSignals signals) {
     );
   }
 
-  return _remember(_baselineDisposition(signals, variant), signals, variant);
+  final baseline = _baselineDisposition(signals, variant);
+
+  // Familiarity is allowed to change the cat's own emotion, never the health
+  // interpretation. It takes several distinct days of affection before this
+  // becomes an enduring demeanor, so the first tap does not instantly rewrite
+  // its personality.
+  if (signals.recentlyPetted && signals.familiarity >= 0.28) {
+    return _remember(
+      CyclePetDisposition(
+        mood: CyclePetMood.affectionate,
+        energy: (baseline.energy * 0.92).clamp(0.38, 0.68).toDouble(),
+        closeness: baseline.closeness < 0.86 ? 0.86 : baseline.closeness,
+        variant: variant,
+      ),
+      signals,
+      variant,
+    );
+  }
+
+  return _remember(baseline, signals, variant);
 }
 
 CyclePetDisposition _remember(
@@ -265,8 +289,8 @@ CyclePetDisposition _remember(
   int variant,
 ) {
   final familiarity = signals.familiarity.clamp(0.0, 1.0).toDouble();
-  final closenessBonus = familiarity * 0.055 +
-      (signals.recentlyPetted ? 0.025 : 0.0);
+  final closenessBonus =
+      familiarity * 0.055 + (signals.recentlyPetted ? 0.025 : 0.0);
   return CyclePetDisposition(
     mood: base.mood,
     energy: base.energy,
