@@ -63,18 +63,13 @@ class _CyclePetNookState extends State<CyclePetNook>
   void didChangeDependencies() {
     super.didChangeDependencies();
     final reduce = MediaQuery.disableAnimationsOf(context);
-    final tickerEnabled = TickerMode.of(context);
+    final tickerEnabled = TickerMode.valuesOf(context).enabled;
     final changed = reduce != _reduceMotion || tickerEnabled != _tickerEnabled;
     _reduceMotion = reduce;
     _tickerEnabled = tickerEnabled;
 
     if (!_autonomousMotion) {
-      _idleTimer?.cancel();
-      _idleTimer = null;
-      if (_reduceMotion) {
-        _blinkController.value = 0;
-        _reactionController.value = 0;
-      }
+      _resetMotionState();
       return;
     }
     if (changed || _idleTimer == null) _scheduleIdle();
@@ -86,8 +81,22 @@ class _CyclePetNookState extends State<CyclePetNook>
       if (_autonomousMotion) _scheduleIdle();
       return;
     }
+    _resetMotionState();
+  }
+
+  void _resetMotionState() {
     _idleTimer?.cancel();
     _idleTimer = null;
+    _blinkController.stop(canceled: false);
+    _reactionController.stop(canceled: false);
+    _blinkController.value = 0;
+    _reactionController.value = 0;
+    _reaction = _PetReaction.none;
+    _reactionLean = 0;
+    _petting = false;
+    _petHapticSent = false;
+    _petLean = 0;
+    _petDepth = 0;
   }
 
   @override
@@ -150,7 +159,7 @@ class _CyclePetNookState extends State<CyclePetNook>
 
     setState(() => _reaction = reaction);
     await _reactionController.forward(from: 0);
-    if (!mounted || _petting) return;
+    if (!mounted || _petting || !_tickerEnabled) return;
 
     setState(() {
       _reaction = _PetReaction.none;
@@ -223,15 +232,15 @@ class _CyclePetNookState extends State<CyclePetNook>
     final palette = context.nyla;
     final dark = Theme.of(context).brightness == Brightness.dark;
 
-    return Semantics(
-      button: true,
-      label:
-          'Your little Nyla companion, ${widget.disposition.semantics}. Tap it or stroke left and right to pet it.',
-      child: RepaintBoundary(
-        child: SizedBox(
-          height: _petHeight,
-          width: double.infinity,
-          child: Center(
+    return RepaintBoundary(
+      child: SizedBox(
+        height: _petHeight,
+        width: double.infinity,
+        child: Center(
+          child: Semantics(
+            button: true,
+            label:
+                'Your little Nyla companion, ${widget.disposition.semantics}. Tap it or stroke left and right to pet it.',
             child: SizedBox(
               key: const ValueKey('cycle-pet-touch-target'),
               width: _petWidth,
