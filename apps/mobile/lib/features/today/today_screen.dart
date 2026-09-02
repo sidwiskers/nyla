@@ -35,9 +35,6 @@ class TodayScreen extends ConsumerWidget {
     final estimate = prediction.value?.prediction;
     final hasHistory = periods.value?.isNotEmpty ?? false;
     final hasPersonalEstimate = estimate != null;
-    final motion = MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : const Duration(milliseconds: 300);
     final petDisposition = cyclePetDisposition(
       CyclePetSignals.fromToday(
         phaseContext: current,
@@ -76,39 +73,16 @@ class TodayScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AnimatedSwitcher(
-            duration: motion,
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            child: CyclePetNook(
-              key: ValueKey(
-                'cycle-pet-${petDisposition.mood.name}-${petDisposition.variant}',
-              ),
-              disposition: petDisposition,
-              onPetted: () {
-                unawaited(
-                  ref
-                      .read(cyclePetMemoryRepositoryProvider)
-                      .recordPet(today.epochDay),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 4),
-          AnimatedSwitcher(
-            duration: motion,
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, animation) => FadeTransition(
-              opacity: animation,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.018),
-                  end: Offset.zero,
-                ).animate(animation),
-                child: child,
-              ),
-            ),
+          CyclePetLedge(
+            key: const ValueKey('cycle-pet-ledge'),
+            disposition: petDisposition,
+            onPetted: () {
+              unawaited(
+                ref
+                    .read(cyclePetMemoryRepositoryProvider)
+                    .recordPet(today.epochDay),
+              );
+            },
             child: cycleCard,
           ),
           const SizedBox(height: 18),
@@ -225,8 +199,12 @@ class TodayScreen extends ConsumerWidget {
       return _tip('everyday-cycle-day-one');
     }
 
-    if (discharge != null && discharge.value != 'none') return _tip('normal-discharge');
-    if (flow != null && flow.value != 'none') return _tip('hands-before-after-products');
+    if (discharge != null && discharge.value != 'none') {
+      return _tip('normal-discharge');
+    }
+    if (flow != null && flow.value != 'none') {
+      return _tip('hands-before-after-products');
+    }
 
     final safeGeneral = healthTips
         .where(

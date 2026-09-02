@@ -167,7 +167,7 @@ void main() {
     );
   });
 
-  test('familiarity changes warmth without changing health interpretation', () {
+  test('familiarity can warm the cat without overriding health interpretation', () {
     final newCompanion = cyclePetDisposition(
       const CyclePetSignals(
         phase: CyclePhase.luteal,
@@ -185,8 +185,8 @@ void main() {
       ),
     );
 
-    expect(familiarCompanion.mood, newCompanion.mood);
-    expect(familiarCompanion.energy, newCompanion.energy);
+    expect(newCompanion.mood, CyclePetMood.calm);
+    expect(familiarCompanion.mood, CyclePetMood.affectionate);
     expect(familiarCompanion.closeness, greaterThan(newCompanion.closeness));
     expect(familiarCompanion.familiarity, 1);
     expect(familiarCompanion.recentlyPetted, isTrue);

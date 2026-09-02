@@ -15,6 +15,7 @@ void main() {
   Widget app({
     bool reduceMotion = false,
     bool tickerEnabled = true,
+    double cardHeight = 180,
     VoidCallback? onPetted,
   }) =>
       MaterialApp(
@@ -24,10 +25,22 @@ void main() {
           child: TickerMode(
             enabled: tickerEnabled,
             child: Scaffold(
-              body: Center(
-                child: CyclePetNook(
-                  disposition: disposition,
-                  onPetted: onPetted,
+              body: Align(
+                alignment: Alignment.topCenter,
+                child: SizedBox(
+                  width: 360,
+                  child: CyclePetLedge(
+                    disposition: disposition,
+                    onPetted: onPetted,
+                    child: Container(
+                      key: ValueKey('cycle-card-$cardHeight'),
+                      height: cardHeight,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(27),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -35,11 +48,56 @@ void main() {
         ),
       );
 
-  testWidgets('pet accepts a nod tap and a horizontal pet stroke', (tester) async {
+  Finder card(double height) => find.byKey(ValueKey('cycle-card-$height'));
+
+  testWidgets('cat sits on the card instead of taking a full separate block',
+      (tester) async {
+    await tester.pumpWidget(app());
+
+    final pet = find.byKey(const ValueKey('cycle-pet-touch-target'));
+    final cycleCard = card(180);
+    expect(pet, findsOneWidget);
+    expect(cycleCard, findsOneWidget);
+
+    final petRect = tester.getRect(pet);
+    final cardRect = tester.getRect(cycleCard);
+    expect(petRect.bottom, greaterThan(cardRect.top));
+    expect(petRect.bottom - cardRect.top, lessThan(18));
+    expect(cardRect.top - petRect.top, lessThan(100));
+  });
+
+  testWidgets('the card top stays pinned while its height grows and shrinks',
+      (tester) async {
+    await tester.pumpWidget(app(cardHeight: 180));
+    await tester.pumpAndSettle();
+    final ledgeTop = tester.getRect(card(180)).top;
+
+    await tester.pumpWidget(app(cardHeight: 260));
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(
+      tester.getRect(card(260)).top,
+      closeTo(ledgeTop, 0.5),
+      reason: 'The cat ledge must not drift while card content grows.',
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getRect(card(260)).top, closeTo(ledgeTop, 0.5));
+
+    await tester.pumpWidget(app(cardHeight: 180));
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(
+      tester.getRect(card(180)).top,
+      closeTo(ledgeTop, 0.5),
+      reason: 'The cat ledge must not drift while card content shrinks.',
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getRect(card(180)).top, closeTo(ledgeTop, 0.5));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('pet accepts a tap and a horizontal stroke', (tester) async {
     var pets = 0;
     await tester.pumpWidget(app(onPetted: () => pets++));
     final target = find.byKey(const ValueKey('cycle-pet-touch-target'));
-    expect(target, findsOneWidget);
 
     await tester.tap(target);
     await tester.pump(const Duration(milliseconds: 120));
@@ -51,13 +109,72 @@ void main() {
     await tester.pump(const Duration(milliseconds: 80));
     await gesture.moveBy(const Offset(-70, 0));
     await gesture.up();
-    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump(const Duration(milliseconds: 1300));
 
     expect(pets, 1);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('reduced motion stays interactive without autonomous animation', (tester) async {
+  testWidgets('rapid taps retarget a reaction without stale completion',
+      (tester) async {
+    await tester.pumpWidget(app());
+    final target = find.byKey(const ValueKey('cycle-pet-touch-target'));
+
+    await tester.tap(target);
+    await tester.pump(const Duration(milliseconds: 90));
+    await tester.tap(target);
+    await tester.pump(const Duration(milliseconds: 90));
+    await tester.tap(target);
+    await tester.pump(const Duration(seconds: 2));
+
+    expect(target, findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    final gesture = await tester.startGesture(tester.getCenter(target));
+    await gesture.moveBy(const Offset(55, 0));
+    await gesture.moveBy(const Offset(-65, 0));
+    await gesture.up();
+    await tester.pump(const Duration(milliseconds: 1300));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a cancelled pet gesture restores the cat to interactive state',
+      (tester) async {
+    var pets = 0;
+    await tester.pumpWidget(app(onPetted: () => pets++));
+    final target = find.byKey(const ValueKey('cycle-pet-touch-target'));
+
+    final cancelled = await tester.startGesture(tester.getCenter(target));
+    await cancelled.moveBy(const Offset(45, 0));
+    await tester.pump(const Duration(milliseconds: 60));
+    await cancelled.cancel();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(pets, 0, reason: 'A cancelled stroke must not count as affection.');
+
+    final complete = await tester.startGesture(tester.getCenter(target));
+    await complete.moveBy(const Offset(50, 0));
+    await complete.moveBy(const Offset(-70, 0));
+    await complete.up();
+    await tester.pump(const Duration(milliseconds: 1300));
+
+    expect(pets, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('holding the cat is a deliberate cuddle interaction', (tester) async {
+    var pets = 0;
+    await tester.pumpWidget(app(onPetted: () => pets++));
+    final target = find.byKey(const ValueKey('cycle-pet-touch-target'));
+
+    await tester.longPress(target);
+    await tester.pump(const Duration(milliseconds: 1300));
+
+    expect(pets, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('reduced motion stays interactive without autonomous animation',
+      (tester) async {
     await tester.pumpWidget(app(reduceMotion: true));
     final target = find.byKey(const ValueKey('cycle-pet-touch-target'));
 
@@ -71,7 +188,8 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('ticker suspension resets an in-flight reaction cleanly', (tester) async {
+  testWidgets('ticker suspension resets an in-flight reaction cleanly',
+      (tester) async {
     await tester.pumpWidget(app());
     final target = find.byKey(const ValueKey('cycle-pet-touch-target'));
 
@@ -86,7 +204,8 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('disposing the pet cancels its idle lifecycle cleanly', (tester) async {
+  testWidgets('disposing the pet cancels its idle lifecycle cleanly',
+      (tester) async {
     await tester.pumpWidget(app());
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 8));
