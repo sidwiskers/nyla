@@ -18,57 +18,82 @@ import 'shell.dart';
 final nylaRouter = GoRouter(
   initialLocation: '/today',
   routes: [
-    ShellRoute(
-      builder: (context, state, child) => NylaShell(
-        location: state.uri.path,
-        child: child,
+    StatefulShellRoute(
+      builder: (context, state, navigationShell) => NylaShell(
+        navigationShell: navigationShell,
       ),
-      routes: [
-        GoRoute(
-          path: '/today',
-          pageBuilder: (context, state) => nylaSectionPage(
-            key: state.pageKey,
-            child: const TodayScreen(),
-          ),
+      navigatorContainerBuilder: (context, navigationShell, children) =>
+          NylaBranchMotion(
+        currentIndex: navigationShell.currentIndex,
+        reduceMotion: MediaQuery.disableAnimationsOf(context),
+        children: children,
+      ),
+      branches: [
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/today',
+              pageBuilder: (context, state) => nylaSectionPage(
+                key: state.pageKey,
+                child: const TodayScreen(),
+              ),
+            ),
+          ],
         ),
-        GoRoute(
-          path: '/calendar',
-          pageBuilder: (context, state) => nylaSectionPage(
-            key: state.pageKey,
-            child: const CalendarScreen(),
-          ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/calendar',
+              pageBuilder: (context, state) => nylaSectionPage(
+                key: state.pageKey,
+                child: const CalendarScreen(),
+              ),
+            ),
+          ],
         ),
-        GoRoute(
-          path: '/log',
-          pageBuilder: (context, state) {
-            final raw = state.uri.queryParameters['day'];
-            LocalDay? day;
-            if (raw != null) {
-              try {
-                day = LocalDay.parseIso(raw);
-              } on FormatException {
-                day = null;
-              }
-            }
-            return nylaSectionPage(
-              key: state.pageKey,
-              child: LogScreen(initialDay: day),
-            );
-          },
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/log',
+              pageBuilder: (context, state) {
+                final raw = state.uri.queryParameters['day'];
+                LocalDay? day;
+                if (raw != null) {
+                  try {
+                    day = LocalDay.parseIso(raw);
+                  } on FormatException {
+                    day = null;
+                  }
+                }
+                return nylaSectionPage(
+                  key: state.pageKey,
+                  child: LogScreen(initialDay: day),
+                );
+              },
+            ),
+          ],
         ),
-        GoRoute(
-          path: '/insights',
-          pageBuilder: (context, state) => nylaSectionPage(
-            key: state.pageKey,
-            child: const InsightsScreen(),
-          ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/insights',
+              pageBuilder: (context, state) => nylaSectionPage(
+                key: state.pageKey,
+                child: const InsightsScreen(),
+              ),
+            ),
+          ],
         ),
-        GoRoute(
-          path: '/learn',
-          pageBuilder: (context, state) => nylaSectionPage(
-            key: state.pageKey,
-            child: const LearnScreen(),
-          ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/learn',
+              pageBuilder: (context, state) => nylaSectionPage(
+                key: state.pageKey,
+                child: const LearnScreen(),
+              ),
+            ),
+          ],
         ),
       ],
     ),
