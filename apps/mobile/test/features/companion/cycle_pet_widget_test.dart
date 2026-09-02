@@ -11,6 +11,7 @@ void main() {
     closeness: 0.62,
     variant: 1,
   );
+  const longPressRecognition = Duration(milliseconds: 580);
 
   Widget app({
     bool reduceMotion = false,
@@ -138,7 +139,7 @@ void main() {
     final startCenter = tester.getCenter(target);
 
     final gesture = await tester.startGesture(startCenter);
-    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 80));
+    await tester.pump(longPressRecognition);
     await gesture.moveBy(const Offset(0, -24));
     await tester.pump(const Duration(milliseconds: 40));
 
@@ -240,7 +241,7 @@ void main() {
     final start = tester.getCenter(target);
 
     final gesture = await tester.startGesture(start);
-    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 80));
+    await tester.pump(longPressRecognition);
     await gesture.moveBy(const Offset(26, -28));
     await tester.pump(const Duration(milliseconds: 50));
     expect(
