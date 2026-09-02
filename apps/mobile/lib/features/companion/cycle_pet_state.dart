@@ -25,19 +25,9 @@ class CyclePetDisposition {
   });
 
   final CyclePetMood mood;
-
-  /// 0 is tucked-in and sleepy; 1 is bouncy and alert.
   final double energy;
-
-  /// 0 is independent/observant; 1 is physically close and comforting.
   final double closeness;
-
-  /// A deterministic tiny visual variant so the pet does not hold one exact
-  /// pose every day. It never changes the health meaning of the disposition.
   final int variant;
-
-  /// A small local-only familiarity signal built from distinct days on which
-  /// the user petted the companion. It never affects health interpretation.
   final double familiarity;
   final bool recentlyPetted;
 
@@ -176,8 +166,6 @@ CyclePetDisposition cyclePetDisposition(CyclePetSignals signals) {
 
   final variant = ((signals.cycleDay ?? 1) - 1).abs() % 3;
 
-  // The pet supports the person; it does not impersonate their symptom. Strong
-  // or several rough signals therefore make it stay close rather than look ill.
   if (dizziness >= 3 ||
       headache >= 3 ||
       nausea >= 3 ||
@@ -255,8 +243,6 @@ CyclePetDisposition cyclePetDisposition(CyclePetSignals signals) {
     );
   }
 
-  // Fresh positive logs outrank a phase stereotype. A good day is allowed to
-  // look like a good day in any part of the cycle.
   if (highEnergy || brightMood.isNotEmpty) {
     return _remember(
       const CyclePetDisposition(
@@ -278,13 +264,14 @@ CyclePetDisposition _remember(
   CyclePetSignals signals,
   int variant,
 ) {
-  final familiarity = signals.familiarity.clamp(0.0, 1.0);
+  final familiarity = signals.familiarity.clamp(0.0, 1.0).toDouble();
   final closenessBonus = familiarity * 0.055 +
       (signals.recentlyPetted ? 0.025 : 0.0);
   return CyclePetDisposition(
     mood: base.mood,
     energy: base.energy,
-    closeness: (base.closeness + closenessBonus).clamp(0.0, 1.0),
+    closeness:
+        (base.closeness + closenessBonus).clamp(0.0, 1.0).toDouble(),
     variant: variant,
     familiarity: familiarity,
     recentlyPetted: signals.recentlyPetted,
