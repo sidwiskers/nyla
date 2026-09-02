@@ -83,6 +83,7 @@ void main() {
       plan.dailyBody.toLowerCase(),
       anyOf(
         contains('loud'),
+        contains('noisy'),
         contains('anxious'),
         contains('racing'),
         contains('overwhelmed'),
