@@ -7,6 +7,9 @@ import '../../core/haptics/nyla_haptics.dart';
 import '../../core/theme/nyla_theme.dart';
 import 'cycle_pet_state.dart';
 
+const _petWidth = 190.0;
+const _petHeight = 132.0;
+
 enum _PetReaction { none, nod, petted, lookLeft, lookRight }
 
 class CyclePetNook extends StatefulWidget {
@@ -31,11 +34,14 @@ class _CyclePetNookState extends State<CyclePetNook>
   Timer? _idleTimer;
   _PetReaction _reaction = _PetReaction.none;
   bool _reduceMotion = false;
+  bool _tickerEnabled = true;
   bool _petting = false;
   bool _petHapticSent = false;
   double _petLean = 0;
   double _petDepth = 0;
   double _reactionLean = 0;
+
+  bool get _autonomousMotion => !_reduceMotion && _tickerEnabled;
 
   @override
   void initState() {
@@ -57,22 +63,27 @@ class _CyclePetNookState extends State<CyclePetNook>
   void didChangeDependencies() {
     super.didChangeDependencies();
     final reduce = MediaQuery.disableAnimationsOf(context);
-    if (reduce == _reduceMotion && _idleTimer != null) return;
+    final tickerEnabled = TickerMode.of(context);
+    final changed = reduce != _reduceMotion || tickerEnabled != _tickerEnabled;
     _reduceMotion = reduce;
-    if (_reduceMotion) {
+    _tickerEnabled = tickerEnabled;
+
+    if (!_autonomousMotion) {
       _idleTimer?.cancel();
       _idleTimer = null;
-      _blinkController.value = 0;
-      _reactionController.value = 0;
-    } else {
-      _scheduleIdle();
+      if (_reduceMotion) {
+        _blinkController.value = 0;
+        _reactionController.value = 0;
+      }
+      return;
     }
+    if (changed || _idleTimer == null) _scheduleIdle();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      if (!_reduceMotion) _scheduleIdle();
+      if (_autonomousMotion) _scheduleIdle();
       return;
     }
     _idleTimer?.cancel();
@@ -90,15 +101,21 @@ class _CyclePetNookState extends State<CyclePetNook>
 
   void _scheduleIdle() {
     _idleTimer?.cancel();
-    if (_reduceMotion || !mounted) return;
-    final milliseconds = 3300 + _random.nextInt(4200);
+    if (!_autonomousMotion || !mounted) return;
+
+    // Energetic dispositions become expressive a little more often, while
+    // drowsy/cozy states are deliberately quieter. There is no permanent
+    // animation loop; most of the time this widget is completely still.
+    final base = (4300 - widget.disposition.energy * 1500).round();
+    final milliseconds = base + _random.nextInt(3300);
     _idleTimer = Timer(Duration(milliseconds: milliseconds), () async {
-      if (!mounted || _reduceMotion || _petting) {
+      if (!mounted || !_autonomousMotion || _petting) {
         _scheduleIdle();
         return;
       }
 
-      if (_random.nextDouble() < 0.76) {
+      final gestureChance = 0.10 + widget.disposition.energy * 0.18;
+      if (_random.nextDouble() >= gestureChance) {
         await _blink();
       } else {
         final roll = _random.nextInt(3);
@@ -116,9 +133,9 @@ class _CyclePetNookState extends State<CyclePetNook>
   }
 
   Future<void> _blink() async {
-    if (_blinkController.isAnimating || !mounted) return;
+    if (_blinkController.isAnimating || !mounted || !_autonomousMotion) return;
     await _blinkController.forward(from: 0);
-    if (!mounted) return;
+    if (!mounted || !_autonomousMotion) return;
     await _blinkController.reverse();
   }
 
@@ -129,9 +146,12 @@ class _CyclePetNookState extends State<CyclePetNook>
     if (!mounted || _petting) return;
     _idleTimer?.cancel();
     if (haptic) await NylaHaptics.select();
+    if (!mounted || _petting) return;
+
     setState(() => _reaction = reaction);
     await _reactionController.forward(from: 0);
-    if (!mounted) return;
+    if (!mounted || _petting) return;
+
     setState(() {
       _reaction = _PetReaction.none;
       _reactionLean = 0;
@@ -140,9 +160,12 @@ class _CyclePetNookState extends State<CyclePetNook>
     _scheduleIdle();
   }
 
-  void _onPetStart(DragStartDetails details) {
+  void _onPetStart(DragStartDetails _) {
     _idleTimer?.cancel();
-    _reactionController.stop();
+
+    // Direct touch always wins over a canned motion. `canceled: false` lets an
+    // awaiting reaction finish its Future cleanly before it notices _petting.
+    _reactionController.stop(canceled: false);
     setState(() {
       _reaction = _PetReaction.none;
       _reactionController.value = 0;
@@ -154,9 +177,7 @@ class _CyclePetNookState extends State<CyclePetNook>
   }
 
   void _onPetUpdate(DragUpdateDetails details) {
-    final box = context.findRenderObject() as RenderBox?;
-    final width = box?.size.width ?? 180;
-    final normalizedX = (details.localPosition.dx / width).clamp(0.0, 1.0);
+    final normalizedX = (details.localPosition.dx / _petWidth).clamp(0.0, 1.0);
     final lean = ((normalizedX - 0.5) * 2).clamp(-1.0, 1.0);
     final nextDepth = (_petDepth + details.delta.dx.abs() / 90).clamp(0.0, 1.0);
 
@@ -171,7 +192,7 @@ class _CyclePetNookState extends State<CyclePetNook>
     });
   }
 
-  void _onPetEnd(DragEndDetails details) {
+  void _onPetEnd(DragEndDetails _) {
     final lean = _petLean;
     setState(() {
       _petting = false;
@@ -179,12 +200,12 @@ class _CyclePetNookState extends State<CyclePetNook>
       _petDepth = 0;
       _reactionLean = lean;
     });
+
+    unawaited(NylaHaptics.confirm());
     if (_reduceMotion) {
-      unawaited(NylaHaptics.confirm());
       _scheduleIdle();
       return;
     }
-    unawaited(NylaHaptics.confirm());
     unawaited(_runReaction(_PetReaction.petted, haptic: false));
   }
 
@@ -208,13 +229,13 @@ class _CyclePetNookState extends State<CyclePetNook>
           'Your little Nyla companion, ${widget.disposition.semantics}. Tap it or stroke left and right to pet it.',
       child: RepaintBoundary(
         child: SizedBox(
-          height: 132,
+          height: _petHeight,
           width: double.infinity,
           child: Center(
             child: SizedBox(
               key: const ValueKey('cycle-pet-touch-target'),
-              width: 190,
-              height: 132,
+              width: _petWidth,
+              height: _petHeight,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: _onTap,
@@ -273,9 +294,9 @@ class _CyclePetPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final scale = math.min(size.width / 190, size.height / 132);
-    final dx = (size.width - 190 * scale) / 2;
-    final dy = (size.height - 132 * scale) / 2;
+    final scale = math.min(size.width / _petWidth, size.height / _petHeight);
+    final dx = (size.width - _petWidth * scale) / 2;
+    final dy = (size.height - _petHeight * scale) / 2;
     canvas.save();
     canvas.translate(dx, dy);
     canvas.scale(scale);
@@ -335,20 +356,28 @@ class _CyclePetPainter extends CustomPainter {
 
     final orb = Paint()
       ..color = switch (disposition.mood) {
-        CyclePetMood.cozy => palette.roseSoft.withValues(alpha: dark ? 0.16 : 0.42),
-        CyclePetMood.gentle => palette.peachSoft.withValues(alpha: dark ? 0.15 : 0.42),
-        CyclePetMood.drowsy => palette.lavenderSoft.withValues(alpha: dark ? 0.18 : 0.52),
-        CyclePetMood.curious => palette.sageSoft.withValues(alpha: dark ? 0.13 : 0.42),
-        CyclePetMood.bright => palette.butter.withValues(alpha: dark ? 0.12 : 0.28),
-        CyclePetMood.playful => palette.roseWash.withValues(alpha: dark ? 0.17 : 0.52),
-        CyclePetMood.calm => palette.lavenderMist.withValues(alpha: dark ? 0.14 : 0.54),
+        CyclePetMood.cozy =>
+          palette.roseSoft.withValues(alpha: dark ? 0.16 : 0.42),
+        CyclePetMood.gentle =>
+          palette.peachSoft.withValues(alpha: dark ? 0.15 : 0.42),
+        CyclePetMood.drowsy =>
+          palette.lavenderSoft.withValues(alpha: dark ? 0.18 : 0.52),
+        CyclePetMood.curious =>
+          palette.sageSoft.withValues(alpha: dark ? 0.13 : 0.42),
+        CyclePetMood.bright =>
+          palette.butter.withValues(alpha: dark ? 0.12 : 0.28),
+        CyclePetMood.playful =>
+          palette.roseWash.withValues(alpha: dark ? 0.17 : 0.52),
+        CyclePetMood.calm =>
+          palette.lavenderMist.withValues(alpha: dark ? 0.14 : 0.54),
       };
     canvas.drawCircle(const Offset(95, 63), 48 + pulse, orb);
   }
 
   void _paintTail(Canvas canvas, double pulse) {
     final energy = disposition.energy;
-    final tailLift = 3 + energy * 13 + (reaction == _PetReaction.nod ? pulse * 2 : 0);
+    final tailLift =
+        3 + energy * 13 + (reaction == _PetReaction.nod ? pulse * 2 : 0);
     final tail = Path()
       ..moveTo(126, 89)
       ..cubicTo(
@@ -472,7 +501,7 @@ class _CyclePetPainter extends CustomPainter {
       ..quadraticBezierTo(
         baseX - direction * (15 + extraFlop),
         -37 + drop * 13 + extraFlop,
-        baseX + direction * 1,
+        baseX + direction,
         -31 - lift + drop * 14,
       )
       ..quadraticBezierTo(
@@ -491,7 +520,7 @@ class _CyclePetPainter extends CustomPainter {
       ..quadraticBezierTo(
         baseX - direction * 7,
         -30 + drop * 10,
-        baseX + direction * 1,
+        baseX + direction,
         -31 - lift * 0.45 + drop * 11,
       )
       ..quadraticBezierTo(
@@ -520,7 +549,8 @@ class _CyclePetPainter extends CustomPainter {
     canvas.drawCircle(
       const Offset(5, -13),
       2.5,
-      Paint()..color = dark ? const Color(0xFFC8B4DE) : const Color(0xFFEEE4F7),
+      Paint()
+        ..color = dark ? const Color(0xFFC8B4DE) : const Color(0xFFEEE4F7),
     );
   }
 
@@ -528,13 +558,14 @@ class _CyclePetPainter extends CustomPainter {
     final moodOpen = switch (disposition.mood) {
       CyclePetMood.drowsy => 0.38,
       CyclePetMood.cozy => 0.72,
-      CyclePetMood.gentle => 0.7,
+      CyclePetMood.gentle => 0.70,
       CyclePetMood.calm => 0.78,
       _ => 1.0,
     };
     final blinkClose = math.sin(math.pi * blink.value);
     final petClose = petting ? petDepth * 0.78 : petted * 0.74;
-    final eyeOpen = (moodOpen * (1 - blinkClose) * (1 - petClose)).clamp(0.05, 1.0);
+    final eyeOpen =
+        (moodOpen * (1 - blinkClose) * (1 - petClose)).clamp(0.05, 1.0);
     final eyePaint = Paint()
       ..color = dark ? const Color(0xFF392C40) : const Color(0xFF4A3650)
       ..strokeWidth = 2.2
@@ -561,7 +592,7 @@ class _CyclePetPainter extends CustomPainter {
         alpha: switch (disposition.mood) {
           CyclePetMood.playful => 0.28,
           CyclePetMood.cozy => 0.24,
-          CyclePetMood.gentle => 0.2,
+          CyclePetMood.gentle => 0.20,
           _ => 0.15,
         },
       );
@@ -579,15 +610,16 @@ class _CyclePetPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.8
       ..strokeCap = StrokeCap.round;
-    final smile = switch (disposition.mood) {
-      CyclePetMood.playful => 4.4,
-      CyclePetMood.bright => 3.6,
-      CyclePetMood.curious => 2.6,
-      CyclePetMood.cozy => 2.4,
-      CyclePetMood.gentle => 2.0,
-      CyclePetMood.calm => 2.2,
-      CyclePetMood.drowsy => 1.2,
-    } + petted * 2.2;
+    final smile = (switch (disposition.mood) {
+          CyclePetMood.playful => 4.4,
+          CyclePetMood.bright => 3.6,
+          CyclePetMood.curious => 2.6,
+          CyclePetMood.cozy => 2.4,
+          CyclePetMood.gentle => 2.0,
+          CyclePetMood.calm => 2.2,
+          CyclePetMood.drowsy => 1.2,
+        }) +
+        petted * 2.2;
     final mouthPath = Path()
       ..moveTo(-5, 9)
       ..quadraticBezierTo(0, 9 + smile, 5, 9);
