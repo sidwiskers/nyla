@@ -82,7 +82,7 @@ final class CyclePhaseEngine {
           : latest.start.daysUntil(latest.end!) + 1;
       final earlyFollicularThrough =
           (recordedBleedDays + earlyFollicularDaysAfterBleed)
-              .clamp(7, 12)
+              .clamp(10, 12)
               .toInt();
 
       if (cycleDay <= earlyFollicularThrough) {
