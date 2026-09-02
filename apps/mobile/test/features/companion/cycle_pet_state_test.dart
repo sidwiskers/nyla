@@ -167,6 +167,31 @@ void main() {
     );
   });
 
+  test('familiarity changes warmth without changing health interpretation', () {
+    final newCompanion = cyclePetDisposition(
+      const CyclePetSignals(
+        phase: CyclePhase.luteal,
+        cycleDay: 21,
+        daysUntilLikelyPeriod: 7,
+      ),
+    );
+    final familiarCompanion = cyclePetDisposition(
+      const CyclePetSignals(
+        phase: CyclePhase.luteal,
+        cycleDay: 21,
+        daysUntilLikelyPeriod: 7,
+        familiarity: 1,
+        recentlyPetted: true,
+      ),
+    );
+
+    expect(familiarCompanion.mood, newCompanion.mood);
+    expect(familiarCompanion.energy, newCompanion.energy);
+    expect(familiarCompanion.closeness, greaterThan(newCompanion.closeness));
+    expect(familiarCompanion.familiarity, 1);
+    expect(familiarCompanion.recentlyPetted, isTrue);
+  });
+
   test('tiny pose variation is deterministic by cycle day', () {
     final first = cyclePetDisposition(
       const CyclePetSignals(phase: CyclePhase.follicular, cycleDay: 8),
