@@ -37,18 +37,22 @@ class _CyclePetNookState extends State<CyclePetNook>
   _PetReaction _reaction = _PetReaction.none;
   bool _reduceMotion = false;
   bool _tickerEnabled = true;
+  bool _foreground = true;
   bool _petting = false;
   bool _petHapticSent = false;
   double _petLean = 0;
   double _petDepth = 0;
   double _reactionLean = 0;
 
-  bool get _autonomousMotion => !_reduceMotion && _tickerEnabled;
+  bool get _autonomousMotion =>
+      !_reduceMotion && _tickerEnabled && _foreground;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
     _blinkController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 115),
@@ -79,7 +83,8 @@ class _CyclePetNookState extends State<CyclePetNook>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    _foreground = state == AppLifecycleState.resumed;
+    if (_foreground) {
       if (_autonomousMotion) _scheduleIdle();
       return;
     }
@@ -156,14 +161,14 @@ class _CyclePetNookState extends State<CyclePetNook>
     _PetReaction reaction, {
     required bool haptic,
   }) async {
-    if (!mounted || _petting) return;
+    if (!mounted || _petting || !_autonomousMotion) return;
     _idleTimer?.cancel();
     if (haptic) await NylaHaptics.select();
-    if (!mounted || _petting) return;
+    if (!mounted || _petting || !_autonomousMotion) return;
 
     setState(() => _reaction = reaction);
     await _reactionController.forward(from: 0);
-    if (!mounted || _petting || !_tickerEnabled) return;
+    if (!mounted || _petting || !_autonomousMotion) return;
 
     setState(() {
       _reaction = _PetReaction.none;
@@ -437,7 +442,7 @@ class _CyclePetPainter extends CustomPainter {
         end: Alignment.bottomRight,
         colors: dark
             ? const [Color(0xFFBCA6D6), Color(0xFF987DB8)]
-            : const [Color(0xFFE5D8F2), Color(0xFFCBB6E2)],
+            : const [Color(0xFFE5D8F2), Color(0xFFD4C1E8)],
       ).createShader(bodyRect);
     canvas.drawOval(bodyRect, body);
 
@@ -618,7 +623,8 @@ class _CyclePetPainter extends CustomPainter {
             }) +
             disposition.familiarity * 0.04 +
             (disposition.recentlyPetted ? 0.035 : 0.0))
-        .clamp(0.0, 0.38);
+        .clamp(0.0, 0.38)
+        .toDouble();
     final blush = Paint()
       ..color = palette.rose.withValues(alpha: blushAlpha);
     canvas.drawOval(
