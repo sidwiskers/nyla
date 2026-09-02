@@ -52,6 +52,9 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
   final math.Random _random = math.Random();
 
   Timer? _idleTimer;
+  // This subscription is explicitly cancelled whenever the pet is inactive
+  // and again in dispose(). The lint cannot follow that helper lifecycle.
+  // ignore: cancel_subscriptions
   StreamSubscription<AccelerometerEvent>? _motionSubscription;
   CyclePetAction? _action;
   CyclePetAction? _lastAction;
@@ -473,7 +476,8 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
       setState(() {
         _petLean = _leanForX(details.localPosition.dx);
         _reactionLean = _petLean;
-        _petDepth = (0.62 + offset.distance / 80).clamp(0.62, 1.0);
+        _petDepth =
+            (0.62 + offset.distance / 80).clamp(0.62, 1.0).toDouble();
       });
       return;
     }
@@ -1477,14 +1481,46 @@ class _CyclePetPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
     final dx = wave * 0.8;
     final center = Offset(137 + dx, 31 - strength * 3);
-    canvas.drawLine(center + const Offset(-8, 0), center + const Offset(-2, 0), paint);
-    canvas.drawLine(center + const Offset(-2, 0), center + const Offset(-2, -6), paint);
-    canvas.drawLine(center + const Offset(3, -7), center + const Offset(3, -1), paint);
-    canvas.drawLine(center + const Offset(3, -1), center + const Offset(9, -1), paint);
-    canvas.drawLine(center + const Offset(-7, 5), center + const Offset(-2, 5), paint);
-    canvas.drawLine(center + const Offset(-2, 5), center + const Offset(-2, 10), paint);
-    canvas.drawLine(center + const Offset(3, 4), center + const Offset(3, 9), paint);
-    canvas.drawLine(center + const Offset(3, 9), center + const Offset(8, 9), paint);
+    canvas.drawLine(
+      center + const Offset(-8, 0),
+      center + const Offset(-2, 0),
+      paint,
+    );
+    canvas.drawLine(
+      center + const Offset(-2, 0),
+      center + const Offset(-2, -6),
+      paint,
+    );
+    canvas.drawLine(
+      center + const Offset(3, -7),
+      center + const Offset(3, -1),
+      paint,
+    );
+    canvas.drawLine(
+      center + const Offset(3, -1),
+      center + const Offset(9, -1),
+      paint,
+    );
+    canvas.drawLine(
+      center + const Offset(-7, 5),
+      center + const Offset(-2, 5),
+      paint,
+    );
+    canvas.drawLine(
+      center + const Offset(-2, 5),
+      center + const Offset(-2, 10),
+      paint,
+    );
+    canvas.drawLine(
+      center + const Offset(3, 4),
+      center + const Offset(3, 9),
+      paint,
+    );
+    canvas.drawLine(
+      center + const Offset(3, 9),
+      center + const Offset(8, 9),
+      paint,
+    );
   }
 
   void _heart(Canvas canvas, Offset center, double size, Paint paint) {
