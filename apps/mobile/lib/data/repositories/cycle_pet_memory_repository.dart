@@ -30,7 +30,7 @@ class CyclePetMemory {
         // mechanic for the user to worry about.
         daysPetted: lastPettedDay == day
             ? daysPetted
-            : (daysPetted + 1).clamp(0, maxBondDays),
+            : (daysPetted + 1).clamp(0, maxBondDays).toInt(),
         lastPettedDay: day,
       );
 
@@ -47,7 +47,8 @@ class CyclePetMemory {
       final days = decoded['days_petted'];
       final last = decoded['last_petted_day'];
       return CyclePetMemory(
-        daysPetted: days is int ? days.clamp(0, maxBondDays) : 0,
+        daysPetted:
+            days is int ? days.clamp(0, maxBondDays).toInt() : 0,
         lastPettedDay: last is int ? last : null,
       );
     } catch (_) {
