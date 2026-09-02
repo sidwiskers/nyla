@@ -714,11 +714,9 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
               duration: ledgeMotion,
               curve: const Cubic(0.16, 1, 0.3, 1),
               child: AnimatedContainer(
-                duration: _reduceMotion
+                duration: _reduceMotion || _carrying
                     ? Duration.zero
-                    : (_carrying
-                        ? const Duration(milliseconds: 36)
-                        : const Duration(milliseconds: 360)),
+                    : const Duration(milliseconds: 360),
                 curve: const Cubic(0.16, 1, 0.3, 1),
                 transform: petTransform,
                 transformAlignment: Alignment.center,
