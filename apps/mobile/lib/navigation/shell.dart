@@ -54,7 +54,6 @@ class _NylaShellState extends State<NylaShell> {
       extendBody: true,
       body: NylaSectionMotion(
         identity: widget.location,
-        index: selected,
         direction: _travelDirection,
         reduceMotion: reduceMotion,
         child: widget.child,
@@ -124,7 +123,8 @@ class _NavigationThread extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.nyla;
-    final duration = reduceMotion ? Duration.zero : const Duration(milliseconds: 330);
+    final duration =
+        reduceMotion ? Duration.zero : const Duration(milliseconds: 330);
     final alignmentX = -1.0 + ((selected / 4) * 2);
 
     return IgnorePointer(
@@ -175,7 +175,8 @@ class _Destination extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.nyla;
-    final duration = reduceMotion ? Duration.zero : const Duration(milliseconds: 190);
+    final duration =
+        reduceMotion ? Duration.zero : const Duration(milliseconds: 190);
     if (primary) {
       return Semantics(
         selected: selected,
