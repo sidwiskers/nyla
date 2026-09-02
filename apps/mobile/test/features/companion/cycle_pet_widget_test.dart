@@ -66,22 +66,31 @@ void main() {
     expect(cardRect.top - petRect.top, lessThan(100));
   });
 
-  testWidgets('the card top stays pinned while its height changes',
+  testWidgets('the card top stays pinned while its height grows and shrinks',
       (tester) async {
     await tester.pumpWidget(app(cardHeight: 180));
     await tester.pumpAndSettle();
-    final beforeTop = tester.getRect(card(180)).top;
+    final ledgeTop = tester.getRect(card(180)).top;
 
     await tester.pumpWidget(app(cardHeight: 260));
     await tester.pump(const Duration(milliseconds: 120));
     expect(
       tester.getRect(card(260)).top,
-      closeTo(beforeTop, 0.5),
-      reason: 'The cat ledge must not drift while card content resizes.',
+      closeTo(ledgeTop, 0.5),
+      reason: 'The cat ledge must not drift while card content grows.',
     );
-
     await tester.pumpAndSettle();
-    expect(tester.getRect(card(260)).top, closeTo(beforeTop, 0.5));
+    expect(tester.getRect(card(260)).top, closeTo(ledgeTop, 0.5));
+
+    await tester.pumpWidget(app(cardHeight: 180));
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(
+      tester.getRect(card(180)).top,
+      closeTo(ledgeTop, 0.5),
+      reason: 'The cat ledge must not drift while card content shrinks.',
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getRect(card(180)).top, closeTo(ledgeTop, 0.5));
     expect(tester.takeException(), isNull);
   });
 
@@ -121,8 +130,6 @@ void main() {
     expect(target, findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    // The pet must still accept a complete interaction after several reactions
-    // were interrupted in quick succession.
     final gesture = await tester.startGesture(tester.getCenter(target));
     await gesture.moveBy(const Offset(55, 0));
     await gesture.moveBy(const Offset(-65, 0));
