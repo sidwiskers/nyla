@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cycle_engine/cycle_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +12,8 @@ import '../../core/theme/nyla_theme.dart';
 import '../../data/database/app_database.dart';
 import '../../providers.dart';
 import '../../widgets/nyla_page.dart';
+import '../companion/cycle_pet.dart';
+import '../companion/cycle_pet_state.dart';
 import 'today_companion_card.dart';
 import 'today_quiet_cycle_card.dart';
 import 'today_widgets.dart' hide TodayQuietCycleCard;
@@ -24,6 +28,7 @@ class TodayScreen extends ConsumerWidget {
     final prediction = ref.watch(cyclePredictionProvider);
     final dayValues = ref.watch(dayValuesProvider(today.epochDay));
     final phase = ref.watch(cyclePhaseContextProvider(today.epochDay));
+    final petMemory = ref.watch(cyclePetMemoryProvider).value;
     final cycleDay = cycleDayFor(today, periods.value);
     final current = phase.value;
     final values = dayValues.value ?? const <DayValueEntry>[];
@@ -33,6 +38,15 @@ class TodayScreen extends ConsumerWidget {
     final motion = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : const Duration(milliseconds: 300);
+    final petDisposition = cyclePetDisposition(
+      CyclePetSignals.fromToday(
+        phaseContext: current,
+        values: values,
+        familiarity: petMemory?.familiarity ?? 0,
+        recentlyPetted:
+            petMemory?.wasPettedRecently(today.epochDay) ?? false,
+      ),
+    );
 
     final cycleCard = current != null
         ? TodayCompanionCard(
@@ -62,6 +76,25 @@ class TodayScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          AnimatedSwitcher(
+            duration: motion,
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            child: CyclePetNook(
+              key: ValueKey(
+                'cycle-pet-${petDisposition.mood.name}-${petDisposition.variant}',
+              ),
+              disposition: petDisposition,
+              onPetted: () {
+                unawaited(
+                  ref
+                      .read(cyclePetMemoryRepositoryProvider)
+                      .recordPet(today.epochDay),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 4),
           AnimatedSwitcher(
             duration: motion,
             switchInCurve: Curves.easeOutCubic,

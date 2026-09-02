@@ -41,6 +41,13 @@ def indent_and_write(tree: ET.ElementTree, path: Path) -> None:
     tree.write(path, encoding="utf-8", xml_declaration=True)
 
 
+def prepare_branding() -> None:
+    subprocess.run(
+        [sys.executable, str(ROOT / "tool/prepare_branding.py")],
+        check=True,
+    )
+
+
 def prepare_typography() -> None:
     subprocess.run(
         [sys.executable, str(ROOT / "tool/fetch_fonts.py")],
@@ -291,6 +298,7 @@ def _append_xcconfig(path: Path, line: str) -> None:
 
 
 def main() -> None:
+    prepare_branding()
     prepare_typography()
     if not ANDROID.is_dir() or not IOS.is_dir():
         fail("generate Android and iOS scaffolds with the pinned Flutter SDK first")
