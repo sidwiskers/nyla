@@ -881,8 +881,6 @@ class _CyclePetPainter extends CustomPainter {
         : nuzzleSide * 0.055 * nuzzle +
             reactionLean * 0.025 * purr +
             annoyed * -0.035 * nuzzleSide;
-    // The body follows device tilt a little; the head counters it just enough
-    // to feel attached rather than painted onto the same rigid card.
     final headAngle =
         moodTilt + variantLean + activeLean - ambientLean * 0.012;
 
@@ -896,7 +894,6 @@ class _CyclePetPainter extends CustomPainter {
     );
     _paintTail(
       canvas,
-      pulse: pulse,
       wave: wave,
       hop: hop,
       loaf: loaf,
@@ -948,12 +945,11 @@ class _CyclePetPainter extends CustomPainter {
       annoyed: annoyed,
       carrying: carrying,
     );
-    if (groom > 0.01 || paw > 0.01 || knead > 0.01) {
+    if (groom > 0.01 || paw > 0.01) {
       _paintActionPaws(
         canvas,
         groom: groom,
         paw: paw,
-        knead: knead,
         wave: fastWave,
         hop: hop,
       );
@@ -1008,7 +1004,6 @@ class _CyclePetPainter extends CustomPainter {
 
   void _paintTail(
     Canvas canvas, {
-    required double pulse,
     required double wave,
     required double hop,
     required double loaf,
@@ -1036,30 +1031,30 @@ class _CyclePetPainter extends CustomPainter {
         (carrying ? 3.5 : 0) -
         loaf * 8;
 
-    final tail = Path();
-    if (loaf > 0.08) {
-      tail
-        ..moveTo(127, 92)
-        ..cubicTo(
-          151 + flick * 0.18,
-          96,
-          149 + flick * 0.45,
-          111 - loaf * 2,
-          119 + flick * 0.18,
-          112,
-        );
-    } else {
-      tail
-        ..moveTo(126, 89 - hop * 3 + landing * 1.5)
-        ..cubicTo(
-          151 + flick * 0.25,
-          91 - hop * 2,
-          151 + flick,
-          72 - tailLift,
-          139 + flick * 0.55,
-          68 - tailLift * 0.34,
-        );
-    }
+    double mix(double from, double to) => from + (to - from) * loaf;
+
+    final normalStartX = 126.0;
+    final normalStartY = 89 - hop * 3 + landing * 1.5;
+    final normalC1X = 151 + flick * 0.25;
+    final normalC1Y = 91 - hop * 2;
+    final normalC2X = 151 + flick;
+    final normalC2Y = 72 - tailLift;
+    final normalEndX = 139 + flick * 0.55;
+    final normalEndY = 68 - tailLift * 0.34;
+
+    final tail = Path()
+      ..moveTo(
+        mix(normalStartX, 127),
+        mix(normalStartY, 92),
+      )
+      ..cubicTo(
+        mix(normalC1X, 151 + flick * 0.18),
+        mix(normalC1Y, 96),
+        mix(normalC2X, 149 + flick * 0.45),
+        mix(normalC2Y, 111 - loaf * 2),
+        mix(normalEndX, 119 + flick * 0.18),
+        mix(normalEndY, 112),
+      );
 
     final tailPaint = Paint()
       ..style = PaintingStyle.stroke
@@ -1125,9 +1120,11 @@ class _CyclePetPainter extends CustomPainter {
             ? const [Color(0xFFBCA6D6), Color(0xFF987DB8)]
             : const [Color(0xFFE5D8F2), Color(0xFFD4C1E8)],
       ).createShader(bodyRect);
+    final outline = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.25
+      ..color = palette.wine.withValues(alpha: dark ? 0.36 : 0.18);
 
-    // A small rear haunch keeps the silhouette recognisably feline without
-    // changing Nyla's soft vector style.
     final haunchRect = Rect.fromCenter(
       center: Offset(
         113 + stretch * 2.0,
@@ -1136,14 +1133,11 @@ class _CyclePetPainter extends CustomPainter {
       width: 43 + loaf * 4,
       height: 47 - stretch * 3 - landing * 3,
     );
+    // Outline the rear mass before the torso fill. The torso naturally hides
+    // their overlap, leaving only one clean outer feline silhouette.
     canvas.drawOval(haunchRect, body);
-    canvas.drawOval(bodyRect, body);
-
-    final outline = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.25
-      ..color = palette.wine.withValues(alpha: dark ? 0.36 : 0.18);
     canvas.drawOval(haunchRect, outline);
+    canvas.drawOval(bodyRect, body);
     canvas.drawOval(bodyRect, outline);
 
     final chest = Paint()
@@ -1170,6 +1164,8 @@ class _CyclePetPainter extends CustomPainter {
     final pawWidth = carrying ? 18.0 : 25.0 - loaf * 5;
     final pawSpread = loaf > 0.01 ? 16.0 : 20.0;
 
+    // Kneading is expressed by the actual front paws alternating their weight;
+    // there are no extra limb overlays that could read as four front paws.
     canvas.drawOval(
       Rect.fromCenter(
         center: Offset(
@@ -1613,7 +1609,6 @@ class _CyclePetPainter extends CustomPainter {
     Canvas canvas, {
     required double groom,
     required double paw,
-    required double knead,
     required double wave,
     required double hop,
   }) {
@@ -1631,20 +1626,6 @@ class _CyclePetPainter extends CustomPainter {
         Offset(95 + side * (10 + sway), 55 - groom * 8),
         limb,
       );
-      return;
-    }
-
-    if (knead > 0.01) {
-      for (var i = 0; i < 2; i++) {
-        final side = i == 0 ? -1.0 : 1.0;
-        final phase = i == 0 ? wave : -wave;
-        final extension = knead * (5 + phase * 2.4);
-        canvas.drawLine(
-          Offset(95 + side * 15, 90),
-          Offset(95 + side * 16, 108 + extension),
-          limb,
-        );
-      }
       return;
     }
 
