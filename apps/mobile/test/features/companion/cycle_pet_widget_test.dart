@@ -141,6 +141,9 @@ void main() {
     final gesture = await tester.startGesture(startCenter);
     await tester.pump(longPressRecognition);
     await gesture.moveBy(const Offset(0, -24));
+    // The first frame materializes the implicit carry transform; advance it
+    // separately so this test measures the rendered position, not tween setup.
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 40));
 
     expect(
@@ -151,6 +154,7 @@ void main() {
     expect(liftedCenter.dy, lessThan(startCenter.dy - 8));
 
     await gesture.moveBy(const Offset(54, -4));
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 40));
     final carriedCenter = tester.getCenter(target);
     expect(carriedCenter.dx, greaterThan(liftedCenter.dx + 10));
@@ -243,6 +247,7 @@ void main() {
     final gesture = await tester.startGesture(start);
     await tester.pump(longPressRecognition);
     await gesture.moveBy(const Offset(26, -28));
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
     expect(
       find.byKey(const ValueKey('cycle-pet-state-carrying')),
@@ -250,6 +255,9 @@ void main() {
     );
 
     await gesture.cancel();
+    // As with every implicit animation, build the return tween first, then
+    // advance its clock. One duration-bearing pump alone only creates it.
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 420));
     expect(pets, 0);
     expect(
