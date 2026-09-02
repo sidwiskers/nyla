@@ -58,15 +58,17 @@ Page<void> nylaDepthPage({
         animation: Listenable.merge([primary, covered]),
         child: RepaintBoundary(child: pageChild),
         builder: (context, child) {
-          final enter = primary.value.clamp(0.0, 1.0);
-          final cover = covered.value.clamp(0.0, 1.0);
+          final enter = primary.value.clamp(0.0, 1.0).toDouble();
+          final cover = covered.value.clamp(0.0, 1.0).toDouble();
 
           final baseScale = modal ? 0.986 : 0.992;
           final entranceScale = baseScale + ((1 - baseScale) * enter);
           final coveredScale = 1 - (0.008 * cover);
-          final opacity = (enter * (1 - (0.07 * cover))).clamp(0.0, 1.0);
+          final opacity =
+              (enter * (1 - (0.07 * cover))).clamp(0.0, 1.0).toDouble();
           final dx = modal ? 0.0 : 0.018 * (1 - enter);
-          final dy = (modal ? 0.045 : 0.014) * (1 - enter) - (0.004 * cover);
+          final dy =
+              (modal ? 0.045 : 0.014) * (1 - enter) - (0.004 * cover);
 
           return Opacity(
             opacity: opacity,
@@ -92,7 +94,6 @@ Page<void> nylaDepthPage({
 class NylaSectionMotion extends StatelessWidget {
   const NylaSectionMotion({
     required this.identity,
-    required this.index,
     required this.direction,
     required this.reduceMotion,
     required this.child,
@@ -100,7 +101,6 @@ class NylaSectionMotion extends StatelessWidget {
   });
 
   final String identity;
-  final int index;
   final int direction;
   final bool reduceMotion;
   final Widget child;
@@ -109,7 +109,6 @@ class NylaSectionMotion extends StatelessWidget {
   Widget build(BuildContext context) {
     final frame = _SectionFrame(
       key: ValueKey(identity),
-      index: index,
       direction: direction == 0 ? 1 : direction,
       child: child,
     );
@@ -123,7 +122,8 @@ class NylaSectionMotion extends StatelessWidget {
         // Only the most recent outgoing surface remains visible. AnimatedSwitcher
         // may retain several children after rapid taps; drawing all of them is
         // the classic source of translucent page "ghosts".
-        final latestPrevious = previousChildren.isEmpty ? null : previousChildren.last;
+        final latestPrevious =
+            previousChildren.isEmpty ? null : previousChildren.last;
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -147,13 +147,11 @@ class NylaSectionMotion extends StatelessWidget {
 
 class _SectionFrame extends StatelessWidget {
   const _SectionFrame({
-    required this.index,
     required this.direction,
     required this.child,
     super.key,
   });
 
-  final int index;
   final int direction;
   final Widget child;
 
@@ -178,7 +176,7 @@ class _SectionMotionTransition extends StatelessWidget {
       animation: animation,
       child: child,
       builder: (context, child) {
-        final raw = animation.value.clamp(0.0, 1.0);
+        final raw = animation.value.clamp(0.0, 1.0).toDouble();
         final exiting = animation.status == AnimationStatus.reverse;
         final progress = exiting
             ? Curves.easeOutCubic.transform(raw)
@@ -187,13 +185,14 @@ class _SectionMotionTransition extends StatelessWidget {
         // Exiting pages recede instead of cross-sliding. This keeps direction
         // correct even when the user taps through several tabs very quickly.
         final dx = exiting ? 0.0 : direction * 0.042 * (1 - progress);
-        final dy = exiting ? -0.005 * (1 - progress) : 0.005 * (1 - progress);
+        final dy =
+            exiting ? -0.005 * (1 - progress) : 0.005 * (1 - progress);
         final scale = exiting
             ? 0.993 + (0.007 * progress)
             : 0.985 + (0.015 * progress);
         final opacity = exiting
             ? progress
-            : ((progress - 0.015) / 0.985).clamp(0.0, 1.0);
+            : ((progress - 0.015) / 0.985).clamp(0.0, 1.0).toDouble();
 
         return Opacity(
           opacity: opacity,
