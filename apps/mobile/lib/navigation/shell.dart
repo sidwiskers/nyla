@@ -3,19 +3,12 @@ import 'package:go_router/go_router.dart';
 
 import '../core/haptics/nyla_haptics.dart';
 import '../core/theme/nyla_theme.dart';
-import 'motion.dart';
 
-class NylaShell extends StatefulWidget {
-  const NylaShell({required this.location, required this.child, super.key});
+class NylaShell extends StatelessWidget {
+  const NylaShell({required this.navigationShell, super.key});
 
-  final String location;
-  final Widget child;
+  final StatefulNavigationShell navigationShell;
 
-  @override
-  State<NylaShell> createState() => _NylaShellState();
-}
-
-class _NylaShellState extends State<NylaShell> {
   static const _destinations = <({String path, IconData icon, String label})>[
     (path: '/today', icon: Icons.home_rounded, label: 'Today'),
     (path: '/calendar', icon: Icons.calendar_month_rounded, label: 'Calendar'),
@@ -24,40 +17,15 @@ class _NylaShellState extends State<NylaShell> {
     (path: '/learn', icon: Icons.style_rounded, label: 'Learn'),
   ];
 
-  late int _lastSection;
-  int _travelDirection = 1;
-
-  @override
-  void initState() {
-    super.initState();
-    _lastSection = nylaSectionIndex(widget.location);
-  }
-
-  @override
-  void didUpdateWidget(covariant NylaShell oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final next = nylaSectionIndex(widget.location);
-    final direction = nylaTravelDirection(from: _lastSection, to: next);
-    if (direction != 0) {
-      _travelDirection = direction;
-      _lastSection = next;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final selected = nylaSectionIndex(widget.location);
+    final selected = navigationShell.currentIndex;
     final palette = context.nyla;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     return Scaffold(
       extendBody: true,
-      body: NylaSectionMotion(
-        identity: widget.location,
-        direction: _travelDirection,
-        reduceMotion: reduceMotion,
-        child: widget.child,
-      ),
+      body: navigationShell,
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
         child: Center(
@@ -98,7 +66,7 @@ class _NylaShellState extends State<NylaShell> {
                             onTap: () {
                               if (i == selected) return;
                               NylaHaptics.select();
-                              context.go(_destinations[i].path);
+                              navigationShell.goBranch(i);
                             },
                           ),
                         ),
