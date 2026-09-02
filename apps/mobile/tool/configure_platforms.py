@@ -270,6 +270,9 @@ def configure_ios_info() -> None:
         "Nyla uses the camera only to scan a one-time QR code from a trusted device."
     )
     data["NSFaceIDUsageDescription"] = "Use Face ID to unlock your private Nyla health data."
+    data["NSMotionUsageDescription"] = (
+        "Nyla uses device motion only for a tiny local movement response from your cycle cat."
+    )
     with path.open("wb") as handle:
         plistlib.dump(data, handle, sort_keys=False)
 
