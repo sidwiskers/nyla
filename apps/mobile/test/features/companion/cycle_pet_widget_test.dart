@@ -106,6 +106,54 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('rapid taps retarget a reaction without stale completion',
+      (tester) async {
+    await tester.pumpWidget(app());
+    final target = find.byKey(const ValueKey('cycle-pet-touch-target'));
+
+    await tester.tap(target);
+    await tester.pump(const Duration(milliseconds: 90));
+    await tester.tap(target);
+    await tester.pump(const Duration(milliseconds: 90));
+    await tester.tap(target);
+    await tester.pump(const Duration(seconds: 2));
+
+    expect(target, findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    // The pet must still accept a complete interaction after several reactions
+    // were interrupted in quick succession.
+    final gesture = await tester.startGesture(tester.getCenter(target));
+    await gesture.moveBy(const Offset(55, 0));
+    await gesture.moveBy(const Offset(-65, 0));
+    await gesture.up();
+    await tester.pump(const Duration(milliseconds: 1300));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a cancelled pet gesture restores the cat to interactive state',
+      (tester) async {
+    var pets = 0;
+    await tester.pumpWidget(app(onPetted: () => pets++));
+    final target = find.byKey(const ValueKey('cycle-pet-touch-target'));
+
+    final cancelled = await tester.startGesture(tester.getCenter(target));
+    await cancelled.moveBy(const Offset(45, 0));
+    await tester.pump(const Duration(milliseconds: 60));
+    await cancelled.cancel();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(pets, 0, reason: 'A cancelled stroke must not count as affection.');
+
+    final complete = await tester.startGesture(tester.getCenter(target));
+    await complete.moveBy(const Offset(50, 0));
+    await complete.moveBy(const Offset(-70, 0));
+    await complete.up();
+    await tester.pump(const Duration(milliseconds: 1300));
+
+    expect(pets, 1);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('holding the cat is a deliberate cuddle interaction', (tester) async {
     var pets = 0;
     await tester.pumpWidget(app(onPetted: () => pets++));
