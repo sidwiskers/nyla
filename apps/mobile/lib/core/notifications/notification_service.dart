@@ -20,7 +20,7 @@ class NotificationService {
   static const _dailyLogId = 41003;
   static const _careNudgeId = 41004;
   static const _dailyFallbackBaseId = 41100;
-  static const _dailyFallbackSlots = 35;
+  static const _dailyFallbackSlots = 14;
   static const _dailyLongTermFallbackId = 41199;
   static const _channelId = 'nyla_reminders_v1';
   static const _allowedRoutes = {'/calendar', '/log'};
@@ -300,10 +300,9 @@ class NotificationService {
     }
 
     // Future reminders cannot use today's symptoms without risking stale copy.
-    // Pre-schedule a rotating bank of neutral companion messages instead of one
-    // repeating sentence. This stays fully local and is refreshed on app open,
-    // config changes or fresh logs. 35 one-shot reminders plus the few other
-    // Nyla notifications stay comfortably below iOS pending-notification caps.
+    // Keep two weeks of varied neutral messages ready locally. Normal use
+    // refreshes this bank long before it runs out, while keeping reschedules
+    // light when logs or cycle context change.
     for (var offset = 1; offset <= _dailyFallbackSlots; offset++) {
       final fallbackDay = today.addDays(offset);
       final fallbackDate = fallbackDay.utcDate;
@@ -330,9 +329,9 @@ class NotificationService {
       );
     }
 
-    // Preserve indefinite reminders even if Nyla has not been opened for more
-    // than five weeks. At the next launch this repeating safety net is replaced
-    // by a fresh rotating bank again.
+    // Preserve the user's daily reminder even if Nyla has not been opened for
+    // more than two weeks. The next launch replaces this simple repeating safety
+    // net with a fresh varied bank again.
     final longTermDay = today.addDays(_dailyFallbackSlots + 1);
     final longTermDate = longTermDay.utcDate;
     final longTermStart = tz.TZDateTime(
