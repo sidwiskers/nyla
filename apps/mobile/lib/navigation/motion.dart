@@ -37,6 +37,7 @@ Page<void> nylaDepthPage({
 }) {
   return CustomTransitionPage<void>(
     key: key,
+    fullscreenDialog: modal,
     transitionDuration: const Duration(milliseconds: 360),
     reverseTransitionDuration: const Duration(milliseconds: 290),
     child: child,
