@@ -48,6 +48,7 @@ void main() {
         expect(_branchOpacity(tester, index), index == 0 ? 1 : 0);
         expect(_branchTickerEnabled(tester, index), index == 0);
         expect(_branchIgnoring(tester, index), index != 0);
+        expect(_branchFocusExcluded(tester, index), index != 0);
       }
     });
 
@@ -69,6 +70,7 @@ void main() {
         expect(find.text(_labels[index]), findsOneWidget);
         expect(_branchOpacity(tester, index), index == 0 ? 1 : 0);
         expect(_branchTickerEnabled(tester, index), index == 0);
+        expect(_branchFocusExcluded(tester, index), index != 0);
       }
       expect(tester.takeException(), isNull);
     });
@@ -94,6 +96,7 @@ void main() {
         expect(slide.duration, Duration.zero);
         expect(scale.duration, Duration.zero);
         expect(_branchTickerEnabled(tester, index), index == 3);
+        expect(_branchFocusExcluded(tester, index), index != 3);
       }
       expect(tester.takeException(), isNull);
     });
@@ -135,6 +138,17 @@ bool _branchIgnoring(WidgetTester tester, int index) {
         ),
       )
       .ignoring;
+}
+
+bool _branchFocusExcluded(WidgetTester tester, int index) {
+  return tester
+      .widget<ExcludeFocus>(
+        find.descendant(
+          of: _branch(index),
+          matching: find.byType(ExcludeFocus),
+        ),
+      )
+      .excluding;
 }
 
 Widget _harness(int currentIndex, {bool reduceMotion = false}) {
