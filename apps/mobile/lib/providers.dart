@@ -11,6 +11,7 @@ import 'core/sync/sync_service.dart';
 import 'core/theme/nyla_appearance.dart';
 import 'data/database/app_database.dart';
 import 'data/repositories/custom_log_repository.dart';
+import 'data/repositories/cycle_pet_memory_repository.dart';
 import 'data/repositories/cycle_repository.dart';
 import 'data/repositories/day_log_repository.dart';
 import 'data/repositories/preferences_repository.dart';
@@ -37,6 +38,12 @@ final dayLogRepositoryProvider = Provider<DayLogRepository>(
 );
 final customLogRepositoryProvider = Provider<CustomLogRepository>(
   (ref) => CustomLogRepository(ref.watch(databaseProvider), ref.watch(hlcServiceProvider)),
+);
+final cyclePetMemoryRepositoryProvider = Provider<CyclePetMemoryRepository>(
+  (ref) => CyclePetMemoryRepository(ref.watch(databaseProvider)),
+);
+final cyclePetMemoryProvider = StreamProvider<CyclePetMemory>(
+  (ref) => ref.watch(cyclePetMemoryRepositoryProvider).watch(),
 );
 final syncServiceProvider = Provider<SyncService>(
   (ref) => SyncService(
