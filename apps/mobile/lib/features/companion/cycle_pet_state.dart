@@ -43,20 +43,36 @@ class CyclePetDisposition {
         CyclePetMood.playful => 'looking playful',
         CyclePetMood.calm => 'looking calm',
       };
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CyclePetDisposition &&
+          other.mood == mood &&
+          other.energy == energy &&
+          other.closeness == closeness &&
+          other.variant == variant;
+
+  @override
+  int get hashCode => Object.hash(mood, energy, closeness, variant);
 }
 
 @immutable
 class CyclePetSignals {
   const CyclePetSignals({
     this.phase,
+    this.phaseConfidence,
     this.cycleDay,
+    this.daysUntilLikelyPeriod,
     this.values = const <String, String>{},
     this.severities = const <String, int>{},
     this.moods = const <String>{},
   });
 
   final CyclePhase? phase;
+  final PhaseConfidence? phaseConfidence;
   final int? cycleDay;
+  final int? daysUntilLikelyPeriod;
   final Map<String, String> values;
   final Map<String, int> severities;
   final Set<String> moods;
@@ -80,7 +96,9 @@ class CyclePetSignals {
 
     return CyclePetSignals(
       phase: phaseContext?.phase,
+      phaseConfidence: phaseContext?.confidence,
       cycleDay: phaseContext?.cycleDay,
+      daysUntilLikelyPeriod: phaseContext?.daysUntilLikelyPeriod,
       values: plain,
       severities: severities,
       moods: moods,
@@ -135,8 +153,7 @@ CyclePetDisposition cyclePetDisposition(CyclePetSignals signals) {
   final variant = ((signals.cycleDay ?? 1) - 1).abs() % 3;
 
   // The pet supports the person; it does not impersonate their symptom. Strong
-  // or multiple rough signals therefore make it stay close rather than look
-  // distressed or "sick" itself.
+  // or several rough signals therefore make it stay close rather than look ill.
   if (dizziness >= 3 ||
       headache >= 3 ||
       nausea >= 3 ||
@@ -146,7 +163,7 @@ CyclePetDisposition cyclePetDisposition(CyclePetSignals signals) {
       roughSignals >= 3) {
     return CyclePetDisposition(
       mood: CyclePetMood.gentle,
-      energy: 0.32,
+      energy: 0.30,
       closeness: 0.96,
       variant: variant,
     );
@@ -170,6 +187,30 @@ CyclePetDisposition cyclePetDisposition(CyclePetSignals signals) {
     );
   }
 
+  final meaningfulPhysicalDiscomfort = cramps >= 2 ||
+      headache >= 2 ||
+      nausea >= 2 ||
+      dizziness >= 2 ||
+      backPain >= 2 ||
+      roughSignals >= 2;
+  if (meaningfulPhysicalDiscomfort) {
+    return CyclePetDisposition(
+      mood: CyclePetMood.gentle,
+      energy: 0.42,
+      closeness: 0.86,
+      variant: variant,
+    );
+  }
+
+  if (poorSleep || lowEnergy) {
+    return CyclePetDisposition(
+      mood: CyclePetMood.drowsy,
+      energy: 0.30,
+      closeness: 0.76,
+      variant: variant,
+    );
+  }
+
   // Fresh positive logs outrank a phase stereotype. A good day is allowed to
   // look like a good day in any part of the cycle.
   if (highEnergy || brightMood.isNotEmpty) {
@@ -181,42 +222,52 @@ CyclePetDisposition cyclePetDisposition(CyclePetSignals signals) {
     );
   }
 
-  return switch (signals.phase) {
-    CyclePhase.menstruation => CyclePetDisposition(
+  return _baselineDisposition(signals, variant);
+}
+
+CyclePetDisposition _baselineDisposition(CyclePetSignals signals, int variant) {
+  switch (signals.phase) {
+    case CyclePhase.menstruation:
+      final early = (signals.cycleDay ?? 1) <= 2;
+      return CyclePetDisposition(
         mood: CyclePetMood.cozy,
-        energy: 0.34,
-        closeness: 0.88,
+        energy: early ? 0.30 : 0.40,
+        closeness: early ? 0.90 : 0.82,
         variant: variant,
-      ),
-    CyclePhase.follicular => CyclePetDisposition(
-        mood: CyclePetMood.bright,
-        energy: 0.72,
-        closeness: 0.55,
+      );
+    case CyclePhase.follicular:
+      final earlyOrBroad = signals.phaseConfidence == PhaseConfidence.limited ||
+          (signals.cycleDay ?? 99) <= 7;
+      return CyclePetDisposition(
+        mood: earlyOrBroad ? CyclePetMood.curious : CyclePetMood.bright,
+        energy: earlyOrBroad ? 0.58 : 0.72,
+        closeness: earlyOrBroad ? 0.64 : 0.55,
         variant: variant,
-      ),
-    CyclePhase.periOvulatory => CyclePetDisposition(
+      );
+    case CyclePhase.periOvulatory:
+      return CyclePetDisposition(
         mood: CyclePetMood.curious,
         energy: 0.78,
         closeness: 0.58,
         variant: variant,
-      ),
-    CyclePhase.luteal => CyclePetDisposition(
-        mood: CyclePetMood.calm,
-        energy: 0.48,
-        closeness: 0.72,
+      );
+    case CyclePhase.luteal:
+      final settling = signals.daysUntilLikelyPeriod != null &&
+          signals.daysUntilLikelyPeriod! >= 0 &&
+          signals.daysUntilLikelyPeriod! <= 3;
+      return CyclePetDisposition(
+        mood: settling ? CyclePetMood.cozy : CyclePetMood.calm,
+        energy: settling ? 0.38 : 0.48,
+        closeness: settling ? 0.82 : 0.72,
         variant: variant,
-      ),
-    CyclePhase.uncertain => CyclePetDisposition(
+      );
+    case CyclePhase.uncertain:
+    case null:
+      return CyclePetDisposition(
         mood: CyclePetMood.curious,
         energy: 0.52,
         closeness: 0.66,
         variant: variant,
-      ),
-    null => CyclePetDisposition(
-        mood: CyclePetMood.curious,
-        energy: 0.52,
-        closeness: 0.66,
-        variant: variant,
-      ),
-  };
+      );
+  }
 }
