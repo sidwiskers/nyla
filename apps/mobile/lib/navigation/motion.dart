@@ -121,6 +121,7 @@ class NylaBranchMotion extends StatelessWidget {
       children: [
         for (var index = 0; index < children.length; index++)
           _BranchSurface(
+            key: ValueKey('nyla-branch-$index'),
             active: index == currentIndex,
             side: index < currentIndex ? -1 : 1,
             movementDuration: movementDuration,
@@ -139,6 +140,7 @@ class _BranchSurface extends StatelessWidget {
     required this.movementDuration,
     required this.fadeDuration,
     required this.child,
+    super.key,
   });
 
   final bool active;
