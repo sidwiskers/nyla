@@ -1,9 +1,10 @@
 import 'package:cycle_engine/cycle_engine.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nyla/data/database/app_database.dart';
 import 'package:nyla/features/today/today_companion_card.dart';
 
 void main() {
-  const emptyValues = <dynamic>[];
+  const emptyValues = <DayValueEntry>[];
 
   CyclePhaseContext context(
     CyclePhase phase, {
@@ -27,7 +28,7 @@ void main() {
 
     expect(companionPhaseLabelFor(phase), 'LIKELY FOLLICULAR');
     expect(
-      companionMessageFor(phase, emptyValues.cast()).body.toLowerCase(),
+      companionMessageFor(phase, emptyValues).body.toLowerCase(),
       contains('follicular'),
     );
   });
@@ -38,7 +39,7 @@ void main() {
       confidence: PhaseConfidence.limited,
       cycleDay: 16,
     );
-    final message = companionMessageFor(phase, emptyValues.cast());
+    final message = companionMessageFor(phase, emptyValues);
 
     expect(companionPhaseLabelFor(phase), 'YOUR CYCLE');
     expect(message.title, 'How is your body feeling today?');
@@ -71,8 +72,8 @@ void main() {
     ];
 
     for (final phase in phases) {
-      final message = companionMessageFor(phase, emptyValues.cast());
-      final explanation = companionExplanationFor(phase, emptyValues.cast());
+      final message = companionMessageFor(phase, emptyValues);
+      final explanation = companionExplanationFor(phase, emptyValues);
       final copy = '${message.title} ${message.body} ${message.tip ?? ''} '
               '${explanation.title} ${explanation.body} ${explanation.note}'
           .toLowerCase();
