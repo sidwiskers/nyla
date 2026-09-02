@@ -15,6 +15,7 @@ void main() {
   Widget app({
     bool reduceMotion = false,
     bool tickerEnabled = true,
+    double cardHeight = 180,
     VoidCallback? onPetted,
   }) =>
       MaterialApp(
@@ -31,8 +32,8 @@ void main() {
                     disposition: disposition,
                     onPetted: onPetted,
                     child: Container(
-                      key: const ValueKey('cycle-card'),
-                      height: 180,
+                      key: ValueKey('cycle-card-$cardHeight'),
+                      height: cardHeight,
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(27),
@@ -46,20 +47,41 @@ void main() {
         ),
       );
 
+  Finder card(double height) => find.byKey(ValueKey('cycle-card-$height'));
+
   testWidgets('cat sits on the card instead of taking a full separate block',
       (tester) async {
     await tester.pumpWidget(app());
 
     final pet = find.byKey(const ValueKey('cycle-pet-touch-target'));
-    final card = find.byKey(const ValueKey('cycle-card'));
+    final cycleCard = card(180);
     expect(pet, findsOneWidget);
-    expect(card, findsOneWidget);
+    expect(cycleCard, findsOneWidget);
 
     final petRect = tester.getRect(pet);
-    final cardRect = tester.getRect(card);
+    final cardRect = tester.getRect(cycleCard);
     expect(petRect.bottom, greaterThan(cardRect.top));
     expect(petRect.bottom - cardRect.top, lessThan(18));
     expect(cardRect.top - petRect.top, lessThan(100));
+  });
+
+  testWidgets('the card top stays pinned while its height changes',
+      (tester) async {
+    await tester.pumpWidget(app(cardHeight: 180));
+    await tester.pumpAndSettle();
+    final beforeTop = tester.getRect(card(180)).top;
+
+    await tester.pumpWidget(app(cardHeight: 260));
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(
+      tester.getRect(card(260)).top,
+      closeTo(beforeTop, 0.5),
+      reason: 'The cat ledge must not drift while card content resizes.',
+    );
+
+    await tester.pumpAndSettle();
+    expect(tester.getRect(card(260)).top, closeTo(beforeTop, 0.5));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('pet accepts a tap and a horizontal stroke', (tester) async {
