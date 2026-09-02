@@ -10,6 +10,8 @@ import struct
 import subprocess
 from pathlib import Path
 
+from prepare_branding import prepare_branding
+
 ROOT = Path(__file__).resolve().parents[1]
 FULL_ICON = ROOT / "assets/branding/nyla_app_icon.svg"
 FOREGROUND_ICON = ROOT / "assets/branding/nyla_app_icon_foreground.svg"
@@ -69,7 +71,7 @@ def apply_android() -> None:
     values.write_text(
         '<?xml version="1.0" encoding="utf-8"?>\n'
         '<resources>\n'
-        '    <color name="nyla_launcher_background">#FFF8F4</color>\n'
+        '    <color name="nyla_launcher_background">#FEF9F5</color>\n'
         '</resources>\n',
         encoding="utf-8",
     )
@@ -130,6 +132,7 @@ def apply_ios() -> None:
 def main() -> None:
     if shutil.which("rsvg-convert") is None:
         fail("rsvg-convert is required to render Nyla launcher artwork")
+    prepare_branding()
     for source in (FULL_ICON, FOREGROUND_ICON):
         if not source.exists():
             fail(f"Missing branding source: {source}")

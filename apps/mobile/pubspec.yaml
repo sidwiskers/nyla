@@ -60,11 +60,11 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: assets/branding/nyla_app_icon.png
-  adaptive_icon_background: "#FFF8F4"
+  adaptive_icon_background: "#FEF9F5"
   adaptive_icon_foreground: assets/branding/nyla_app_icon_foreground.png
-  adaptive_icon_foreground_inset: 18
+  adaptive_icon_foreground_inset: 0
   remove_alpha_ios: true
-  background_color_ios: "#FFF8F4"
+  background_color_ios: "#FEF9F5"
 
 hooks:
   user_defines:
