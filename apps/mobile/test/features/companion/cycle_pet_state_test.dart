@@ -17,6 +17,19 @@ void main() {
     expect(disposition.energy, lessThan(0.5));
   });
 
+  test('one meaningful physical discomfort is noticed without looking ill', () {
+    final disposition = cyclePetDisposition(
+      const CyclePetSignals(
+        phase: CyclePhase.follicular,
+        cycleDay: 10,
+        severities: {'headache': 2},
+      ),
+    );
+
+    expect(disposition.mood, CyclePetMood.gentle);
+    expect(disposition.closeness, inInclusiveRange(0.8, 0.9));
+  });
+
   test('poor sleep plus low energy produces a drowsy companion', () {
     final disposition = cyclePetDisposition(
       const CyclePetSignals(
@@ -33,11 +46,24 @@ void main() {
     expect(disposition.energy, lessThan(0.25));
   });
 
+  test('poor sleep alone can soften the pet without inventing a phase mood', () {
+    final disposition = cyclePetDisposition(
+      const CyclePetSignals(
+        phase: CyclePhase.periOvulatory,
+        cycleDay: 15,
+        values: {'sleep': 'poor'},
+      ),
+    );
+
+    expect(disposition.mood, CyclePetMood.drowsy);
+  });
+
   test('positive logs outrank phase stereotypes', () {
     final disposition = cyclePetDisposition(
       const CyclePetSignals(
         phase: CyclePhase.luteal,
         cycleDay: 25,
+        daysUntilLikelyPeriod: 2,
         values: {'energy': 'high'},
         moods: {'happy'},
       ),
@@ -74,19 +100,71 @@ void main() {
     );
 
     expect(disposition.mood, CyclePetMood.gentle);
+    expect(disposition.closeness, greaterThan(0.9));
   });
 
-  test('cycle context supplies only the baseline demeanor', () {
-    CyclePetDisposition resolve(CyclePhase? phase) => cyclePetDisposition(
-          CyclePetSignals(phase: phase, cycleDay: 7),
-        );
+  test('cycle context supplies a gentle visual rhythm, not a user diagnosis', () {
+    final period = cyclePetDisposition(
+      const CyclePetSignals(
+        phase: CyclePhase.menstruation,
+        phaseConfidence: PhaseConfidence.observed,
+        cycleDay: 1,
+      ),
+    );
+    final earlyFollicular = cyclePetDisposition(
+      const CyclePetSignals(
+        phase: CyclePhase.follicular,
+        phaseConfidence: PhaseConfidence.limited,
+        cycleDay: 7,
+      ),
+    );
+    final laterFollicular = cyclePetDisposition(
+      const CyclePetSignals(
+        phase: CyclePhase.follicular,
+        phaseConfidence: PhaseConfidence.supported,
+        cycleDay: 10,
+      ),
+    );
+    final midCycle = cyclePetDisposition(
+      const CyclePetSignals(
+        phase: CyclePhase.periOvulatory,
+        cycleDay: 15,
+      ),
+    );
+    final luteal = cyclePetDisposition(
+      const CyclePetSignals(
+        phase: CyclePhase.luteal,
+        cycleDay: 21,
+        daysUntilLikelyPeriod: 7,
+      ),
+    );
+    final settling = cyclePetDisposition(
+      const CyclePetSignals(
+        phase: CyclePhase.luteal,
+        cycleDay: 26,
+        daysUntilLikelyPeriod: 2,
+      ),
+    );
 
-    expect(resolve(CyclePhase.menstruation).mood, CyclePetMood.cozy);
-    expect(resolve(CyclePhase.follicular).mood, CyclePetMood.bright);
-    expect(resolve(CyclePhase.periOvulatory).mood, CyclePetMood.curious);
-    expect(resolve(CyclePhase.luteal).mood, CyclePetMood.calm);
-    expect(resolve(CyclePhase.uncertain).mood, CyclePetMood.curious);
-    expect(resolve(null).mood, CyclePetMood.curious);
+    expect(period.mood, CyclePetMood.cozy);
+    expect(earlyFollicular.mood, CyclePetMood.curious);
+    expect(laterFollicular.mood, CyclePetMood.bright);
+    expect(midCycle.mood, CyclePetMood.curious);
+    expect(luteal.mood, CyclePetMood.calm);
+    expect(settling.mood, CyclePetMood.cozy);
+  });
+
+  test('unknown timing stays curious rather than pretending certainty', () {
+    expect(
+      cyclePetDisposition(
+        const CyclePetSignals(phase: CyclePhase.uncertain, cycleDay: 18),
+      ).mood,
+      CyclePetMood.curious,
+    );
+    expect(
+      cyclePetDisposition(const CyclePetSignals()).mood,
+      CyclePetMood.curious,
+    );
   });
 
   test('tiny pose variation is deterministic by cycle day', () {
