@@ -15,6 +15,7 @@ void main() {
   Widget app({
     bool reduceMotion = false,
     bool tickerEnabled = true,
+    VoidCallback? onPetted,
   }) =>
       MaterialApp(
         theme: NylaTheme.light,
@@ -22,9 +23,12 @@ void main() {
           data: MediaQueryData(disableAnimations: reduceMotion),
           child: TickerMode(
             enabled: tickerEnabled,
-            child: const Scaffold(
+            child: Scaffold(
               body: Center(
-                child: CyclePetNook(disposition: disposition),
+                child: CyclePetNook(
+                  disposition: disposition,
+                  onPetted: onPetted,
+                ),
               ),
             ),
           ),
@@ -32,12 +36,14 @@ void main() {
       );
 
   testWidgets('pet accepts a nod tap and a horizontal pet stroke', (tester) async {
-    await tester.pumpWidget(app());
+    var pets = 0;
+    await tester.pumpWidget(app(onPetted: () => pets++));
     final target = find.byKey(const ValueKey('cycle-pet-touch-target'));
     expect(target, findsOneWidget);
 
     await tester.tap(target);
     await tester.pump(const Duration(milliseconds: 120));
+    expect(pets, 0, reason: 'A tap is acknowledgement, not a recorded pet.');
     expect(tester.takeException(), isNull);
 
     final gesture = await tester.startGesture(tester.getCenter(target));
@@ -47,6 +53,7 @@ void main() {
     await gesture.up();
     await tester.pump(const Duration(milliseconds: 700));
 
+    expect(pets, 1);
     expect(tester.takeException(), isNull);
   });
 
