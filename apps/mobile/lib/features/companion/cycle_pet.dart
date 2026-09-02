@@ -145,6 +145,8 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
     WidgetsBinding.instance.removeObserver(this);
     _actionEpoch++;
     _idleTimer?.cancel();
+    _blinkController.stop(canceled: false);
+    _actionController.stop(canceled: false);
     _blinkController.dispose();
     _actionController.dispose();
     super.dispose();
@@ -214,19 +216,18 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
   }) async {
     if (!mounted || _petting || _holding || !_autonomousMotion) return;
     _idleTimer?.cancel();
-    final epoch = ++_actionEpoch;
 
-    // A deliberate user tap takes control immediately instead of waiting for a
-    // canned idle gesture to finish. The epoch ensures the interrupted Future
-    // cannot later clear or reschedule over the newer reaction.
-    if (haptic && _actionController.isAnimating) {
+    // Autonomous work never steals the controller from an action already in
+    // progress. A deliberate user tap may take ownership immediately.
+    if (_actionController.isAnimating) {
+      if (!haptic) return;
+      _actionEpoch++;
       _actionController.stop(canceled: false);
       _actionController.value = 0;
       setState(() => _action = null);
-    } else if (_actionController.isAnimating) {
-      return;
     }
 
+    final epoch = ++_actionEpoch;
     if (haptic) await NylaHaptics.select();
     if (!mounted ||
         epoch != _actionEpoch ||
@@ -423,6 +424,13 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
                 duration: cardMotion,
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
+                layoutBuilder: (currentChild, previousChildren) => Stack(
+                  alignment: Alignment.topCenter,
+                  children: [
+                    ...previousChildren,
+                    if (currentChild != null) currentChild,
+                  ],
+                ),
                 transitionBuilder: (card, animation) => FadeTransition(
                   opacity: animation,
                   child: ScaleTransition(
