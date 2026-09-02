@@ -26,24 +26,38 @@ void main() {
     expect(profile.idleActions, contains(CyclePetAction.paw));
     expect(profile.idleActions, contains(CyclePetAction.tailFlick));
     expect(profile.idleActions, contains(CyclePetAction.peek));
+    expect(profile.idleActions, contains(CyclePetAction.earFlick));
+    expect(profile.idleActions, contains(CyclePetAction.sniff));
   });
 
-  test('drowsy cats prefer quiet actions instead of energetic roaming', () {
+  test('drowsy cats prefer quiet grounded motion', () {
     final profile = cyclePetBehavior(pet(CyclePetMood.drowsy));
 
     expect(profile.roaming, lessThan(0.1));
     expect(profile.idleActions, contains(CyclePetAction.yawn));
+    expect(profile.idleActions, contains(CyclePetAction.slowBlink));
+    expect(profile.idleActions, contains(CyclePetAction.loaf));
     expect(profile.idleActions, contains(CyclePetAction.settle));
     expect(profile.idleActions, isNot(contains(CyclePetAction.hopLeft)));
     expect(profile.idleActions, isNot(contains(CyclePetAction.hopRight)));
   });
 
-  test('curious cats investigate the card edge', () {
+  test('curious cats investigate rather than act generically playful', () {
     final profile = cyclePetBehavior(pet(CyclePetMood.curious));
 
     expect(profile.idleActions, contains(CyclePetAction.peek));
+    expect(profile.idleActions, contains(CyclePetAction.sniff));
     expect(profile.idleActions, contains(CyclePetAction.paw));
     expect(profile.roaming, greaterThan(0.5));
+  });
+
+  test('affectionate cats can knead and slow blink', () {
+    final profile = cyclePetBehavior(pet(CyclePetMood.affectionate));
+
+    expect(profile.idleActions, contains(CyclePetAction.knead));
+    expect(profile.idleActions, contains(CyclePetAction.slowBlink));
+    expect(profile.idleActions, contains(CyclePetAction.loaf));
+    expect(profile.tapActions, contains(CyclePetAction.knead));
   });
 
   test('familiarity adds affection without deleting the base personality', () {
@@ -59,6 +73,7 @@ void main() {
     expect(familiar.idleActions, containsAll(fresh.idleActions));
     expect(familiar.idleActions, contains(CyclePetAction.nuzzle));
     expect(familiar.idleActions, contains(CyclePetAction.purr));
+    expect(familiar.idleActions, contains(CyclePetAction.knead));
     expect(familiar.tapActions.first, CyclePetAction.nuzzle);
   });
 
@@ -68,8 +83,16 @@ void main() {
       greaterThan(cyclePetActionDuration(CyclePetAction.nod)),
     );
     expect(
-      cyclePetActionDuration(CyclePetAction.yawn),
+      cyclePetActionDuration(CyclePetAction.knead),
       greaterThan(const Duration(seconds: 1)),
+    );
+    expect(
+      cyclePetActionDuration(CyclePetAction.loaf),
+      greaterThan(cyclePetActionDuration(CyclePetAction.earFlick)),
+    );
+    expect(
+      cyclePetActionDuration(CyclePetAction.landing),
+      lessThan(const Duration(seconds: 1)),
     );
     expect(
       cyclePetActionDuration(CyclePetAction.hopLeft),
