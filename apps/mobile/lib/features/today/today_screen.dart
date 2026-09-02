@@ -73,19 +73,25 @@ class TodayScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          CyclePetLedge(
-            key: const ValueKey('cycle-pet-ledge'),
-            disposition: petDisposition,
-            onPetted: () {
-              unawaited(
-                ref
-                    .read(cyclePetMemoryRepositoryProvider)
-                    .recordPet(today.epochDay),
-              );
-            },
-            child: cycleCard,
+          Transform.translate(
+            // Move the complete cat + card composition together. The cat keeps
+            // the exact same physical relationship to its ledge; we simply use
+            // a little of the spare header air so Today feels better balanced.
+            offset: const Offset(0, -6),
+            child: CyclePetLedge(
+              key: const ValueKey('cycle-pet-ledge'),
+              disposition: petDisposition,
+              onPetted: () {
+                unawaited(
+                  ref
+                      .read(cyclePetMemoryRepositoryProvider)
+                      .recordPet(today.epochDay),
+                );
+              },
+              child: cycleCard,
+            ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
           TodayQuickCheckIn(today: today, values: values),
           const SizedBox(height: 13),
           TodayUpcomingCard(today: today, prediction: prediction),
