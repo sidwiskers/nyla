@@ -12,19 +12,35 @@ import '../features/settings/export_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/sync_screen.dart';
 import '../features/today/today_screen.dart';
+import 'motion.dart';
 import 'shell.dart';
 
 final nylaRouter = GoRouter(
   initialLocation: '/today',
   routes: [
     ShellRoute(
-      builder: (context, state, child) => NylaShell(location: state.uri.path, child: child),
+      builder: (context, state, child) => NylaShell(
+        location: state.uri.path,
+        child: child,
+      ),
       routes: [
-        GoRoute(path: '/today', builder: (context, state) => const TodayScreen()),
-        GoRoute(path: '/calendar', builder: (context, state) => const CalendarScreen()),
+        GoRoute(
+          path: '/today',
+          pageBuilder: (context, state) => nylaSectionPage(
+            key: state.pageKey,
+            child: const TodayScreen(),
+          ),
+        ),
+        GoRoute(
+          path: '/calendar',
+          pageBuilder: (context, state) => nylaSectionPage(
+            key: state.pageKey,
+            child: const CalendarScreen(),
+          ),
+        ),
         GoRoute(
           path: '/log',
-          builder: (context, state) {
+          pageBuilder: (context, state) {
             final raw = state.uri.queryParameters['day'];
             LocalDay? day;
             if (raw != null) {
@@ -34,32 +50,63 @@ final nylaRouter = GoRouter(
                 day = null;
               }
             }
-            return LogScreen(initialDay: day);
+            return nylaSectionPage(
+              key: state.pageKey,
+              child: LogScreen(initialDay: day),
+            );
           },
         ),
-        GoRoute(path: '/insights', builder: (context, state) => const InsightsScreen()),
-        GoRoute(path: '/learn', builder: (context, state) => const LearnScreen()),
+        GoRoute(
+          path: '/insights',
+          pageBuilder: (context, state) => nylaSectionPage(
+            key: state.pageKey,
+            child: const InsightsScreen(),
+          ),
+        ),
+        GoRoute(
+          path: '/learn',
+          pageBuilder: (context, state) => nylaSectionPage(
+            key: state.pageKey,
+            child: const LearnScreen(),
+          ),
+        ),
       ],
     ),
-    GoRoute(path: '/periods', builder: (context, state) => const PeriodHistoryScreen()),
+    GoRoute(
+      path: '/periods',
+      pageBuilder: (context, state) => nylaDepthPage(
+        key: state.pageKey,
+        child: const PeriodHistoryScreen(),
+      ),
+    ),
     GoRoute(
       path: '/settings',
-      pageBuilder: (context, state) => MaterialPage<void>(
-        fullscreenDialog: true,
+      pageBuilder: (context, state) => nylaDepthPage(
+        key: state.pageKey,
+        modal: true,
         child: const SettingsScreen(),
       ),
     ),
     GoRoute(
       path: '/settings/logs',
-      builder: (context, state) => const CustomLogsScreen(),
+      pageBuilder: (context, state) => nylaDepthPage(
+        key: state.pageKey,
+        child: const CustomLogsScreen(),
+      ),
     ),
     GoRoute(
       path: '/settings/export',
-      builder: (context, state) => const ExportScreen(),
+      pageBuilder: (context, state) => nylaDepthPage(
+        key: state.pageKey,
+        child: const ExportScreen(),
+      ),
     ),
     GoRoute(
       path: '/settings/sync',
-      builder: (context, state) => const SyncScreen(),
+      pageBuilder: (context, state) => nylaDepthPage(
+        key: state.pageKey,
+        child: const SyncScreen(),
+      ),
     ),
   ],
 );
