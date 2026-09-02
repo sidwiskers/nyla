@@ -65,6 +65,7 @@ class NylaShell extends StatelessWidget {
                             reduceMotion: reduceMotion,
                             onTap: () {
                               if (i == selected) return;
+                              FocusManager.instance.primaryFocus?.unfocus();
                               NylaHaptics.select();
                               navigationShell.goBranch(i);
                             },
