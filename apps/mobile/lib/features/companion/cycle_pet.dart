@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
 import '../../core/haptics/nyla_haptics.dart';
 import '../../core/theme/nyla_theme.dart';
@@ -13,23 +15,30 @@ const _petCanvasHeight = 132.0;
 const _petDisplayWidth = 152.0;
 const _petDisplayHeight = 102.0;
 const _ledgeTop = 86.0;
+const _motionSamplePeriod = Duration(milliseconds: 180);
 
 /// A real little home for Nyla's companion: the main cycle card is the ledge.
 ///
 /// The cat lives on the card edge instead of occupying its own large content
 /// block. The card remains the information surface; the cat can move, settle,
-/// peek and respond along the edge without pushing the useful content down.
+/// be petted, cuddled and deliberately picked up without turning Today into a
+/// game screen.
 class CyclePetLedge extends StatefulWidget {
   const CyclePetLedge({
     required this.disposition,
     required this.child,
     this.onPetted,
+    this.enableDeviceMotion = true,
     super.key,
   });
 
   final CyclePetDisposition disposition;
   final Widget child;
   final VoidCallback? onPetted;
+
+  /// Tiny accelerometer-driven body bias. It is event-throttled, bounded and
+  /// only subscribed while Today is active. Tests can disable it explicitly.
+  final bool enableDeviceMotion;
 
   @override
   State<CyclePetLedge> createState() => _CyclePetLedgeState();
@@ -43,6 +52,7 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
   final math.Random _random = math.Random();
 
   Timer? _idleTimer;
+  StreamSubscription<AccelerometerEvent>? _motionSubscription;
   CyclePetAction? _action;
   CyclePetAction? _lastAction;
   bool _reduceMotion = false;
@@ -50,18 +60,42 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
   bool _foreground = true;
   bool _petting = false;
   bool _holding = false;
+  bool _carrying = false;
   bool _petHapticSent = false;
   double _petLean = 0;
   double _petDepth = 0;
   double _reactionLean = 0;
   double _ledgeX = 0;
+  double _carryY = 0;
+  double _motionX = 0;
+  double _motionY = 0;
+  double? _motionBaseX;
+  double? _motionBaseY;
+  Offset _lastCarryOffset = Offset.zero;
   Duration _ledgeMotionDuration = Duration.zero;
+  DateTime? _lastTapAt;
+  DateTime? _lastPickupAt;
+  int _rapidTapCount = 0;
+  int _rapidPickupCount = 0;
   int _actionEpoch = 0;
 
   bool get _autonomousMotion =>
       !_reduceMotion && _tickerEnabled && _foreground;
 
+  bool get _canUseDeviceMotion =>
+      widget.enableDeviceMotion &&
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
   CyclePetBehaviorProfile get _behavior => cyclePetBehavior(widget.disposition);
+
+  String get _interactionState {
+    if (_carrying) return 'carrying';
+    if (_holding) return 'cuddling';
+    if (_petting) return 'petting';
+    return _action?.name ?? 'idle';
+  }
 
   @override
   void initState() {
@@ -88,6 +122,9 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
     if (oldWidget.disposition != widget.disposition && _autonomousMotion) {
       _scheduleIdle();
     }
+    if (oldWidget.enableDeviceMotion != widget.enableDeviceMotion) {
+      _syncMotionSubscription();
+    }
   }
 
   @override
@@ -101,9 +138,11 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
 
     if (!_autonomousMotion) {
       _resetMotionState();
+      _syncMotionSubscription();
       return;
     }
     if (changed || _idleTimer == null) _scheduleIdle();
+    _syncMotionSubscription();
   }
 
   @override
@@ -111,9 +150,11 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
     _foreground = state == AppLifecycleState.resumed;
     if (_foreground) {
       if (_autonomousMotion) _scheduleIdle();
+      _syncMotionSubscription();
       return;
     }
     _resetMotionState();
+    _syncMotionSubscription();
   }
 
   double _initialLedgePosition(int variant) => switch (variant % 3) {
@@ -121,6 +162,63 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
         1 => 0.08,
         _ => 0.36,
       };
+
+  void _syncMotionSubscription() {
+    final shouldListen = _canUseDeviceMotion && _autonomousMotion;
+    if (!shouldListen) {
+      final subscription = _motionSubscription;
+      _motionSubscription = null;
+      if (subscription != null) unawaited(subscription.cancel());
+      _motionBaseX = null;
+      _motionBaseY = null;
+      _motionX = 0;
+      _motionY = 0;
+      return;
+    }
+    if (_motionSubscription != null) return;
+
+    try {
+      _motionSubscription = accelerometerEventStream(
+        samplingPeriod: _motionSamplePeriod,
+      ).listen(
+        _onDeviceMotion,
+        onError: (_) {
+          _motionSubscription = null;
+          _motionBaseX = null;
+          _motionBaseY = null;
+        },
+        cancelOnError: true,
+      );
+    } catch (_) {
+      _motionSubscription = null;
+    }
+  }
+
+  void _onDeviceMotion(AccelerometerEvent event) {
+    if (!mounted ||
+        !_autonomousMotion ||
+        _carrying ||
+        _petting ||
+        _holding) {
+      return;
+    }
+
+    _motionBaseX ??= event.x;
+    _motionBaseY ??= event.y;
+    final targetX = ((event.x - _motionBaseX!) / 4.8).clamp(-1.0, 1.0);
+    final targetY = ((event.y - _motionBaseY!) / 5.6).clamp(-1.0, 1.0);
+    final nextX = _motionX + (targetX - _motionX) * 0.22;
+    final nextY = _motionY + (targetY - _motionY) * 0.18;
+    if ((nextX - _motionX).abs() < 0.025 &&
+        (nextY - _motionY).abs() < 0.025) {
+      return;
+    }
+
+    setState(() {
+      _motionX = nextX.toDouble();
+      _motionY = nextY.toDouble();
+    });
+  }
 
   void _resetMotionState() {
     _actionEpoch++;
@@ -134,9 +232,14 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
     _reactionLean = 0;
     _petting = false;
     _holding = false;
+    _carrying = false;
     _petHapticSent = false;
     _petLean = 0;
     _petDepth = 0;
+    _carryY = 0;
+    _lastCarryOffset = Offset.zero;
+    _motionX = 0;
+    _motionY = 0;
     _ledgeMotionDuration = Duration.zero;
   }
 
@@ -145,6 +248,9 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
     WidgetsBinding.instance.removeObserver(this);
     _actionEpoch++;
     _idleTimer?.cancel();
+    final motionSubscription = _motionSubscription;
+    _motionSubscription = null;
+    if (motionSubscription != null) unawaited(motionSubscription.cancel());
     _blinkController.stop(canceled: false);
     _actionController.stop(canceled: false);
     _blinkController.dispose();
@@ -154,7 +260,7 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
 
   void _scheduleIdle() {
     _idleTimer?.cancel();
-    if (!_autonomousMotion || !mounted) return;
+    if (!_autonomousMotion || !mounted || _carrying) return;
 
     final profile = _behavior;
     final spread = math.max(
@@ -165,7 +271,13 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
         profile.minIdleMilliseconds + _random.nextInt(spread + 1);
 
     _idleTimer = Timer(Duration(milliseconds: milliseconds), () async {
-      if (!mounted || !_autonomousMotion || _petting || _holding) return;
+      if (!mounted ||
+          !_autonomousMotion ||
+          _petting ||
+          _holding ||
+          _carrying) {
+        return;
+      }
       if (_actionController.isAnimating || _blinkController.isAnimating) {
         _scheduleIdle();
         return;
@@ -214,11 +326,17 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
     CyclePetAction action, {
     required bool haptic,
   }) async {
-    if (!mounted || _petting || _holding || !_autonomousMotion) return;
+    if (!mounted ||
+        _petting ||
+        _holding ||
+        _carrying ||
+        !_autonomousMotion) {
+      return;
+    }
     _idleTimer?.cancel();
 
     // Autonomous work never steals the controller from an action already in
-    // progress. A deliberate user tap may take ownership immediately.
+    // progress. A deliberate user reaction may take ownership immediately.
     if (_actionController.isAnimating) {
       if (!haptic) return;
       _actionEpoch++;
@@ -233,6 +351,7 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
         epoch != _actionEpoch ||
         _petting ||
         _holding ||
+        _carrying ||
         !_autonomousMotion) {
       return;
     }
@@ -252,6 +371,7 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
         epoch != _actionEpoch ||
         _petting ||
         _holding ||
+        _carrying ||
         !_autonomousMotion) {
       return;
     }
@@ -312,6 +432,7 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
   }
 
   void _onPetUpdate(DragUpdateDetails details) {
+    if (_carrying) return;
     final lean = _leanForX(details.localPosition.dx);
     final nextDepth =
         (_petDepth + details.delta.dx.abs() / 76).clamp(0.0, 1.0).toDouble();
@@ -332,6 +453,7 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
 
   void _onLongPressStart(LongPressStartDetails details) {
     _holding = true;
+    _lastCarryOffset = Offset.zero;
     _interruptForTouch(
       lean: _leanForX(details.localPosition.dx),
       depth: 0.62,
@@ -341,26 +463,122 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
     unawaited(NylaHaptics.select());
   }
 
-  void _onLongPressEnd(LongPressEndDetails _) {
-    _holding = false;
-    _finishPet(force: true);
+  void _onLongPressMove(LongPressMoveUpdateDetails details) {
+    final offset = details.localOffsetFromOrigin;
+    if (!_carrying && offset.distance >= 12) {
+      _beginCarry(offset);
+      return;
+    }
+    if (!_carrying) {
+      setState(() {
+        _petLean = _leanForX(details.localPosition.dx);
+        _reactionLean = _petLean;
+        _petDepth = (0.62 + offset.distance / 80).clamp(0.62, 1.0);
+      });
+      return;
+    }
+
+    final delta = offset - _lastCarryOffset;
+    _lastCarryOffset = offset;
+    setState(() {
+      _ledgeMotionDuration = Duration.zero;
+      _ledgeX = (_ledgeX + delta.dx / 165).clamp(-0.78, 0.78).toDouble();
+      _carryY = (offset.dy - 16).clamp(-58.0, -12.0).toDouble();
+      _reactionLean = (delta.dx / 22).clamp(-1.0, 1.0).toDouble();
+    });
   }
 
-  void _cancelTouch() {
-    if (!_petting && !_holding) return;
+  void _beginCarry(Offset offset) {
     _actionEpoch++;
+    _idleTimer?.cancel();
+    _actionController.stop(canceled: false);
+    _actionController.value = 0;
+    _registerPickup();
     setState(() {
+      _action = null;
+      _petting = false;
+      _holding = false;
+      _carrying = true;
+      _petDepth = 0;
+      _petLean = 0;
+      _lastCarryOffset = offset;
+      _carryY = (offset.dy - 16).clamp(-58.0, -12.0).toDouble();
+      _ledgeMotionDuration = Duration.zero;
+    });
+    unawaited(NylaHaptics.select());
+  }
+
+  void _registerPickup() {
+    final now = DateTime.now();
+    if (_lastPickupAt != null &&
+        now.difference(_lastPickupAt!) < const Duration(milliseconds: 1700)) {
+      _rapidPickupCount++;
+    } else {
+      _rapidPickupCount = 1;
+    }
+    _lastPickupAt = now;
+  }
+
+  void _onLongPressEnd(LongPressEndDetails details) {
+    if (_carrying) {
+      _finishCarry(details.velocity.pixelsPerSecond);
+      return;
+    }
+    _holding = false;
+    _finishPet(force: true, love: true);
+  }
+
+  void _finishCarry(Offset velocity) {
+    final rough = velocity.distance > 1150 || _rapidPickupCount >= 3;
+    final lean = _reactionLean;
+    setState(() {
+      _carrying = false;
       _petting = false;
       _holding = false;
       _petHapticSent = false;
       _petLean = 0;
       _petDepth = 0;
+      _carryY = 0;
+      _reactionLean = lean;
+      _ledgeMotionDuration = const Duration(milliseconds: 390);
+    });
+
+    if (_reduceMotion) {
+      _scheduleIdle();
+      return;
+    }
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 360), () {
+        if (!mounted || !_autonomousMotion || _carrying) return;
+        unawaited(
+          _runAction(
+            rough ? CyclePetAction.annoyed : CyclePetAction.shakeOff,
+            haptic: false,
+          ),
+        );
+      }),
+    );
+  }
+
+  void _cancelTouch() {
+    if (!_petting && !_holding && !_carrying) return;
+    _actionEpoch++;
+    setState(() {
+      _petting = false;
+      _holding = false;
+      _carrying = false;
+      _petHapticSent = false;
+      _petLean = 0;
+      _petDepth = 0;
+      _carryY = 0;
       _reactionLean = 0;
+      _lastCarryOffset = Offset.zero;
+      _ledgeMotionDuration = const Duration(milliseconds: 320);
     });
     _scheduleIdle();
   }
 
-  void _finishPet({required bool force}) {
+  void _finishPet({required bool force, bool love = false}) {
     final lean = _petLean;
     final wasPet = force || _petDepth >= 0.28;
     setState(() {
@@ -382,20 +600,47 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
       _scheduleIdle();
       return;
     }
-    unawaited(_runAction(CyclePetAction.purr, haptic: false));
+    unawaited(
+      _runAction(
+        love ? CyclePetAction.love : CyclePetAction.purr,
+        haptic: false,
+      ),
+    );
   }
 
   void _onTapDown(TapDownDetails details) {
     _reactionLean = _leanForX(details.localPosition.dx);
   }
 
+  bool _tapHasAnnoyedHer() {
+    final now = DateTime.now();
+    if (_lastTapAt != null &&
+        now.difference(_lastTapAt!) < const Duration(milliseconds: 850)) {
+      _rapidTapCount++;
+    } else {
+      _rapidTapCount = 1;
+    }
+    _lastTapAt = now;
+    if (_rapidTapCount < 4) return false;
+    _rapidTapCount = 0;
+    return true;
+  }
+
   void _onTap() {
-    if (_petting || _holding) return;
+    if (_petting || _holding || _carrying) return;
+    final annoyed = _tapHasAnnoyedHer();
     if (_reduceMotion) {
       unawaited(NylaHaptics.select());
       return;
     }
-    unawaited(_runAction(_chooseAction(_behavior.tapActions), haptic: true));
+    unawaited(
+      _runAction(
+        annoyed
+            ? CyclePetAction.annoyed
+            : _chooseAction(_behavior.tapActions),
+        haptic: true,
+      ),
+    );
   }
 
   @override
@@ -409,6 +654,14 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
         : (_ledgeMotionDuration == Duration.zero
             ? const Duration(milliseconds: 640)
             : _ledgeMotionDuration);
+    final carryLift = (-_carryY / 58).clamp(0.0, 1.0).toDouble();
+    final motionDx = _reduceMotion || _carrying ? 0.0 : _motionX * 4.2;
+    final motionDy = _reduceMotion || _carrying ? 0.0 : _motionY * 2.2;
+    final petTransform = Matrix4.translationValues(
+      motionDx,
+      _carryY + motionDy,
+      0,
+    )..rotateZ((_carrying ? _reactionLean * 0.035 : _motionX * 0.018));
 
     return RepaintBoundary(
       child: Stack(
@@ -453,38 +706,50 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
               alignment: Alignment(_ledgeX, -1),
               duration: ledgeMotion,
               curve: const Cubic(0.16, 1, 0.3, 1),
-              child: Semantics(
-                button: true,
-                label:
-                    'Your little Nyla cat, ${widget.disposition.semantics}. Tap, stroke left and right, or hold to pet it.',
-                child: SizedBox(
-                  key: const ValueKey('cycle-pet-touch-target'),
-                  width: _petDisplayWidth,
-                  height: _petDisplayHeight,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTapDown: _onTapDown,
-                    onTap: _onTap,
-                    onHorizontalDragStart: _onPetStart,
-                    onHorizontalDragUpdate: _onPetUpdate,
-                    onHorizontalDragEnd: _onPetEnd,
-                    onHorizontalDragCancel: _cancelTouch,
-                    onLongPressStart: _onLongPressStart,
-                    onLongPressEnd: _onLongPressEnd,
-                    onLongPressCancel: _cancelTouch,
-                    child: CustomPaint(
-                      painter: _CyclePetPainter(
-                        disposition: widget.disposition,
-                        palette: palette,
-                        dark: dark,
-                        blink: _blinkController,
-                        actionAnimation: _actionController,
-                        action: _action,
-                        petting: _petting,
-                        petLean: _petLean,
-                        petDepth: _petDepth,
-                        reactionLean: _reactionLean,
-                        repaint: _repaint,
+              child: AnimatedContainer(
+                key: ValueKey('cycle-pet-state-$_interactionState'),
+                duration: _reduceMotion || _carrying
+                    ? Duration.zero
+                    : const Duration(milliseconds: 360),
+                curve: const Cubic(0.16, 1, 0.3, 1),
+                transform: petTransform,
+                transformAlignment: Alignment.center,
+                child: Semantics(
+                  button: true,
+                  label:
+                      'Your little Nyla cat, ${widget.disposition.semantics}. Tap her, stroke left and right, hold to cuddle, or hold and drag to pick her up.',
+                  child: SizedBox(
+                    key: const ValueKey('cycle-pet-touch-target'),
+                    width: _petDisplayWidth,
+                    height: _petDisplayHeight,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTapDown: _onTapDown,
+                      onTap: _onTap,
+                      onHorizontalDragStart: _onPetStart,
+                      onHorizontalDragUpdate: _onPetUpdate,
+                      onHorizontalDragEnd: _onPetEnd,
+                      onHorizontalDragCancel: _cancelTouch,
+                      onLongPressStart: _onLongPressStart,
+                      onLongPressMoveUpdate: _onLongPressMove,
+                      onLongPressEnd: _onLongPressEnd,
+                      onLongPressCancel: _cancelTouch,
+                      child: CustomPaint(
+                        painter: _CyclePetPainter(
+                          disposition: widget.disposition,
+                          palette: palette,
+                          dark: dark,
+                          blink: _blinkController,
+                          actionAnimation: _actionController,
+                          action: _action,
+                          petting: _petting,
+                          carrying: _carrying,
+                          carryLift: carryLift,
+                          petLean: _petLean,
+                          petDepth: _petDepth,
+                          reactionLean: _reactionLean,
+                          repaint: _repaint,
+                        ),
                       ),
                     ),
                   ),
@@ -507,6 +772,8 @@ class _CyclePetPainter extends CustomPainter {
     required this.actionAnimation,
     required this.action,
     required this.petting,
+    required this.carrying,
+    required this.carryLift,
     required this.petLean,
     required this.petDepth,
     required this.reactionLean,
@@ -520,6 +787,8 @@ class _CyclePetPainter extends CustomPainter {
   final Animation<double> actionAnimation;
   final CyclePetAction? action;
   final bool petting;
+  final bool carrying;
+  final double carryLift;
   final double petLean;
   final double petDepth;
   final double reactionLean;
@@ -548,6 +817,13 @@ class _CyclePetPainter extends CustomPainter {
     final peek = action == CyclePetAction.peek ? pulse : 0.0;
     final purr = action == CyclePetAction.purr ? pulse : 0.0;
     final nuzzle = action == CyclePetAction.nuzzle ? pulse : 0.0;
+    final wink = action == CyclePetAction.wink ? pulse : 0.0;
+    final love = action == CyclePetAction.love ? pulse : 0.0;
+    final surprised = action == CyclePetAction.surprised ? pulse : 0.0;
+    final annoyed = action == CyclePetAction.annoyed ? pulse : 0.0;
+    final shakeOff = action == CyclePetAction.shakeOff ? pulse : 0.0;
+    final shake = shakeOff * wave * 3.2 + annoyed * wave * 1.3;
+    canvas.translate(shake, 0);
 
     final variantLean = switch (disposition.variant) {
       1 => -0.025,
@@ -572,36 +848,67 @@ class _CyclePetPainter extends CustomPainter {
         : reactionLean.sign;
     final activeLean = petting
         ? petLean * 0.09
-        : nuzzleSide * 0.055 * nuzzle + reactionLean * 0.025 * purr;
+        : nuzzleSide * 0.055 * nuzzle +
+            reactionLean * 0.025 * purr +
+            annoyed * -0.035 * nuzzleSide;
     final headAngle = moodTilt + variantLean + activeLean;
 
-    _paintContactShadow(canvas, hop: hop, settle: settle);
-    _paintTail(canvas, pulse: pulse, wave: wave, hop: hop);
+    _paintContactShadow(
+      canvas,
+      hop: hop,
+      settle: settle,
+      carryLift: carryLift,
+    );
+    _paintTail(
+      canvas,
+      pulse: pulse,
+      wave: wave,
+      hop: hop,
+      annoyed: annoyed,
+      carrying: carrying,
+    );
     _paintBody(
       canvas,
       hop: hop,
       stretch: stretch,
       settle: settle,
       purr: purr,
+      carrying: carrying,
+      carryLift: carryLift,
     );
     _paintHead(
       canvas,
       headAngle: headAngle,
       headShiftX: lookShift + nuzzleSide * 3.8 * nuzzle + stretch * 3.2,
-      headShiftY: nod + petDepth * 1.8 + peek * 7.2 - hop * 5.2,
+      headShiftY: nod +
+          petDepth * 1.8 +
+          peek * 7.2 -
+          hop * 5.2 +
+          carryLift * 1.5,
       yawn: yawn,
       settle: settle,
       purr: purr,
       nuzzle: nuzzle,
       peek: peek,
+      wink: wink,
+      love: love,
+      surprised: surprised,
+      annoyed: annoyed,
+      carrying: carrying,
     );
     if (groom > 0.01 || paw > 0.01) {
       _paintActionPaw(canvas, groom: groom, paw: paw, wave: wave, hop: hop);
     }
     if (purr > 0.04) _paintPurr(canvas, purr, wave);
-    if ((purr > 0.06 || nuzzle > 0.06) && t < 0.94) {
-      _paintAffection(canvas, t, nuzzleSide);
+    if ((purr > 0.06 || nuzzle > 0.06 || love > 0.06) && t < 0.95) {
+      _paintAffection(
+        canvas,
+        t,
+        nuzzleSide,
+        strength: love > 0 ? 1.35 : 1,
+      );
     }
+    if (annoyed > 0.07) _paintAnnoyedMark(canvas, annoyed, wave);
 
     canvas.restore();
   }
@@ -613,16 +920,20 @@ class _CyclePetPainter extends CustomPainter {
     Canvas canvas, {
     required double hop,
     required double settle,
+    required double carryLift,
   }) {
     final shadow = Paint()
       ..color = palette.shadow.withValues(
-        alpha: (dark ? 0.22 : 0.13) * (1 - hop * 0.55),
+        alpha: (dark ? 0.22 : 0.13) *
+            (1 - hop * 0.55) *
+            (1 - carryLift * 0.78),
       );
     canvas.drawOval(
       Rect.fromCenter(
         center: const Offset(95, 115),
-        width: 76 + disposition.closeness * 10 + settle * 7 - hop * 8,
-        height: 8 - hop * 2,
+        width: (76 + disposition.closeness * 10 + settle * 7 - hop * 8) *
+            (1 - carryLift * 0.28),
+        height: (8 - hop * 2) * (1 - carryLift * 0.38),
       ),
       shadow,
     );
@@ -633,16 +944,23 @@ class _CyclePetPainter extends CustomPainter {
     required double pulse,
     required double wave,
     required double hop,
+    required double annoyed,
+    required bool carrying,
   }) {
     final energy = disposition.energy;
-    final flick = action == CyclePetAction.tailFlick ? wave * 13 : 0.0;
+    final flick = action == CyclePetAction.tailFlick
+        ? wave * 13
+        : annoyed > 0
+            ? wave * 17
+            : 0.0;
     final playfulLift = disposition.mood == CyclePetMood.playful ? 2.5 : 0.0;
     final tailLift = 3 +
         energy * 13 +
         disposition.familiarity * 2 +
         (disposition.recentlyPetted ? 1.2 : 0) +
         playfulLift +
-        hop * 4;
+        hop * 4 +
+        (carrying ? 3.5 : 0);
     final tail = Path()
       ..moveTo(126, 89 - hop * 3)
       ..cubicTo(
@@ -667,6 +985,8 @@ class _CyclePetPainter extends CustomPainter {
     required double stretch,
     required double settle,
     required double purr,
+    required bool carrying,
+    required double carryLift,
   }) {
     final squat = switch (disposition.mood) {
       CyclePetMood.drowsy => 4.0,
@@ -675,14 +995,20 @@ class _CyclePetPainter extends CustomPainter {
       CyclePetMood.affectionate => 1.6,
       _ => 0.0,
     };
-    final purrWiggle = purr * math.sin(actionAnimation.value * math.pi * 6) * 0.6;
+    final purrWiggle =
+        purr * math.sin(actionAnimation.value * math.pi * 6) * 0.6;
     final bodyRect = Rect.fromCenter(
       center: Offset(
         95 + purrWiggle,
         86 + squat + settle * 3.0 - hop * 5.0,
       ),
       width: 78 + disposition.closeness * 4 + stretch * 15 - settle * 3,
-      height: 55 - disposition.energy * 4 + squat - stretch * 7 + settle * 4,
+      height: 55 -
+          disposition.energy * 4 +
+          squat -
+          stretch * 7 +
+          settle * 4 +
+          carryLift * 2,
     );
     final body = Paint()
       ..shader = LinearGradient(
@@ -702,13 +1028,22 @@ class _CyclePetPainter extends CustomPainter {
 
     final pawPaint = Paint()
       ..color = dark ? const Color(0xFFAE93CA) : const Color(0xFFD7C4E9);
-    final pawY = 109 - hop * 5 + settle * 1.5;
+    final pawY = 109 - hop * 5 + settle * 1.5 + (carrying ? 3.5 : 0);
+    final pawHeight = carrying ? 13.0 : 10.0;
     canvas.drawOval(
-      Rect.fromCenter(center: Offset(72 - stretch * 4, pawY), width: 25, height: 10),
+      Rect.fromCenter(
+        center: Offset(72 - stretch * 4, pawY),
+        width: carrying ? 18 : 25,
+        height: pawHeight,
+      ),
       pawPaint,
     );
     canvas.drawOval(
-      Rect.fromCenter(center: Offset(112 + stretch * 4, pawY), width: 25, height: 10),
+      Rect.fromCenter(
+        center: Offset(112 + stretch * 4, pawY),
+        width: carrying ? 18 : 25,
+        height: pawHeight,
+      ),
       pawPaint,
     );
   }
@@ -723,6 +1058,11 @@ class _CyclePetPainter extends CustomPainter {
     required double purr,
     required double nuzzle,
     required double peek,
+    required double wink,
+    required double love,
+    required double surprised,
+    required double annoyed,
+    required bool carrying,
   }) {
     canvas.save();
     canvas.translate(95 + headShiftX, 53 + headShiftY);
@@ -738,7 +1078,15 @@ class _CyclePetPainter extends CustomPainter {
     };
     final touchDrop = petting ? petDepth * 0.48 : purr * 0.24 + nuzzle * 0.18;
     final yawnDrop = yawn * 0.32;
-    final earDrop = math.max(gentleDrop, math.max(touchDrop, yawnDrop));
+    final annoyedDrop = annoyed * 0.98;
+    final carryLift = carrying || surprised > 0.12 ? -0.16 : 0.0;
+    final earDrop = (math.max(
+              gentleDrop,
+              math.max(touchDrop, math.max(yawnDrop, annoyedDrop)),
+            ) +
+            carryLift)
+        .clamp(0.0, 1.0)
+        .toDouble();
 
     _paintEar(canvas, left: true, drop: earDrop, energy: energy);
     _paintEar(canvas, left: false, drop: earDrop * 0.82, energy: energy);
@@ -772,6 +1120,11 @@ class _CyclePetPainter extends CustomPainter {
       purr: purr,
       nuzzle: nuzzle,
       peek: peek,
+      wink: wink,
+      love: love,
+      surprised: surprised,
+      annoyed: annoyed,
+      carrying: carrying,
     );
     _paintWhiskers(canvas, peek: peek);
     canvas.restore();
@@ -852,44 +1205,75 @@ class _CyclePetPainter extends CustomPainter {
     required double purr,
     required double nuzzle,
     required double peek,
+    required double wink,
+    required double love,
+    required double surprised,
+    required double annoyed,
+    required bool carrying,
   }) {
-    final moodOpen = switch (disposition.mood) {
-      CyclePetMood.drowsy => 0.38,
-      CyclePetMood.cozy => 0.72,
-      CyclePetMood.gentle => 0.70,
-      CyclePetMood.calm => 0.78,
-      CyclePetMood.affectionate => 0.74,
-      _ => 1.0,
-    };
-    final blinkClose = math.sin(math.pi * blink.value);
-    final touchClose = petting ? petDepth * 0.78 : 0.0;
-    final actionClose = yawn * 0.82 + settle * 0.68 + purr * 0.72 + nuzzle * 0.50;
-    final peekBoost = peek * 0.18;
-    final eyeOpen = (moodOpen *
-            (1 - blinkClose) *
-            (1 - touchClose) *
-            (1 - actionClose) +
-        peekBoost)
-        .clamp(0.05, 1.08)
-        .toDouble();
+    final ink = dark ? const Color(0xFF392C40) : const Color(0xFF4A3650);
     final eyePaint = Paint()
-      ..color = dark ? const Color(0xFF392C40) : const Color(0xFF4A3650)
+      ..color = ink
       ..strokeWidth = 2.2
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.fill;
 
-    for (final x in const [-11.0, 11.0]) {
-      if (eyeOpen < 0.34) {
-        canvas.drawLine(Offset(x - 3, 0), Offset(x + 3, 0.4), eyePaint);
-      } else {
-        canvas.drawOval(
-          Rect.fromCenter(
-            center: Offset(x, 0),
-            width: 5.2,
-            height: 7.2 * eyeOpen,
-          ),
-          eyePaint,
-        );
+    if (annoyed > 0.20) {
+      final line = Paint()
+        ..color = ink
+        ..strokeWidth = 2.2
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(const Offset(-15, -1), const Offset(-8, 2), line);
+      canvas.drawLine(const Offset(8, 2), const Offset(15, -1), line);
+    } else if (love > 0.24) {
+      final heartPaint = Paint()
+        ..color = palette.rose.withValues(alpha: 0.82);
+      _heart(canvas, const Offset(-11, 0), 3.5, heartPaint);
+      _heart(canvas, const Offset(11, 0), 3.5, heartPaint);
+    } else if (carrying || surprised > 0.16) {
+      final radius = 3.0 + surprised * 0.7;
+      canvas.drawCircle(const Offset(-11, 0), radius, eyePaint);
+      canvas.drawCircle(const Offset(11, 0), radius, eyePaint);
+      final shine = Paint()..color = Colors.white.withValues(alpha: 0.72);
+      canvas.drawCircle(const Offset(-10, -1), 0.9, shine);
+      canvas.drawCircle(const Offset(12, -1), 0.9, shine);
+    } else {
+      final moodOpen = switch (disposition.mood) {
+        CyclePetMood.drowsy => 0.38,
+        CyclePetMood.cozy => 0.72,
+        CyclePetMood.gentle => 0.70,
+        CyclePetMood.calm => 0.78,
+        CyclePetMood.affectionate => 0.74,
+        _ => 1.0,
+      };
+      final blinkClose = math.sin(math.pi * blink.value);
+      final touchClose = petting ? petDepth * 0.78 : 0.0;
+      final actionClose =
+          yawn * 0.82 + settle * 0.68 + purr * 0.72 + nuzzle * 0.50;
+      final peekBoost = peek * 0.18;
+      final eyeOpen = (moodOpen *
+                  (1 - blinkClose) *
+                  (1 - touchClose) *
+                  (1 - actionClose) +
+              peekBoost)
+          .clamp(0.05, 1.08)
+          .toDouble();
+
+      for (var i = 0; i < 2; i++) {
+        final x = i == 0 ? -11.0 : 11.0;
+        final winkThisEye = i == 1 && wink > 0.38;
+        if (eyeOpen < 0.34 || winkThisEye) {
+          canvas.drawLine(Offset(x - 3, 0), Offset(x + 3, 0.4), eyePaint);
+        } else {
+          canvas.drawOval(
+            Rect.fromCenter(
+              center: Offset(x, 0),
+              width: 5.2,
+              height: 7.2 * eyeOpen,
+            ),
+            eyePaint,
+          );
+        }
       }
     }
 
@@ -902,8 +1286,9 @@ class _CyclePetPainter extends CustomPainter {
             }) +
             disposition.familiarity * 0.04 +
             (disposition.recentlyPetted ? 0.035 : 0.0) +
-            purr * 0.05)
-        .clamp(0.0, 0.40)
+            purr * 0.05 +
+            love * 0.08)
+        .clamp(0.0, 0.44)
         .toDouble();
     final blush = Paint()..color = palette.rose.withValues(alpha: blushAlpha);
     canvas.drawOval(
@@ -916,8 +1301,7 @@ class _CyclePetPainter extends CustomPainter {
     );
 
     if (yawn > 0.16) {
-      final mouthPaint = Paint()
-        ..color = dark ? const Color(0xFF49364E) : const Color(0xFF5B405F);
+      final mouthPaint = Paint()..color = ink;
       canvas.drawOval(
         Rect.fromCenter(
           center: const Offset(0, 12),
@@ -929,11 +1313,31 @@ class _CyclePetPainter extends CustomPainter {
       return;
     }
 
+    if (carrying || surprised > 0.20) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: const Offset(0, 11),
+          width: 4.6,
+          height: 5.8,
+        ),
+        Paint()..color = ink,
+      );
+      return;
+    }
+
     final mouth = Paint()
-      ..color = dark ? const Color(0xFF49364E) : const Color(0xFF5B405F)
+      ..color = ink
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.8
       ..strokeCap = StrokeCap.round;
+    if (annoyed > 0.18) {
+      final frown = Path()
+        ..moveTo(-5, 12)
+        ..quadraticBezierTo(0, 8.5, 5, 12);
+      canvas.drawPath(frown, mouth);
+      return;
+    }
+
     final smile = (switch (disposition.mood) {
           CyclePetMood.playful => 4.4,
           CyclePetMood.bright => 3.6,
@@ -946,6 +1350,7 @@ class _CyclePetPainter extends CustomPainter {
         }) +
         purr * 1.8 +
         nuzzle * 1.0 +
+        love * 1.5 +
         (petting ? petDepth * 1.4 : 0.0);
     final mouthPath = Path()
       ..moveTo(-5, 9)
@@ -1031,7 +1436,12 @@ class _CyclePetPainter extends CustomPainter {
     }
   }
 
-  void _paintAffection(Canvas canvas, double t, double side) {
+  void _paintAffection(
+    Canvas canvas,
+    double t,
+    double side, {
+    required double strength,
+  }) {
     final rise = Curves.easeOut.transform(t.clamp(0.0, 1.0).toDouble());
     final opacity = math.sin(math.pi * t).clamp(0.0, 1.0).toDouble();
     final heartPaint = Paint()
@@ -1040,15 +1450,41 @@ class _CyclePetPainter extends CustomPainter {
     _heart(
       canvas,
       Offset(95 + direction * 41, 57 - rise * 28),
-      4.5 + rise,
+      (4.5 + rise) * strength,
       heartPaint,
     );
     _heart(
       canvas,
       Offset(95 - direction * 34, 70 - rise * 19),
-      3.3 + rise * 0.6,
+      (3.3 + rise * 0.6) * strength,
       heartPaint,
     );
+    if (strength > 1.1) {
+      _heart(
+        canvas,
+        Offset(95 + direction * 18, 43 - rise * 34),
+        3.0 + rise * 0.8,
+        heartPaint,
+      );
+    }
+  }
+
+  void _paintAnnoyedMark(Canvas canvas, double strength, double wave) {
+    final paint = Paint()
+      ..color = const Color(0xFFE45A68).withValues(alpha: 0.78 * strength)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round;
+    final dx = wave * 0.8;
+    final center = Offset(137 + dx, 31 - strength * 3);
+    canvas.drawLine(center + const Offset(-8, 0), center + const Offset(-2, 0), paint);
+    canvas.drawLine(center + const Offset(-2, 0), center + const Offset(-2, -6), paint);
+    canvas.drawLine(center + const Offset(3, -7), center + const Offset(3, -1), paint);
+    canvas.drawLine(center + const Offset(3, -1), center + const Offset(9, -1), paint);
+    canvas.drawLine(center + const Offset(-7, 5), center + const Offset(-2, 5), paint);
+    canvas.drawLine(center + const Offset(-2, 5), center + const Offset(-2, 10), paint);
+    canvas.drawLine(center + const Offset(3, 4), center + const Offset(3, 9), paint);
+    canvas.drawLine(center + const Offset(3, 9), center + const Offset(8, 9), paint);
   }
 
   void _heart(Canvas canvas, Offset center, double size, Paint paint) {
@@ -1081,6 +1517,8 @@ class _CyclePetPainter extends CustomPainter {
       oldDelegate.dark != dark ||
       oldDelegate.action != action ||
       oldDelegate.petting != petting ||
+      oldDelegate.carrying != carrying ||
+      oldDelegate.carryLift != carryLift ||
       oldDelegate.petLean != petLean ||
       oldDelegate.petDepth != petDepth ||
       oldDelegate.reactionLean != reactionLean;
