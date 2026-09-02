@@ -47,77 +47,25 @@ class NylaShell extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Stack(
-                fit: StackFit.expand,
+              child: Row(
                 children: [
-                  _NavigationThread(
-                    selected: selected,
-                    reduceMotion: reduceMotion,
-                  ),
-                  Row(
-                    children: [
-                      for (var i = 0; i < _destinations.length; i++)
-                        Expanded(
-                          child: _Destination(
-                            entry: _destinations[i],
-                            selected: i == selected,
-                            primary: _destinations[i].path == '/log',
-                            reduceMotion: reduceMotion,
-                            onTap: () {
-                              if (i == selected) return;
-                              FocusManager.instance.primaryFocus?.unfocus();
-                              NylaHaptics.select();
-                              navigationShell.goBranch(i);
-                            },
-                          ),
-                        ),
-                    ],
-                  ),
+                  for (var i = 0; i < _destinations.length; i++)
+                    Expanded(
+                      child: _Destination(
+                        entry: _destinations[i],
+                        selected: i == selected,
+                        primary: _destinations[i].path == '/log',
+                        reduceMotion: reduceMotion,
+                        onTap: () {
+                          if (i == selected) return;
+                          FocusManager.instance.primaryFocus?.unfocus();
+                          NylaHaptics.select();
+                          navigationShell.goBranch(i);
+                        },
+                      ),
+                    ),
                 ],
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavigationThread extends StatelessWidget {
-  const _NavigationThread({required this.selected, required this.reduceMotion});
-
-  final int selected;
-  final bool reduceMotion;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.nyla;
-    final duration =
-        reduceMotion ? Duration.zero : const Duration(milliseconds: 330);
-    final alignmentX = -1.0 + ((selected / 4) * 2);
-
-    return IgnorePointer(
-      child: AnimatedAlign(
-        duration: duration,
-        curve: const Cubic(0.16, 1, 0.3, 1),
-        alignment: Alignment(alignmentX, 1),
-        child: Transform.translate(
-          offset: const Offset(0, -4),
-          child: AnimatedContainer(
-            duration: duration,
-            curve: const Cubic(0.16, 1, 0.3, 1),
-            width: selected == 2 ? 31 : 23,
-            height: 3,
-            decoration: BoxDecoration(
-              color: selected == 2 ? palette.rose : palette.violet,
-              borderRadius: BorderRadius.circular(99),
-              boxShadow: [
-                BoxShadow(
-                  color: (selected == 2 ? palette.rose : palette.violet)
-                      .withValues(alpha: 0.28),
-                  blurRadius: 8,
-                ),
-              ],
             ),
           ),
         ),
