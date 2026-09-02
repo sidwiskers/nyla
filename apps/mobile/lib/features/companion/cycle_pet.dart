@@ -56,6 +56,7 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
   double _reactionLean = 0;
   double _ledgeX = 0;
   Duration _ledgeMotionDuration = Duration.zero;
+  int _actionEpoch = 0;
 
   bool get _autonomousMotion =>
       !_reduceMotion && _tickerEnabled && _foreground;
@@ -122,6 +123,7 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
       };
 
   void _resetMotionState() {
+    _actionEpoch++;
     _idleTimer?.cancel();
     _idleTimer = null;
     _blinkController.stop(canceled: false);
@@ -141,6 +143,7 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _actionEpoch++;
     _idleTimer?.cancel();
     _blinkController.dispose();
     _actionController.dispose();
@@ -211,9 +214,11 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
   }) async {
     if (!mounted || _petting || _holding || !_autonomousMotion) return;
     _idleTimer?.cancel();
+    final epoch = ++_actionEpoch;
 
     // A deliberate user tap takes control immediately instead of waiting for a
-    // canned idle gesture to finish.
+    // canned idle gesture to finish. The epoch ensures the interrupted Future
+    // cannot later clear or reschedule over the newer reaction.
     if (haptic && _actionController.isAnimating) {
       _actionController.stop(canceled: false);
       _actionController.value = 0;
@@ -223,7 +228,13 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
     }
 
     if (haptic) await NylaHaptics.select();
-    if (!mounted || _petting || _holding || !_autonomousMotion) return;
+    if (!mounted ||
+        epoch != _actionEpoch ||
+        _petting ||
+        _holding ||
+        !_autonomousMotion) {
+      return;
+    }
 
     final prepared = _prepareLedgeAction(action);
     final duration = cyclePetActionDuration(prepared);
@@ -236,7 +247,13 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
     });
 
     await _actionController.forward(from: 0);
-    if (!mounted || _petting || _holding || !_autonomousMotion) return;
+    if (!mounted ||
+        epoch != _actionEpoch ||
+        _petting ||
+        _holding ||
+        !_autonomousMotion) {
+      return;
+    }
 
     setState(() {
       _action = null;
@@ -269,6 +286,7 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
   }
 
   void _interruptForTouch({required double lean, double depth = 0.08}) {
+    _actionEpoch++;
     _idleTimer?.cancel();
     _actionController.stop(canceled: false);
     _actionController.value = 0;
@@ -325,6 +343,20 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
   void _onLongPressEnd(LongPressEndDetails _) {
     _holding = false;
     _finishPet(force: true);
+  }
+
+  void _cancelTouch() {
+    if (!_petting && !_holding) return;
+    _actionEpoch++;
+    setState(() {
+      _petting = false;
+      _holding = false;
+      _petHapticSent = false;
+      _petLean = 0;
+      _petDepth = 0;
+      _reactionLean = 0;
+    });
+    _scheduleIdle();
   }
 
   void _finishPet({required bool force}) {
@@ -428,8 +460,10 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
                     onHorizontalDragStart: _onPetStart,
                     onHorizontalDragUpdate: _onPetUpdate,
                     onHorizontalDragEnd: _onPetEnd,
+                    onHorizontalDragCancel: _cancelTouch,
                     onLongPressStart: _onLongPressStart,
                     onLongPressEnd: _onLongPressEnd,
+                    onLongPressCancel: _cancelTouch,
                     child: CustomPaint(
                       painter: _CyclePetPainter(
                         disposition: widget.disposition,
@@ -547,7 +581,6 @@ class _CyclePetPainter extends CustomPainter {
       headAngle: headAngle,
       headShiftX: lookShift + nuzzleSide * 3.8 * nuzzle + stretch * 3.2,
       headShiftY: nod + petDepth * 1.8 + peek * 7.2 - hop * 5.2,
-      actionStrength: pulse,
       yawn: yawn,
       settle: settle,
       purr: purr,
@@ -677,7 +710,6 @@ class _CyclePetPainter extends CustomPainter {
     required double headAngle,
     required double headShiftX,
     required double headShiftY,
-    required double actionStrength,
     required double yawn,
     required double settle,
     required double purr,
@@ -727,7 +759,6 @@ class _CyclePetPainter extends CustomPainter {
     _paintForeheadMark(canvas);
     _paintFace(
       canvas,
-      actionStrength: actionStrength,
       yawn: yawn,
       settle: settle,
       purr: purr,
@@ -808,7 +839,6 @@ class _CyclePetPainter extends CustomPainter {
 
   void _paintFace(
     Canvas canvas, {
-    required double actionStrength,
     required double yawn,
     required double settle,
     required double purr,
