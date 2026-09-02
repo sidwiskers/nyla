@@ -18,12 +18,14 @@ class _LearnScreenState extends State<LearnScreen> {
   final PageController _controller = PageController(viewportFraction: 0.94);
   int selectedQuickFind = 0;
   String query = '';
-  int currentIndex = 0;
 
   static const quickFinds = <_QuickFind>[
     _QuickFind('Explore', []),
     _QuickFind('Cramps', ['cramp', 'pain']),
     _QuickFind('Flow', ['flow', 'bleeding', 'blood']),
+    _QuickFind('Headaches', ['headache', 'migraine']),
+    _QuickFind('Sleep & energy', ['sleep', 'energy', 'tired']),
+    _QuickFind('Digestion', ['digestion', 'bloating', 'constipation', 'loose stool', 'gassy']),
     _QuickFind('Hygiene', ['hygiene', 'cleaning', 'wash']),
     _QuickFind('Products', ['pad', 'tampon', 'cup', 'product']),
     _QuickFind('Discharge', ['discharge']),
@@ -46,7 +48,6 @@ class _LearnScreenState extends State<LearnScreen> {
       if (quickFind.terms.isEmpty) return true;
       return quickFind.terms.any(tip.matches);
     }).toList(growable: false);
-    final index = cards.isEmpty ? 0 : currentIndex.clamp(0, cards.length - 1);
     final deckHeight = (MediaQuery.sizeOf(context).height * 0.62)
         .clamp(440.0, 620.0)
         .toDouble();
@@ -60,10 +61,7 @@ class _LearnScreenState extends State<LearnScreen> {
         children: [
           _SearchField(
             onChanged: (value) {
-              setState(() {
-                query = value;
-                currentIndex = 0;
-              });
+              setState(() => query = value);
               _resetDeck();
             },
           ),
@@ -73,10 +71,7 @@ class _LearnScreenState extends State<LearnScreen> {
             selected: selectedQuickFind,
             onSelected: (value) {
               NylaHaptics.select();
-              setState(() {
-                selectedQuickFind = value;
-                currentIndex = 0;
-              });
+              setState(() => selectedQuickFind = value);
               _resetDeck();
             },
           ),
@@ -84,7 +79,7 @@ class _LearnScreenState extends State<LearnScreen> {
           if (cards.isEmpty)
             const _EmptyDeck()
           else ...[
-            _DeckHeader(index: index, total: cards.length),
+            const _DeckHeader(),
             const SizedBox(height: 10),
             SizedBox(
               height: deckHeight,
@@ -121,10 +116,7 @@ class _LearnScreenState extends State<LearnScreen> {
                     controller: _controller,
                     physics: const BouncingScrollPhysics(),
                     itemCount: cards.length,
-                    onPageChanged: (value) {
-                      NylaHaptics.select();
-                      setState(() => currentIndex = value);
-                    },
+                    onPageChanged: (_) => NylaHaptics.select(),
                     itemBuilder: (context, cardIndex) => Padding(
                       padding: const EdgeInsets.fromLTRB(4, 0, 4, 22),
                       child: _KnowledgeCard(
@@ -136,8 +128,6 @@ class _LearnScreenState extends State<LearnScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 4),
-            _DeckProgress(index: index, total: cards.length),
           ],
           const SizedBox(height: 88),
         ],
@@ -213,24 +203,22 @@ class _QuickFindStrip extends StatelessWidget {
 }
 
 class _DeckHeader extends StatelessWidget {
-  const _DeckHeader({required this.index, required this.total});
-
-  final int index;
-  final int total;
+  const _DeckHeader();
 
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
         child: Row(
           children: [
-            Text(
-              '${index + 1} of $total',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: context.nyla.wine,
-                    fontSize: 13.5,
-                  ),
+            Expanded(
+              child: Text(
+                'Pick whatever feels useful',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: context.nyla.mutedInk,
+                      fontSize: 11.5,
+                    ),
+              ),
             ),
-            const Spacer(),
             Icon(
               Icons.swipe_rounded,
               size: 17,
@@ -677,36 +665,6 @@ class _CardLabel extends StatelessWidget {
           ),
         ),
       );
-}
-
-class _DeckProgress extends StatelessWidget {
-  const _DeckProgress({required this.index, required this.total});
-
-  final int index;
-  final int total;
-
-  @override
-  Widget build(BuildContext context) {
-    final visible = math.min(total, 7);
-    final selected = visible == 0 ? 0 : index % visible;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        for (var i = 0; i < visible; i++) ...[
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 170),
-            width: i == selected ? 24 : 7,
-            height: 7,
-            decoration: BoxDecoration(
-              color: i == selected ? context.nyla.violet : context.nyla.lavender,
-              borderRadius: BorderRadius.circular(99),
-            ),
-          ),
-          if (i != visible - 1) const SizedBox(width: 5),
-        ],
-      ],
-    );
-  }
 }
 
 class _EmptyDeck extends StatelessWidget {
