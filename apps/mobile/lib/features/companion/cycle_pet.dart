@@ -15,10 +15,12 @@ enum _PetReaction { none, nod, petted, lookLeft, lookRight }
 class CyclePetNook extends StatefulWidget {
   const CyclePetNook({
     required this.disposition,
+    this.onPetted,
     super.key,
   });
 
   final CyclePetDisposition disposition;
+  final VoidCallback? onPetted;
 
   @override
   State<CyclePetNook> createState() => _CyclePetNookState();
@@ -123,7 +125,9 @@ class _CyclePetNookState extends State<CyclePetNook>
         return;
       }
 
-      final gestureChance = 0.10 + widget.disposition.energy * 0.18;
+      final gestureChance = 0.10 +
+          widget.disposition.energy * 0.18 +
+          widget.disposition.familiarity * 0.04;
       if (_random.nextDouble() >= gestureChance) {
         await _blink();
       } else {
@@ -203,6 +207,7 @@ class _CyclePetNookState extends State<CyclePetNook>
 
   void _onPetEnd(DragEndDetails _) {
     final lean = _petLean;
+    final wasPet = _petDepth >= 0.28;
     setState(() {
       _petting = false;
       _petLean = 0;
@@ -210,6 +215,12 @@ class _CyclePetNookState extends State<CyclePetNook>
       _reactionLean = lean;
     });
 
+    if (!wasPet) {
+      _scheduleIdle();
+      return;
+    }
+
+    widget.onPetted?.call();
     unawaited(NylaHaptics.confirm());
     if (_reduceMotion) {
       _scheduleIdle();
@@ -385,8 +396,11 @@ class _CyclePetPainter extends CustomPainter {
 
   void _paintTail(Canvas canvas, double pulse) {
     final energy = disposition.energy;
-    final tailLift =
-        3 + energy * 13 + (reaction == _PetReaction.nod ? pulse * 2 : 0);
+    final tailLift = 3 +
+        energy * 13 +
+        disposition.familiarity * 2 +
+        (disposition.recentlyPetted ? 1.2 : 0) +
+        (reaction == _PetReaction.nod ? pulse * 2 : 0);
     final tail = Path()
       ..moveTo(126, 89)
       ..cubicTo(
@@ -596,15 +610,17 @@ class _CyclePetPainter extends CustomPainter {
       }
     }
 
+    final blushAlpha = ((switch (disposition.mood) {
+              CyclePetMood.playful => 0.28,
+              CyclePetMood.cozy => 0.24,
+              CyclePetMood.gentle => 0.20,
+              _ => 0.15,
+            }) +
+            disposition.familiarity * 0.04 +
+            (disposition.recentlyPetted ? 0.035 : 0.0))
+        .clamp(0.0, 0.38);
     final blush = Paint()
-      ..color = palette.rose.withValues(
-        alpha: switch (disposition.mood) {
-          CyclePetMood.playful => 0.28,
-          CyclePetMood.cozy => 0.24,
-          CyclePetMood.gentle => 0.20,
-          _ => 0.15,
-        },
-      );
+      ..color = palette.rose.withValues(alpha: blushAlpha);
     canvas.drawOval(
       Rect.fromCenter(center: const Offset(-20, 10), width: 9, height: 4),
       blush,
