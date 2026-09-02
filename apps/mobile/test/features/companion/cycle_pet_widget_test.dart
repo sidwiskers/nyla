@@ -32,6 +32,7 @@ void main() {
                   child: CyclePetLedge(
                     disposition: disposition,
                     onPetted: onPetted,
+                    enableDeviceMotion: false,
                     child: Container(
                       key: ValueKey('cycle-card-$cardHeight'),
                       height: cardHeight,
@@ -109,9 +110,79 @@ void main() {
     await tester.pump(const Duration(milliseconds: 80));
     await gesture.moveBy(const Offset(-70, 0));
     await gesture.up();
-    await tester.pump(const Duration(milliseconds: 1300));
+    await tester.pump(const Duration(milliseconds: 1400));
 
     expect(pets, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('holding without moving is a cuddle and produces love',
+      (tester) async {
+    var pets = 0;
+    await tester.pumpWidget(app(onPetted: () => pets++));
+    final target = find.byKey(const ValueKey('cycle-pet-touch-target'));
+
+    await tester.longPress(target);
+    await tester.pump(const Duration(milliseconds: 120));
+
+    expect(pets, 1);
+    expect(find.byKey(const ValueKey('cycle-pet-state-love')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('hold then drag picks the cat up and carries her along the ledge',
+      (tester) async {
+    var pets = 0;
+    await tester.pumpWidget(app(onPetted: () => pets++));
+    final target = find.byKey(const ValueKey('cycle-pet-touch-target'));
+    final startCenter = tester.getCenter(target);
+
+    final gesture = await tester.startGesture(startCenter);
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 80));
+    await gesture.moveBy(const Offset(0, -24));
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(
+      find.byKey(const ValueKey('cycle-pet-state-carrying')),
+      findsOneWidget,
+    );
+    final liftedCenter = tester.getCenter(target);
+    expect(liftedCenter.dy, lessThan(startCenter.dy - 8));
+
+    await gesture.moveBy(const Offset(54, -4));
+    await tester.pump(const Duration(milliseconds: 40));
+    final carriedCenter = tester.getCenter(target);
+    expect(carriedCenter.dx, greaterThan(liftedCenter.dx + 10));
+
+    await gesture.up();
+    await tester.pump(const Duration(milliseconds: 480));
+    expect(
+      find.byKey(const ValueKey('cycle-pet-state-carrying')),
+      findsNothing,
+    );
+    expect(pets, 0, reason: 'Carrying is play, not relationship affection.');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('rapid pokes make the cat visibly annoyed, then she recovers',
+      (tester) async {
+    await tester.pumpWidget(app());
+    final target = find.byKey(const ValueKey('cycle-pet-touch-target'));
+
+    for (var i = 0; i < 4; i++) {
+      await tester.tap(target);
+      await tester.pump(const Duration(milliseconds: 110));
+    }
+
+    expect(
+      find.byKey(const ValueKey('cycle-pet-state-annoyed')),
+      findsOneWidget,
+    );
+    await tester.pump(const Duration(milliseconds: 1300));
+    expect(
+      find.byKey(const ValueKey('cycle-pet-state-annoyed')),
+      findsNothing,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -161,15 +232,30 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('holding the cat is a deliberate cuddle interaction', (tester) async {
+  testWidgets('a cancelled pickup returns her to the ledge without affection',
+      (tester) async {
     var pets = 0;
     await tester.pumpWidget(app(onPetted: () => pets++));
     final target = find.byKey(const ValueKey('cycle-pet-touch-target'));
+    final start = tester.getCenter(target);
 
-    await tester.longPress(target);
-    await tester.pump(const Duration(milliseconds: 1300));
+    final gesture = await tester.startGesture(start);
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 80));
+    await gesture.moveBy(const Offset(26, -28));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(
+      find.byKey(const ValueKey('cycle-pet-state-carrying')),
+      findsOneWidget,
+    );
 
-    expect(pets, 1);
+    await gesture.cancel();
+    await tester.pump(const Duration(milliseconds: 420));
+    expect(pets, 0);
+    expect(
+      find.byKey(const ValueKey('cycle-pet-state-carrying')),
+      findsNothing,
+    );
+    expect(tester.getCenter(target).dy, closeTo(start.dy, 1.0));
     expect(tester.takeException(), isNull);
   });
 
