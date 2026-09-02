@@ -43,24 +43,12 @@ void main() {
         (tester) async {
       await tester.pumpWidget(_harness(0));
 
-      for (final label in _labels) {
-        expect(find.text(label), findsOneWidget);
+      for (var index = 0; index < _labels.length; index++) {
+        expect(find.text(_labels[index]), findsOneWidget);
+        expect(_branchOpacity(tester, index), index == 0 ? 1 : 0);
+        expect(_branchTickerEnabled(tester, index), index == 0);
+        expect(_branchIgnoring(tester, index), index != 0);
       }
-
-      expect(
-        tester
-            .widgetList<AnimatedOpacity>(find.byType(AnimatedOpacity))
-            .map((widget) => widget.opacity)
-            .toList(),
-        [1, 0, 0, 0, 0],
-      );
-      expect(
-        tester
-            .widgetList<TickerMode>(find.byType(TickerMode))
-            .map((widget) => widget.enabled)
-            .toList(),
-        [true, false, false, false, false],
-      );
     });
 
     testWidgets('rapid retargeting settles without dropping branch state',
@@ -77,16 +65,11 @@ void main() {
       await tester.pumpWidget(_harness(0));
       await tester.pumpAndSettle();
 
-      for (final label in _labels) {
-        expect(find.text(label), findsOneWidget);
+      for (var index = 0; index < _labels.length; index++) {
+        expect(find.text(_labels[index]), findsOneWidget);
+        expect(_branchOpacity(tester, index), index == 0 ? 1 : 0);
+        expect(_branchTickerEnabled(tester, index), index == 0);
       }
-      expect(
-        tester
-            .widgetList<AnimatedOpacity>(find.byType(AnimatedOpacity))
-            .map((widget) => widget.opacity)
-            .toList(),
-        [1, 0, 0, 0, 0],
-      );
       expect(tester.takeException(), isNull);
     });
 
@@ -95,37 +78,64 @@ void main() {
       await tester.pumpWidget(_harness(0, reduceMotion: true));
       await tester.pumpWidget(_harness(3, reduceMotion: true));
 
-      expect(
-        tester
-            .widgetList<AnimatedOpacity>(find.byType(AnimatedOpacity))
-            .every((widget) => widget.duration == Duration.zero),
-        isTrue,
-      );
-      expect(
-        tester
-            .widgetList<AnimatedSlide>(find.byType(AnimatedSlide))
-            .every((widget) => widget.duration == Duration.zero),
-        isTrue,
-      );
-      expect(
-        tester
-            .widgetList<AnimatedScale>(find.byType(AnimatedScale))
-            .every((widget) => widget.duration == Duration.zero),
-        isTrue,
-      );
-      expect(
-        tester
-            .widgetList<TickerMode>(find.byType(TickerMode))
-            .map((widget) => widget.enabled)
-            .toList(),
-        [false, false, false, true, false],
-      );
+      for (var index = 0; index < _labels.length; index++) {
+        final branch = _branch(index);
+        final opacity = tester.widget<AnimatedOpacity>(
+          find.descendant(of: branch, matching: find.byType(AnimatedOpacity)),
+        );
+        final slide = tester.widget<AnimatedSlide>(
+          find.descendant(of: branch, matching: find.byType(AnimatedSlide)),
+        );
+        final scale = tester.widget<AnimatedScale>(
+          find.descendant(of: branch, matching: find.byType(AnimatedScale)),
+        );
+
+        expect(opacity.duration, Duration.zero);
+        expect(slide.duration, Duration.zero);
+        expect(scale.duration, Duration.zero);
+        expect(_branchTickerEnabled(tester, index), index == 3);
+      }
       expect(tester.takeException(), isNull);
     });
   });
 }
 
 const _labels = ['Today', 'Calendar', 'Log', 'Insights', 'Learn'];
+
+Finder _branch(int index) => find.byKey(ValueKey('nyla-branch-$index'));
+
+double _branchOpacity(WidgetTester tester, int index) {
+  return tester
+      .widget<AnimatedOpacity>(
+        find.descendant(
+          of: _branch(index),
+          matching: find.byType(AnimatedOpacity),
+        ),
+      )
+      .opacity;
+}
+
+bool _branchTickerEnabled(WidgetTester tester, int index) {
+  return tester
+      .widget<TickerMode>(
+        find.descendant(
+          of: _branch(index),
+          matching: find.byType(TickerMode),
+        ),
+      )
+      .enabled;
+}
+
+bool _branchIgnoring(WidgetTester tester, int index) {
+  return tester
+      .widget<IgnorePointer>(
+        find.descendant(
+          of: _branch(index),
+          matching: find.byType(IgnorePointer),
+        ),
+      )
+      .ignoring;
+}
 
 Widget _harness(int currentIndex, {bool reduceMotion = false}) {
   return MaterialApp(
