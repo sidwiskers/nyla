@@ -10,6 +10,13 @@ final _nhsPelvicPain = MedicalSource(
   reviewedOn: _reviewed,
 );
 
+final _nhsBloating = MedicalSource(
+  organization: 'NHS',
+  title: 'Bloating',
+  url: 'https://www.nhs.uk/symptoms/bloating/',
+  reviewedOn: _reviewed,
+);
+
 final everydayCareTips = <HealthTip>[
   HealthTip(
     id: 'everyday-cramps-can-travel',
@@ -195,7 +202,7 @@ final everydayCareTips = <HealthTip>[
       'It comes with unintentional weight loss, blood in stool, a persistent change in bowel habits or significant pain.',
     ],
     tags: ['bloating', 'persistent bloating', 'digestion', 'pelvic symptoms'],
-    sources: [_nhsPelvicPain],
+    sources: [_nhsBloating, _nhsPelvicPain],
     version: 1,
     lastReviewed: _reviewed,
   ),
@@ -279,7 +286,7 @@ final everydayCareTips = <HealthTip>[
         'PCOS can involve irregular or infrequent periods alongside signs such as acne or increased facial or body hair.',
     details: [
       'There is no single symptom that proves PCOS. A clinician considers the wider pattern and may use medical history, examination or tests when appropriate.',
-      'One unusual cycle is different from a persistent pattern, so repeated tracking can be useful context without turning the app into a diagnostic tool.',
+      'One unusual cycle is different from a persistent pattern. Repeated tracking can help make that difference clearer over time.',
     ],
     tags: ['pcos', 'irregular periods', 'acne', 'body hair', 'cycle pattern'],
     sources: [whoPcos],
