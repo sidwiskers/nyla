@@ -467,7 +467,10 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
   }
 
   void _onLongPressMove(LongPressMoveUpdateDetails details) {
-    final offset = details.localOffsetFromOrigin;
+    // Use the gesture's global offset. Local coordinates move with the cat
+    // while she is being transformed, which would otherwise make the finger
+    // appear to stop moving relative to the pet mid-carry.
+    final offset = details.offsetFromOrigin;
     if (!_carrying && offset.distance >= 12) {
       _beginCarry(offset);
       return;
@@ -653,7 +656,7 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
     final dark = Theme.of(context).brightness == Brightness.dark;
     final cardMotion =
         _reduceMotion ? Duration.zero : const Duration(milliseconds: 280);
-    final ledgeMotion = _reduceMotion
+    final ledgeMotion = _reduceMotion || _carrying
         ? Duration.zero
         : (_ledgeMotionDuration == Duration.zero
             ? const Duration(milliseconds: 640)
@@ -711,9 +714,11 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
               duration: ledgeMotion,
               curve: const Cubic(0.16, 1, 0.3, 1),
               child: AnimatedContainer(
-                duration: _reduceMotion || _carrying
+                duration: _reduceMotion
                     ? Duration.zero
-                    : const Duration(milliseconds: 360),
+                    : (_carrying
+                        ? const Duration(milliseconds: 36)
+                        : const Duration(milliseconds: 360)),
                 curve: const Cubic(0.16, 1, 0.3, 1),
                 transform: petTransform,
                 transformAlignment: Alignment.center,
