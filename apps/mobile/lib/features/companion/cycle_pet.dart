@@ -17,12 +17,11 @@ const _petDisplayHeight = 102.0;
 const _ledgeTop = 86.0;
 const _motionSamplePeriod = Duration(milliseconds: 180);
 
-/// A real little home for Nyla's companion: the main cycle card is the ledge.
+/// Nyla's tiny companion lives directly on the main cycle card.
 ///
-/// The cat lives on the card edge instead of occupying its own large content
-/// block. The card remains the information surface; the cat can move, settle,
-/// be petted, cuddled and deliberately picked up without turning Today into a
-/// game screen.
+/// Motion stays deliberately finite and event-driven: one idle action at a
+/// time, brief gesture reactions, and a low-rate device-motion bias. There is
+/// no continuously running physics simulation.
 class CyclePetLedge extends StatefulWidget {
   const CyclePetLedge({
     required this.disposition,
@@ -35,9 +34,6 @@ class CyclePetLedge extends StatefulWidget {
   final CyclePetDisposition disposition;
   final Widget child;
   final VoidCallback? onPetted;
-
-  /// Tiny accelerometer-driven body bias. It is event-throttled, bounded and
-  /// only subscribed while Today is active. Tests can disable it explicitly.
   final bool enableDeviceMotion;
 
   @override
@@ -52,8 +48,7 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
   final math.Random _random = math.Random();
 
   Timer? _idleTimer;
-  // This subscription is explicitly cancelled whenever the pet is inactive
-  // and again in dispose(). The lint cannot follow that helper lifecycle.
+  // Explicitly cancelled when inactive and again in dispose().
   // ignore: cancel_subscriptions
   StreamSubscription<AccelerometerEvent>? _motionSubscription;
   CyclePetAction? _action;
@@ -323,6 +318,18 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
     await _blinkController.forward(from: 0);
     if (!mounted || !_autonomousMotion) return;
     await _blinkController.reverse();
+    if (!mounted || !_autonomousMotion) return;
+
+    final sleepy = widget.disposition.mood == CyclePetMood.drowsy ||
+        widget.disposition.mood == CyclePetMood.cozy;
+    final doubleBlinkChance = sleepy ? 0.22 : 0.11;
+    if (_random.nextDouble() >= doubleBlinkChance) return;
+
+    await Future<void>.delayed(const Duration(milliseconds: 75));
+    if (!mounted || !_autonomousMotion || _blinkController.isAnimating) return;
+    await _blinkController.forward(from: 0);
+    if (!mounted || !_autonomousMotion) return;
+    await _blinkController.reverse();
   }
 
   Future<void> _runAction(
@@ -338,8 +345,6 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
     }
     _idleTimer?.cancel();
 
-    // Autonomous work never steals the controller from an action already in
-    // progress. A deliberate user reaction may take ownership immediately.
     if (_actionController.isAnimating) {
       if (!haptic) return;
       _actionEpoch++;
@@ -467,9 +472,6 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
   }
 
   void _onLongPressMove(LongPressMoveUpdateDetails details) {
-    // Use the gesture's global offset. Local coordinates move with the cat
-    // while she is being transformed, which would otherwise make the finger
-    // appear to stop moving relative to the pet mid-carry.
     final offset = details.offsetFromOrigin;
     if (!_carrying && offset.distance >= 12) {
       _beginCarry(offset);
@@ -536,8 +538,15 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
   }
 
   void _finishCarry(Offset velocity) {
-    final rough = velocity.distance > 1150 || _rapidPickupCount >= 3;
+    final speed = velocity.distance;
+    final repeatedlyGrabbed = _rapidPickupCount >= 3;
+    final reaction = repeatedlyGrabbed || speed > 1650
+        ? CyclePetAction.annoyed
+        : speed > 900
+            ? CyclePetAction.shakeOff
+            : CyclePetAction.landing;
     final lean = _reactionLean;
+
     setState(() {
       _carrying = false;
       _petting = false;
@@ -547,22 +556,21 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
       _petDepth = 0;
       _carryY = 0;
       _reactionLean = lean;
-      _ledgeMotionDuration = const Duration(milliseconds: 390);
+      _ledgeMotionDuration = const Duration(milliseconds: 360);
     });
 
     if (_reduceMotion) {
       _scheduleIdle();
       return;
     }
+
+    final delay = reaction == CyclePetAction.landing
+        ? const Duration(milliseconds: 240)
+        : const Duration(milliseconds: 330);
     unawaited(
-      Future<void>.delayed(const Duration(milliseconds: 360), () {
+      Future<void>.delayed(delay, () {
         if (!mounted || !_autonomousMotion || _carrying) return;
-        unawaited(
-          _runAction(
-            rough ? CyclePetAction.annoyed : CyclePetAction.shakeOff,
-            haptic: false,
-          ),
-        );
+        unawaited(_runAction(reaction, haptic: false));
       }),
     );
   }
@@ -756,6 +764,7 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
                             petLean: _petLean,
                             petDepth: _petDepth,
                             reactionLean: _reactionLean,
+                            ambientLean: _motionX,
                             repaint: _repaint,
                           ),
                         ),
@@ -786,6 +795,7 @@ class _CyclePetPainter extends CustomPainter {
     required this.petLean,
     required this.petDepth,
     required this.reactionLean,
+    required this.ambientLean,
     required Listenable repaint,
   }) : super(repaint: repaint);
 
@@ -801,6 +811,7 @@ class _CyclePetPainter extends CustomPainter {
   final double petLean;
   final double petDepth;
   final double reactionLean;
+  final double ambientLean;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -817,21 +828,31 @@ class _CyclePetPainter extends CustomPainter {
     final t = actionAnimation.value.clamp(0.0, 1.0).toDouble();
     final pulse = math.sin(math.pi * t);
     final wave = math.sin(math.pi * 2 * t);
+    final fastWave = math.sin(math.pi * 4 * t);
     final hop = _isHop ? pulse : 0.0;
     final stretch = action == CyclePetAction.stretch ? pulse : 0.0;
     final settle = action == CyclePetAction.settle ? pulse : 0.0;
     final yawn = action == CyclePetAction.yawn ? pulse : 0.0;
     final groom = action == CyclePetAction.groom ? pulse : 0.0;
+    final knead = action == CyclePetAction.knead ? pulse : 0.0;
+    final loaf = action == CyclePetAction.loaf ? pulse : 0.0;
     final paw = action == CyclePetAction.paw ? pulse : 0.0;
     final peek = action == CyclePetAction.peek ? pulse : 0.0;
     final purr = action == CyclePetAction.purr ? pulse : 0.0;
     final nuzzle = action == CyclePetAction.nuzzle ? pulse : 0.0;
     final wink = action == CyclePetAction.wink ? pulse : 0.0;
+    final slowBlink = action == CyclePetAction.slowBlink ? pulse : 0.0;
+    final earFlick = action == CyclePetAction.earFlick ? pulse : 0.0;
+    final sniff = action == CyclePetAction.sniff ? pulse : 0.0;
     final love = action == CyclePetAction.love ? pulse : 0.0;
     final surprised = action == CyclePetAction.surprised ? pulse : 0.0;
+    final landing = action == CyclePetAction.landing ? pulse : 0.0;
     final annoyed = action == CyclePetAction.annoyed ? pulse : 0.0;
     final shakeOff = action == CyclePetAction.shakeOff ? pulse : 0.0;
     final shake = shakeOff * wave * 3.2 + annoyed * wave * 1.3;
+    final sniffBob = sniff * fastWave * 1.7;
+    final kneadWave = knead * fastWave;
+    final earFlickWave = earFlick * fastWave;
     canvas.translate(shake, 0);
 
     final variantLean = switch (disposition.variant) {
@@ -860,19 +881,24 @@ class _CyclePetPainter extends CustomPainter {
         : nuzzleSide * 0.055 * nuzzle +
             reactionLean * 0.025 * purr +
             annoyed * -0.035 * nuzzleSide;
-    final headAngle = moodTilt + variantLean + activeLean;
+    final headAngle =
+        moodTilt + variantLean + activeLean - ambientLean * 0.012;
 
     _paintContactShadow(
       canvas,
       hop: hop,
       settle: settle,
+      loaf: loaf,
+      landing: landing,
       carryLift: carryLift,
     );
     _paintTail(
       canvas,
-      pulse: pulse,
       wave: wave,
       hop: hop,
+      loaf: loaf,
+      landing: landing,
+      sniff: sniff,
       annoyed: annoyed,
       carrying: carrying,
     );
@@ -882,6 +908,10 @@ class _CyclePetPainter extends CustomPainter {
       stretch: stretch,
       settle: settle,
       purr: purr,
+      knead: knead,
+      kneadWave: kneadWave,
+      loaf: loaf,
+      landing: landing,
       carrying: carrying,
       carryLift: carryLift,
     );
@@ -893,20 +923,36 @@ class _CyclePetPainter extends CustomPainter {
           petDepth * 1.8 +
           peek * 7.2 -
           hop * 5.2 +
-          carryLift * 1.5,
+          carryLift * 1.5 +
+          sniffBob +
+          loaf * 1.2 +
+          landing * 2.8,
       yawn: yawn,
       settle: settle,
       purr: purr,
       nuzzle: nuzzle,
       peek: peek,
       wink: wink,
+      slowBlink: slowBlink,
+      earFlickWave: earFlickWave,
+      sniff: sniff,
+      sniffWave: fastWave,
+      knead: knead,
+      loaf: loaf,
       love: love,
       surprised: surprised,
+      landing: landing,
       annoyed: annoyed,
       carrying: carrying,
     );
     if (groom > 0.01 || paw > 0.01) {
-      _paintActionPaw(canvas, groom: groom, paw: paw, wave: wave, hop: hop);
+      _paintActionPaws(
+        canvas,
+        groom: groom,
+        paw: paw,
+        wave: fastWave,
+        hop: hop,
+      );
     }
     if (purr > 0.04) _paintPurr(canvas, purr, wave);
     if ((purr > 0.06 || nuzzle > 0.06 || love > 0.06) && t < 0.95) {
@@ -929,6 +975,8 @@ class _CyclePetPainter extends CustomPainter {
     Canvas canvas, {
     required double hop,
     required double settle,
+    required double loaf,
+    required double landing,
     required double carryLift,
   }) {
     final shadow = Paint()
@@ -940,9 +988,15 @@ class _CyclePetPainter extends CustomPainter {
     canvas.drawOval(
       Rect.fromCenter(
         center: const Offset(95, 115),
-        width: (76 + disposition.closeness * 10 + settle * 7 - hop * 8) *
+        width: (76 +
+                disposition.closeness * 10 +
+                settle * 7 +
+                loaf * 8 +
+                landing * 12 -
+                hop * 8) *
             (1 - carryLift * 0.28),
-        height: (8 - hop * 2) * (1 - carryLift * 0.38),
+        height: (8 + loaf * 1.2 + landing * 1.8 - hop * 2) *
+            (1 - carryLift * 0.38),
       ),
       shadow,
     );
@@ -950,18 +1004,22 @@ class _CyclePetPainter extends CustomPainter {
 
   void _paintTail(
     Canvas canvas, {
-    required double pulse,
     required double wave,
     required double hop,
+    required double loaf,
+    required double landing,
+    required double sniff,
     required double annoyed,
     required bool carrying,
   }) {
     final energy = disposition.energy;
-    final flick = action == CyclePetAction.tailFlick
-        ? wave * 13
-        : annoyed > 0
-            ? wave * 17
-            : 0.0;
+    final directFlick = action == CyclePetAction.tailFlick ? wave * 13 : 0.0;
+    final annoyedFlick = annoyed > 0 ? wave * 17 : 0.0;
+    final carryCounter = carrying ? -reactionLean * 8.0 : 0.0;
+    final ambientCounter = -ambientLean * 3.2;
+    final sniffTip = sniff * wave * 2.2;
+    final flick =
+        directFlick + annoyedFlick + carryCounter + ambientCounter + sniffTip;
     final playfulLift = disposition.mood == CyclePetMood.playful ? 2.5 : 0.0;
     final tailLift = 3 +
         energy * 13 +
@@ -969,17 +1027,35 @@ class _CyclePetPainter extends CustomPainter {
         (disposition.recentlyPetted ? 1.2 : 0) +
         playfulLift +
         hop * 4 +
-        (carrying ? 3.5 : 0);
+        landing * 2 +
+        (carrying ? 3.5 : 0) -
+        loaf * 8;
+
+    double mix(double from, double to) => from + (to - from) * loaf;
+
+    final normalStartX = 126.0;
+    final normalStartY = 89 - hop * 3 + landing * 1.5;
+    final normalC1X = 151 + flick * 0.25;
+    final normalC1Y = 91 - hop * 2;
+    final normalC2X = 151 + flick;
+    final normalC2Y = 72 - tailLift;
+    final normalEndX = 139 + flick * 0.55;
+    final normalEndY = 68 - tailLift * 0.34;
+
     final tail = Path()
-      ..moveTo(126, 89 - hop * 3)
+      ..moveTo(
+        mix(normalStartX, 127),
+        mix(normalStartY, 92),
+      )
       ..cubicTo(
-        151 + flick * 0.25,
-        91 - hop * 2,
-        151 + flick,
-        72 - tailLift,
-        139 + flick * 0.55,
-        68 - tailLift * 0.34,
+        mix(normalC1X, 151 + flick * 0.18),
+        mix(normalC1Y, 96),
+        mix(normalC2X, 149 + flick * 0.45),
+        mix(normalC2Y, 111 - loaf * 2),
+        mix(normalEndX, 119 + flick * 0.18),
+        mix(normalEndY, 112),
       );
+
     final tailPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 10
@@ -994,6 +1070,10 @@ class _CyclePetPainter extends CustomPainter {
     required double stretch,
     required double settle,
     required double purr,
+    required double knead,
+    required double kneadWave,
+    required double loaf,
+    required double landing,
     required bool carrying,
     required double carryLift,
   }) {
@@ -1006,17 +1086,30 @@ class _CyclePetPainter extends CustomPainter {
     };
     final purrWiggle =
         purr * math.sin(actionAnimation.value * math.pi * 6) * 0.6;
+    final bodyCenter = Offset(
+      95 + purrWiggle,
+      86 +
+          squat +
+          settle * 3.0 +
+          loaf * 3.8 +
+          landing * 3.2 -
+          hop * 5.0,
+    );
     final bodyRect = Rect.fromCenter(
-      center: Offset(
-        95 + purrWiggle,
-        86 + squat + settle * 3.0 - hop * 5.0,
-      ),
-      width: 78 + disposition.closeness * 4 + stretch * 15 - settle * 3,
+      center: bodyCenter,
+      width: 78 +
+          disposition.closeness * 4 +
+          stretch * 15 -
+          settle * 3 +
+          loaf * 8 +
+          landing * 9,
       height: 55 -
           disposition.energy * 4 +
           squat -
           stretch * 7 +
-          settle * 4 +
+          settle * 4 -
+          loaf * 5 -
+          landing * 7 +
           carryLift * 2,
     );
     final body = Paint()
@@ -1027,30 +1120,70 @@ class _CyclePetPainter extends CustomPainter {
             ? const [Color(0xFFBCA6D6), Color(0xFF987DB8)]
             : const [Color(0xFFE5D8F2), Color(0xFFD4C1E8)],
       ).createShader(bodyRect);
-    canvas.drawOval(bodyRect, body);
-
     final outline = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.25
       ..color = palette.wine.withValues(alpha: dark ? 0.36 : 0.18);
+
+    final haunchRect = Rect.fromCenter(
+      center: Offset(
+        113 + stretch * 2.0,
+        bodyCenter.dy + 4 - hop * 1.5,
+      ),
+      width: 43 + loaf * 4,
+      height: 47 - stretch * 3 - landing * 3,
+    );
+    // Outline the rear mass before the torso fill. The torso naturally hides
+    // their overlap, leaving only one clean outer feline silhouette.
+    canvas.drawOval(haunchRect, body);
+    canvas.drawOval(haunchRect, outline);
+    canvas.drawOval(bodyRect, body);
     canvas.drawOval(bodyRect, outline);
+
+    final chest = Paint()
+      ..color = Colors.white.withValues(alpha: dark ? 0.055 : 0.12);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(76, bodyCenter.dy - 5),
+        width: 26,
+        height: 30 - loaf * 3,
+      ),
+      chest,
+    );
 
     final pawPaint = Paint()
       ..color = dark ? const Color(0xFFAE93CA) : const Color(0xFFD7C4E9);
-    final pawY = 109 - hop * 5 + settle * 1.5 + (carrying ? 3.5 : 0);
-    final pawHeight = carrying ? 13.0 : 10.0;
+    final kneadOffset = knead * kneadWave * 3.5;
+    final pawY = 109 -
+        hop * 5 +
+        settle * 1.5 +
+        loaf * 1.2 +
+        landing * 2.2 +
+        (carrying ? 3.5 : 0);
+    final pawHeight = carrying ? 13.0 : 10.0 - loaf * 2;
+    final pawWidth = carrying ? 18.0 : 25.0 - loaf * 5;
+    final pawSpread = loaf > 0.01 ? 16.0 : 20.0;
+
+    // Kneading is expressed by the actual front paws alternating their weight;
+    // there are no extra limb overlays that could read as four front paws.
     canvas.drawOval(
       Rect.fromCenter(
-        center: Offset(72 - stretch * 4, pawY),
-        width: carrying ? 18 : 25,
+        center: Offset(
+          92 - pawSpread - stretch * 4,
+          pawY + kneadOffset,
+        ),
+        width: pawWidth,
         height: pawHeight,
       ),
       pawPaint,
     );
     canvas.drawOval(
       Rect.fromCenter(
-        center: Offset(112 + stretch * 4, pawY),
-        width: carrying ? 18 : 25,
+        center: Offset(
+          92 + pawSpread + stretch * 4,
+          pawY - kneadOffset,
+        ),
+        width: pawWidth,
         height: pawHeight,
       ),
       pawPaint,
@@ -1068,8 +1201,15 @@ class _CyclePetPainter extends CustomPainter {
     required double nuzzle,
     required double peek,
     required double wink,
+    required double slowBlink,
+    required double earFlickWave,
+    required double sniff,
+    required double sniffWave,
+    required double knead,
+    required double loaf,
     required double love,
     required double surprised,
+    required double landing,
     required double annoyed,
     required bool carrying,
   }) {
@@ -1087,23 +1227,45 @@ class _CyclePetPainter extends CustomPainter {
     };
     final touchDrop = petting ? petDepth * 0.48 : purr * 0.24 + nuzzle * 0.18;
     final yawnDrop = yawn * 0.32;
+    final loafDrop = loaf * 0.12;
     final annoyedDrop = annoyed * 0.98;
     final carryLift = carrying || surprised > 0.12 ? -0.16 : 0.0;
     final earDrop = (math.max(
               gentleDrop,
-              math.max(touchDrop, math.max(yawnDrop, annoyedDrop)),
+              math.max(
+                touchDrop,
+                math.max(yawnDrop + loafDrop, annoyedDrop),
+              ),
             ) +
             carryLift)
         .clamp(0.0, 1.0)
         .toDouble();
+    final flickLeft = disposition.variant.isEven
+        ? earFlickWave
+        : earFlickWave * 0.45;
+    final flickRight = disposition.variant.isEven
+        ? -earFlickWave * 0.45
+        : -earFlickWave;
 
-    _paintEar(canvas, left: true, drop: earDrop, energy: energy);
-    _paintEar(canvas, left: false, drop: earDrop * 0.82, energy: energy);
+    _paintEar(
+      canvas,
+      left: true,
+      drop: earDrop,
+      energy: energy,
+      flick: flickLeft,
+    );
+    _paintEar(
+      canvas,
+      left: false,
+      drop: earDrop * 0.82,
+      energy: energy,
+      flick: flickRight,
+    );
 
     final headRect = Rect.fromCenter(
       center: Offset.zero,
-      width: 65 + nuzzle * 1.2,
-      height: 58 - purr * 1.1 + settle * 1.2,
+      width: 65 + nuzzle * 1.2 + landing * 0.8,
+      height: 58 - purr * 1.1 + settle * 1.2 + landing * 0.8,
     );
     final head = Paint()
       ..shader = LinearGradient(
@@ -1130,12 +1292,23 @@ class _CyclePetPainter extends CustomPainter {
       nuzzle: nuzzle,
       peek: peek,
       wink: wink,
+      slowBlink: slowBlink,
+      sniff: sniff,
+      sniffWave: sniffWave,
+      knead: knead,
+      loaf: loaf,
       love: love,
       surprised: surprised,
+      landing: landing,
       annoyed: annoyed,
       carrying: carrying,
     );
-    _paintWhiskers(canvas, peek: peek);
+    _paintWhiskers(
+      canvas,
+      peek: peek,
+      sniff: sniff,
+      sniffWave: sniffWave,
+    );
     canvas.restore();
   }
 
@@ -1144,21 +1317,23 @@ class _CyclePetPainter extends CustomPainter {
     required bool left,
     required double drop,
     required double energy,
+    required double flick,
   }) {
     final direction = left ? -1.0 : 1.0;
     final baseX = direction * 20;
     final lift = 5 + energy * 6;
     final extraFlop = left ? 0.0 : 3.2;
+    final tipShift = flick * 3.8;
     final path = Path()
       ..moveTo(baseX - direction * 8, -18)
       ..quadraticBezierTo(
-        baseX - direction * (15 + extraFlop),
+        baseX - direction * (15 + extraFlop) + tipShift * 0.35,
         -37 + drop * 13 + extraFlop,
-        baseX + direction,
+        baseX + direction + tipShift,
         -31 - lift + drop * 14,
       )
       ..quadraticBezierTo(
-        baseX + direction * 14,
+        baseX + direction * 14 + tipShift * 0.25,
         -25 + drop * 8,
         baseX + direction * 10,
         -14,
@@ -1171,9 +1346,9 @@ class _CyclePetPainter extends CustomPainter {
     final inner = Path()
       ..moveTo(baseX - direction * 3, -21)
       ..quadraticBezierTo(
-        baseX - direction * 7,
+        baseX - direction * 7 + tipShift * 0.25,
         -30 + drop * 10,
-        baseX + direction,
+        baseX + direction + tipShift * 0.58,
         -31 - lift * 0.45 + drop * 11,
       )
       ..quadraticBezierTo(
@@ -1215,8 +1390,14 @@ class _CyclePetPainter extends CustomPainter {
     required double nuzzle,
     required double peek,
     required double wink,
+    required double slowBlink,
+    required double sniff,
+    required double sniffWave,
+    required double knead,
+    required double loaf,
     required double love,
     required double surprised,
+    required double landing,
     required double annoyed,
     required bool carrying,
   }) {
@@ -1257,9 +1438,14 @@ class _CyclePetPainter extends CustomPainter {
       };
       final blinkClose = math.sin(math.pi * blink.value);
       final touchClose = petting ? petDepth * 0.78 : 0.0;
-      final actionClose =
-          yawn * 0.82 + settle * 0.68 + purr * 0.72 + nuzzle * 0.50;
-      final peekBoost = peek * 0.18;
+      final actionClose = yawn * 0.82 +
+          settle * 0.68 +
+          purr * 0.72 +
+          nuzzle * 0.50 +
+          slowBlink * 0.96 +
+          knead * 0.34 +
+          loaf * 0.24;
+      final peekBoost = peek * 0.18 + sniff * 0.08 + landing * 0.08;
       final eyeOpen = (moodOpen *
                   (1 - blinkClose) *
                   (1 - touchClose) *
@@ -1282,6 +1468,13 @@ class _CyclePetPainter extends CustomPainter {
             ),
             eyePaint,
           );
+          if (eyeOpen > 0.58) {
+            canvas.drawCircle(
+              Offset(x + 0.8, -1.4),
+              0.75,
+              Paint()..color = Colors.white.withValues(alpha: 0.68),
+            );
+          }
         }
       }
     }
@@ -1296,7 +1489,8 @@ class _CyclePetPainter extends CustomPainter {
             disposition.familiarity * 0.04 +
             (disposition.recentlyPetted ? 0.035 : 0.0) +
             purr * 0.05 +
-            love * 0.08)
+            love * 0.08 +
+            knead * 0.035)
         .clamp(0.0, 0.44)
         .toDouble();
     final blush = Paint()..color = palette.rose.withValues(alpha: blushAlpha);
@@ -1309,11 +1503,24 @@ class _CyclePetPainter extends CustomPainter {
       blush,
     );
 
+    final noseY = 7.2 + sniff * sniffWave * 0.6;
+    final nose = Path()
+      ..moveTo(-2.8, noseY)
+      ..quadraticBezierTo(0, noseY + 2.2, 2.8, noseY)
+      ..quadraticBezierTo(0, noseY + 4.0, -2.8, noseY)
+      ..close();
+    canvas.drawPath(
+      nose,
+      Paint()
+        ..color = (dark ? palette.roseSoft : palette.rose)
+            .withValues(alpha: 0.72),
+    );
+
     if (yawn > 0.16) {
       final mouthPaint = Paint()..color = ink;
       canvas.drawOval(
         Rect.fromCenter(
-          center: const Offset(0, 12),
+          center: const Offset(0, 13),
           width: 6.5 + yawn * 2.2,
           height: 3 + yawn * 8.5,
         ),
@@ -1325,7 +1532,7 @@ class _CyclePetPainter extends CustomPainter {
     if (carrying || surprised > 0.20) {
       canvas.drawOval(
         Rect.fromCenter(
-          center: const Offset(0, 11),
+          center: const Offset(0, 12),
           width: 4.6,
           height: 5.8,
         ),
@@ -1337,12 +1544,14 @@ class _CyclePetPainter extends CustomPainter {
     final mouth = Paint()
       ..color = ink
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8
+      ..strokeWidth = 1.7
       ..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(0, noseY + 2.5), Offset(0, 10.2), mouth);
+
     if (annoyed > 0.18) {
       final frown = Path()
-        ..moveTo(-5, 12)
-        ..quadraticBezierTo(0, 8.5, 5, 12);
+        ..moveTo(-5, 13)
+        ..quadraticBezierTo(0, 9.2, 5, 13);
       canvas.drawPath(frown, mouth);
       return;
     }
@@ -1360,35 +1569,43 @@ class _CyclePetPainter extends CustomPainter {
         purr * 1.8 +
         nuzzle * 1.0 +
         love * 1.5 +
+        knead * 0.8 +
+        slowBlink * 0.5 +
         (petting ? petDepth * 1.4 : 0.0);
     final mouthPath = Path()
-      ..moveTo(-5, 9)
-      ..quadraticBezierTo(0, 9 + smile, 5, 9);
+      ..moveTo(-5, 10.5)
+      ..quadraticBezierTo(0, 10.5 + smile, 5, 10.5);
     canvas.drawPath(mouthPath, mouth);
   }
 
-  void _paintWhiskers(Canvas canvas, {required double peek}) {
+  void _paintWhiskers(
+    Canvas canvas, {
+    required double peek,
+    required double sniff,
+    required double sniffWave,
+  }) {
     final whisker = Paint()
       ..color = palette.wine.withValues(alpha: dark ? 0.24 : 0.18)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
       ..strokeCap = StrokeCap.round;
-    final reach = 1 + peek * 0.12;
+    final reach = 1 + peek * 0.12 + sniff * 0.10;
+    final lift = sniff * sniffWave * 1.2;
     for (final side in const [-1.0, 1.0]) {
       canvas.drawLine(
         Offset(side * 24, 6),
-        Offset(side * 34 * reach, 3),
+        Offset(side * 34 * reach, 3 + lift),
         whisker,
       );
       canvas.drawLine(
         Offset(side * 24, 9),
-        Offset(side * 35 * reach, 11),
+        Offset(side * 35 * reach, 11 - lift),
         whisker,
       );
     }
   }
 
-  void _paintActionPaw(
+  void _paintActionPaws(
     Canvas canvas, {
     required double groom,
     required double paw,
@@ -1562,5 +1779,6 @@ class _CyclePetPainter extends CustomPainter {
       oldDelegate.carryLift != carryLift ||
       oldDelegate.petLean != petLean ||
       oldDelegate.petDepth != petDepth ||
-      oldDelegate.reactionLean != reactionLean;
+      oldDelegate.reactionLean != reactionLean ||
+      oldDelegate.ambientLean != ambientLean;
 }

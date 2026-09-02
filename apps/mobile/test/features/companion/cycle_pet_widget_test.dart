@@ -141,8 +141,6 @@ void main() {
     final gesture = await tester.startGesture(startCenter);
     await tester.pump(longPressRecognition);
     await gesture.moveBy(const Offset(0, -24));
-    // The first frame materializes the implicit carry transform; advance it
-    // separately so this test measures the rendered position, not tween setup.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 40));
 
@@ -166,6 +164,39 @@ void main() {
       findsNothing,
     );
     expect(pets, 0, reason: 'Carrying is play, not relationship affection.');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a gentle pickup settles into a soft landing', (tester) async {
+    await tester.pumpWidget(app());
+    final target = find.byKey(const ValueKey('cycle-pet-touch-target'));
+    final gesture = await tester.startGesture(tester.getCenter(target));
+
+    await tester.pump(longPressRecognition);
+    await gesture.moveBy(const Offset(18, -24));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(
+      find.byKey(const ValueKey('cycle-pet-state-carrying')),
+      findsOneWidget,
+    );
+
+    // Let velocity decay before release so the gesture represents a careful
+    // set-down, not a throw. The production path should choose landing.
+    await tester.pump(const Duration(milliseconds: 520));
+    await gesture.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 270));
+
+    expect(
+      find.byKey(const ValueKey('cycle-pet-state-landing')),
+      findsOneWidget,
+    );
+    await tester.pump(const Duration(milliseconds: 760));
+    expect(
+      find.byKey(const ValueKey('cycle-pet-state-landing')),
+      findsNothing,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -255,8 +286,6 @@ void main() {
     );
 
     await gesture.cancel();
-    // As with every implicit animation, build the return tween first, then
-    // advance its clock. One duration-bearing pump alone only creates it.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 420));
     expect(pets, 0);
