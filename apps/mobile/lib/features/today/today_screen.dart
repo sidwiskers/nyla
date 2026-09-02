@@ -125,6 +125,29 @@ class TodayScreen extends ConsumerWidget {
   ) {
     final byKey = {for (final value in values) value.key: value};
     final cramps = byKey['cramps'];
+    final headache = byKey['headache'];
+    final dizziness = byKey['dizziness'];
+    final backPain = byKey['back_pain'];
+    final flow = byKey['flow'];
+
+    if ((cramps?.severity ?? 0) >= 3) return _tip('pain-disrupting-life');
+
+    if (flow?.value == 'heavy' && (dizziness?.severity ?? 0) > 0) {
+      return _tip('heavy-flow-and-iron');
+    }
+    if (flow?.value == 'heavy') return _tip('heavy-bleeding-signs');
+
+    if ((headache?.severity ?? 0) > 0 &&
+        (phase?.phase == CyclePhase.menstruation ||
+            (phase?.daysUntilLikelyPeriod ?? 99) <= 2)) {
+      return _tip('menstrual-migraine-pattern');
+    }
+
+    if ((backPain?.severity ?? 0) > 0 &&
+        phase?.phase == CyclePhase.menstruation) {
+      return _tip('everyday-cramps-can-travel');
+    }
+
     if ((cramps?.severity ?? 0) > 0) return _tip('cycle-body-prostaglandins');
 
     final discharge = byKey['discharge'];
@@ -165,8 +188,11 @@ class TodayScreen extends ConsumerWidget {
       return _tip('cycle-body-mood-is-personal');
     }
 
+    if (phase?.phase == CyclePhase.menstruation && phase?.cycleDay == 1) {
+      return _tip('everyday-cycle-day-one');
+    }
+
     if (discharge != null && discharge.value != 'none') return _tip('normal-discharge');
-    final flow = byKey['flow'];
     if (flow != null && flow.value != 'none') return _tip('hands-before-after-products');
 
     final safeGeneral = healthTips
@@ -213,7 +239,7 @@ class _UnestimatedRhythmCard extends StatelessWidget {
           Row(
             children: [
               Text(
-                'GETTING TO KNOW YOU',
+                'YOUR CYCLE',
                 style: TextStyle(
                   color: palette.violet,
                   fontSize: 9.2,
@@ -242,12 +268,14 @@ class _UnestimatedRhythmCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'I’m still learning your rhythm',
+            'A little more history will sharpen the timing',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 19),
           ),
           const SizedBox(height: 5),
           Text(
-            'Keep logging what feels useful. After a few cycles, Nyla can make the timing more personal without making your day about numbers.',
+            cycleDay == null
+                ? 'There is not enough cycle history yet for a reliable next-period estimate. Keep recording periods as they happen.'
+                : 'Day $cycleDay is still useful context. There is not enough cycle history yet for a reliable next-period estimate, so the timing will stay broad for now.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.42),
           ),
         ],
