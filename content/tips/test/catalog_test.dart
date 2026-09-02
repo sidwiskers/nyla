@@ -172,10 +172,37 @@ void main() {
     );
   });
 
+  test('everyday care catalog broadens practical questions without filler', () {
+    expect(everydayCareTips, hasLength(16));
+    final ids = everydayCareTips.map((tip) => tip.id).toSet();
+    expect(ids, contains('everyday-menstrual-migraine-timing'));
+    expect(ids, contains('everyday-heavy-flow-iron'));
+    expect(ids, contains('everyday-discharge-warning-signs'));
+    expect(ids, contains('everyday-tampon-pain-stop'));
+    expect(ids, contains('everyday-endometriosis-clues'));
+    expect(ids, contains('everyday-pcos-patterns'));
+
+    for (final tip in everydayCareTips) {
+      final copy = [
+        tip.title,
+        tip.flash,
+        ...tip.details,
+        ...tip.practical,
+        ...tip.seekCare,
+      ].join(' ').toLowerCase();
+      expect(copy, isNot(contains('phase label')));
+      expect(copy, isNot(contains('not a verdict')));
+      expect(copy, isNot(contains('diagnostic tool')));
+    }
+  });
+
   test('search covers titles, body, tags and experience cues', () {
     expect(healthTips.where((tip) => tip.matches('tampon')), isNotEmpty);
     expect(healthTips.where((tip) => tip.matches('cramps')), isNotEmpty);
     expect(healthTips.where((tip) => tip.matches('cleaning')), isNotEmpty);
+    expect(healthTips.where((tip) => tip.matches('migraine')), isNotEmpty);
+    expect(healthTips.where((tip) => tip.matches('iron')), isNotEmpty);
+    expect(healthTips.where((tip) => tip.matches('pcos')), isNotEmpty);
     expect(healthTips.where((tip) => tip.matches('cycle context')), hasLength(17));
     expect(healthTips.where((tip) => tip.matches('stretchier mucus')), isNotEmpty);
     expect(healthTips.where((tip) => tip.matches('breast tenderness')), isNotEmpty);
