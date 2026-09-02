@@ -168,11 +168,14 @@ class _BranchSurface extends StatelessWidget {
           curve: active ? _silkCurve : Curves.easeOutCubic,
           child: IgnorePointer(
             ignoring: !active,
-            child: ExcludeSemantics(
+            child: ExcludeFocus(
               excluding: !active,
-              child: TickerMode(
-                enabled: active,
-                child: RepaintBoundary(child: child),
+              child: ExcludeSemantics(
+                excluding: !active,
+                child: TickerMode(
+                  enabled: active,
+                  child: RepaintBoundary(child: child),
+                ),
               ),
             ),
           ),
