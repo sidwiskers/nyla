@@ -428,7 +428,7 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
                   alignment: Alignment.topCenter,
                   children: [
                     ...previousChildren,
-                    if (currentChild != null) currentChild,
+                    ?currentChild,
                   ],
                 ),
                 transitionBuilder: (card, animation) => FadeTransition(
