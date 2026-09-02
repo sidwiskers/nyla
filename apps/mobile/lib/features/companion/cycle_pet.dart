@@ -12,7 +12,7 @@ const _petCanvasWidth = 190.0;
 const _petCanvasHeight = 132.0;
 const _petDisplayWidth = 152.0;
 const _petDisplayHeight = 102.0;
-const _ledgeTop = 89.0;
+const _ledgeTop = 86.0;
 
 /// A real little home for Nyla's companion: the main cycle card is the ledge.
 ///
@@ -243,6 +243,7 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
       _reactionLean = 0;
     });
     _actionController.value = 0;
+    _scheduleIdle();
   }
 
   CyclePetAction _prepareLedgeAction(CyclePetAction action) {
@@ -385,17 +386,16 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
             child: AnimatedSize(
               duration: cardMotion,
               curve: Curves.easeInOutCubic,
+              alignment: Alignment.topCenter,
               child: AnimatedSwitcher(
                 duration: cardMotion,
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
                 transitionBuilder: (card, animation) => FadeTransition(
                   opacity: animation,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, 0.012),
-                      end: Offset.zero,
-                    ).animate(animation),
+                  child: ScaleTransition(
+                    alignment: Alignment.topCenter,
+                    scale: Tween<double>(begin: 0.995, end: 1).animate(animation),
                     child: card,
                   ),
                 ),
@@ -416,7 +416,7 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
               child: Semantics(
                 button: true,
                 label:
-                    'Your little Nyla companion, ${widget.disposition.semantics}. Tap, stroke left and right, or hold to pet it.',
+                    'Your little Nyla cat, ${widget.disposition.semantics}. Tap, stroke left and right, or hold to pet it.',
                 child: SizedBox(
                   key: const ValueKey('cycle-pet-touch-target'),
                   width: _petDisplayWidth,
@@ -661,7 +661,7 @@ class _CyclePetPainter extends CustomPainter {
 
     final pawPaint = Paint()
       ..color = dark ? const Color(0xFFAE93CA) : const Color(0xFFD7C4E9);
-    final pawY = 106 - hop * 5 + settle * 1.5;
+    final pawY = 109 - hop * 5 + settle * 1.5;
     canvas.drawOval(
       Rect.fromCenter(center: Offset(72 - stretch * 4, pawY), width: 25, height: 10),
       pawPaint,
