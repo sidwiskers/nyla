@@ -45,6 +45,7 @@ class _TodayCompanionCardState extends State<TodayCompanionCard>
   void didUpdateWidget(covariant TodayCompanionCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.phaseContext.phase != widget.phaseContext.phase ||
+        oldWidget.phaseContext.confidence != widget.phaseContext.confidence ||
         oldWidget.phaseContext.cycleDay != widget.phaseContext.cycleDay ||
         !_sameValues(oldWidget.values, widget.values)) {
       _showingWhy = false;
@@ -71,7 +72,8 @@ class _TodayCompanionCardState extends State<TodayCompanionCard>
   @override
   Widget build(BuildContext context) {
     final message = companionMessageFor(widget.phaseContext, widget.values);
-    final explanation = companionExplanationFor(widget.phaseContext, widget.values);
+    final explanation =
+        companionExplanationFor(widget.phaseContext, widget.values);
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     if (reduceMotion) {
@@ -151,42 +153,10 @@ class _CompanionFace extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: dark
-                      ? Colors.white.withValues(alpha: 0.09)
-                      : palette.glass,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  message.icon,
-                  size: 20,
-                  color: dark ? const Color(0xFFF0E5F2) : palette.violet,
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Text(
-                  message.eyebrow,
-                  style: TextStyle(
-                    color: dark ? const Color(0xFFD9CADF) : palette.violet,
-                    fontSize: 9.4,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.02,
-                  ),
-                ),
-              ),
-              _DayPill(
-                text: phaseContext.phase == CyclePhase.menstruation
-                    ? 'Period day ${phaseContext.cycleDay}'
-                    : 'Day ${phaseContext.cycleDay}',
-                dark: dark,
-              ),
-            ],
+          _PhaseHeader(
+            phaseContext: phaseContext,
+            icon: message.icon,
+            dark: dark,
           ),
           const SizedBox(height: 16),
           Text(
@@ -209,44 +179,7 @@ class _CompanionFace extends StatelessWidget {
           ),
           if (message.tip != null) ...[
             const SizedBox(height: 15),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(13, 11, 13, 11),
-              decoration: BoxDecoration(
-                color: dark
-                    ? Colors.white.withValues(alpha: 0.075)
-                    : palette.glass,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: dark
-                      ? Colors.white.withValues(alpha: 0.055)
-                      : palette.glassBorder,
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.favorite_rounded,
-                    size: 16,
-                    color: dark ? const Color(0xFFF0C9D5) : palette.wine,
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Text(
-                      message.tip!,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: dark
-                                ? const Color(0xFFE6DCE9)
-                                : palette.mutedInk,
-                            fontSize: 11.8,
-                            height: 1.38,
-                          ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _TipBox(text: message.tip!, dark: dark),
           ],
           const SizedBox(height: 15),
           _FlipAction(
@@ -283,42 +216,10 @@ class _WhyFace extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: dark
-                      ? Colors.white.withValues(alpha: 0.09)
-                      : palette.glass,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  Icons.lightbulb_rounded,
-                  size: 19,
-                  color: dark ? const Color(0xFFF0E5F2) : palette.violet,
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Text(
-                  'A LITTLE CONTEXT',
-                  style: TextStyle(
-                    color: dark ? const Color(0xFFD9CADF) : palette.violet,
-                    fontSize: 9.4,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.02,
-                  ),
-                ),
-              ),
-              _DayPill(
-                text: phaseContext.phase == CyclePhase.menstruation
-                    ? 'Period day ${phaseContext.cycleDay}'
-                    : 'Day ${phaseContext.cycleDay}',
-                dark: dark,
-              ),
-            ],
+          _PhaseHeader(
+            phaseContext: phaseContext,
+            icon: Icons.lightbulb_rounded,
+            dark: dark,
           ),
           const SizedBox(height: 16),
           Text(
@@ -378,6 +279,103 @@ class _WhyFace extends StatelessWidget {
   }
 }
 
+class _PhaseHeader extends StatelessWidget {
+  const _PhaseHeader({
+    required this.phaseContext,
+    required this.icon,
+    required this.dark,
+  });
+
+  final CyclePhaseContext phaseContext;
+  final IconData icon;
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    return Row(
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: dark
+                ? Colors.white.withValues(alpha: 0.09)
+                : palette.glass,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(
+            icon,
+            size: 20,
+            color: dark ? const Color(0xFFF0E5F2) : palette.violet,
+          ),
+        ),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Text(
+            companionPhaseLabelFor(phaseContext),
+            style: TextStyle(
+              color: dark ? const Color(0xFFD9CADF) : palette.violet,
+              fontSize: 9.4,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.02,
+            ),
+          ),
+        ),
+        _DayPill(text: 'Day ${phaseContext.cycleDay}', dark: dark),
+      ],
+    );
+  }
+}
+
+class _TipBox extends StatelessWidget {
+  const _TipBox({required this.text, required this.dark});
+
+  final String text;
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.nyla;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(13, 11, 13, 11),
+      decoration: BoxDecoration(
+        color: dark ? Colors.white.withValues(alpha: 0.075) : palette.glass,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: dark
+              ? Colors.white.withValues(alpha: 0.055)
+              : palette.glassBorder,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.favorite_rounded,
+            size: 16,
+            color: dark ? const Color(0xFFF0C9D5) : palette.wine,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: dark
+                        ? const Color(0xFFE6DCE9)
+                        : palette.mutedInk,
+                    fontSize: 11.8,
+                    height: 1.38,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CardShell extends StatelessWidget {
   const _CardShell({required this.dark, required this.child});
 
@@ -394,7 +392,11 @@ class _CardShell extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: dark
-              ? const [NylaColors.night, Color(0xFF3A2947), Color(0xFF5B455F)]
+              ? const [
+                  NylaColors.night,
+                  Color(0xFF3A2947),
+                  Color(0xFF5B455F),
+                ]
               : [palette.roseWash, palette.lavenderSoft, palette.peachSoft],
         ),
         borderRadius: BorderRadius.circular(31),
@@ -466,6 +468,16 @@ class _FlipAction extends StatelessWidget {
   }
 }
 
+String companionPhaseLabelFor(CyclePhaseContext phase) => switch (phase.phase) {
+      CyclePhase.menstruation => 'PERIOD',
+      CyclePhase.follicular => phase.confidence == PhaseConfidence.limited
+          ? 'LIKELY FOLLICULAR'
+          : 'FOLLICULAR PHASE',
+      CyclePhase.periOvulatory => 'AROUND MID-CYCLE',
+      CyclePhase.luteal => 'LUTEAL PHASE',
+      CyclePhase.uncertain => 'YOUR CYCLE',
+    };
+
 CompanionMessage companionMessageFor(
   CyclePhaseContext phase,
   List<DayValueEntry> values,
@@ -473,6 +485,7 @@ CompanionMessage companionMessageFor(
   final byKey = {for (final value in values) value.key: value};
   final cramps = byKey['cramps']?.severity ?? 0;
   final sleep = byKey['sleep']?.value;
+  final energy = byKey['energy']?.value;
   final mood = values
       .where((row) => row.key.startsWith('mood.'))
       .map((row) => row.value)
@@ -481,31 +494,29 @@ CompanionMessage companionMessageFor(
   if (phase.phase == CyclePhase.menstruation) {
     if (cramps >= 3) {
       return const CompanionMessage(
-        eyebrow: 'NYLA IS WITH YOU',
         title: 'That sounds like a rough cramp day',
         body:
-            'You do not have to treat today like a normal day. Slow down where you can and give your body a little room.',
+            'Take the day a little more gently where you can. You do not have to push through pain just because the rest of the day is busy.',
         tip:
-            'Warmth, a comfortable position, water and gentle movement can help some people. If the pain is unusually severe or worrying, please get medical care.',
+            'Warmth, a comfortable position and gentle movement can help some people. If the pain is unusually severe, suddenly worse, or worrying, please get medical care.',
         icon: Icons.favorite_rounded,
       );
     }
     if (sleep == 'poor' || sleep == 'very_poor') {
       return const CompanionMessage(
-        eyebrow: 'A GENTLER DAY',
-        title: 'Period day and poor sleep is a lot',
+        title: 'A softer day may feel better',
         body:
-            'Lower the bar a little today. Being tired does not mean you are doing anything wrong.',
-        tip: 'A quieter evening and a little extra rest may feel better than pushing through.',
+            'A period plus poor sleep can leave you running on less than usual. Keep the important things, and make the rest easier if you can.',
+        tip:
+            'A little extra rest, food, water and a quieter evening may be exactly what you need.',
         icon: Icons.bedtime_rounded,
       );
     }
     return const CompanionMessage(
-      eyebrow: 'YOUR PERIOD',
-      title: 'Be a little softer with yourself today',
+      title: 'Take today gently',
       body:
-          'Your period is here. Nyla will keep track of the numbers — you can focus on how you actually feel.',
-      tip: 'Check in with your body, eat and drink normally, and rest when you need it.',
+          'Your period is here. Check in with comfort, energy and what your body is asking for instead of expecting a normal day by default.',
+      tip: 'Eat, drink and rest as you normally need to. Comfort counts.',
       icon: Icons.favorite_rounded,
     );
   }
@@ -519,51 +530,52 @@ CompanionMessage companionMessageFor(
         'overwhelmed',
       }).isNotEmpty) {
     return const CompanionMessage(
-      eyebrow: 'A LITTLE CHECK-IN',
-      title: 'Feeling more sensitive lately?',
+      title: 'Give yourself a little more room today',
       body:
-          'That feeling is worth noticing, not judging. Your cycle may be part of the picture, but you are more than a phase label.',
-      tip: 'Give yourself a little more space today if that is what you need.',
+          'You logged a tougher mood today. A cycle shift may be one part of the picture, but the useful thing right now is simply to make the day a little easier on yourself.',
+      tip: 'Keep the next thing small if everything feels louder than usual.',
       icon: Icons.self_improvement_rounded,
     );
   }
 
   return switch (phase.phase) {
-    CyclePhase.follicular => const CompanionMessage(
-        eyebrow: 'TODAY',
-        title: 'See how your energy feels today',
-        body:
-            'This part of the cycle can feel lighter for some people. No need to match a textbook — just notice your own rhythm.',
-        tip: null,
+    CyclePhase.follicular => CompanionMessage(
+        title: energy == 'low' || energy == 'very_low'
+            ? 'Still feeling low on energy?'
+            : 'You may notice a little more energy',
+        body: energy == 'low' || energy == 'very_low'
+            ? 'This is often an early-cycle stretch after a period, but your energy does not have to bounce back on schedule. Take the slower day if that is what you have.'
+            : 'The stretch after a period is often part of the follicular phase. Some people feel their energy or focus pick up here; for others the change is subtle.',
+        tip: energy == 'low' || energy == 'very_low'
+            ? 'A low-energy day is still useful information. Work with the energy you actually have.'
+            : 'If you feel good, enjoy it. If you do not notice a change, that can be completely ordinary too.',
         icon: Icons.wb_sunny_rounded,
       ),
     CyclePhase.periOvulatory => const CompanionMessage(
-        eyebrow: 'AROUND MID-CYCLE',
-        title: 'Your body may be around the middle of its cycle',
+        title: 'You may be around mid-cycle',
         body:
-            'Nyla has an estimate, not a verdict. Your own signs and how you feel matter more than a perfect label.',
-        tip: null,
+            'Around this part of a cycle, some people notice a change in energy or discharge as estrogen rises. Others barely notice anything at all.',
+        tip:
+            'Calendar timing can only place this broadly. A predicted phase is not confirmation of ovulation.',
         icon: Icons.auto_awesome_rounded,
       ),
     CyclePhase.luteal => CompanionMessage(
-        eyebrow: 'CHECKING IN',
         title: phase.daysUntilLikelyPeriod != null &&
                 phase.daysUntilLikelyPeriod! <= 4
-            ? 'Your period may be getting close'
-            : 'How are you feeling today?',
+            ? 'Your period may be getting closer'
+            : 'A steadier pace may feel good',
         body: phase.daysUntilLikelyPeriod != null &&
                 phase.daysUntilLikelyPeriod! <= 4
-            ? 'If you feel a little more tired, hungry or emotional, you are allowed to meet yourself where you are.'
-            : 'You do not need a scientific explanation for every feeling. Nyla can keep the context in the background.',
+            ? 'In the days before a period, some people notice changes in sleep, appetite, energy or mood. If today feels a little different, make room for what your body needs.'
+            : 'As the cycle moves through its later phase, sleep, appetite, energy or mood can shift for some people. Your own pattern matters more than any one expected feeling.',
         tip: null,
         icon: Icons.nightlight_round,
       ),
     CyclePhase.uncertain => const CompanionMessage(
-        eyebrow: 'NO PRESSURE',
-        title: 'Today does not need a phase label',
+        title: 'How is your body feeling today?',
         body:
-            'Your timing is a little unclear right now, and that is okay. Keep logging what feels useful and Nyla will learn with you.',
-        tip: null,
+            'Energy, sleep, mood, appetite and comfort can tell you more about today than the calendar alone. Notice what feels different, familiar, easy or difficult.',
+        tip: 'A small check-in is enough. You do not need to analyse every change.',
         icon: Icons.spa_rounded,
       ),
     CyclePhase.menstruation => throw StateError('Handled above'),
@@ -585,28 +597,28 @@ CompanionExplanation companionExplanationFor(
   if (phase.phase == CyclePhase.menstruation) {
     if (cramps >= 3) {
       return const CompanionExplanation(
-        title: 'Your uterus is doing some hard work',
+        title: 'Your uterus is contracting',
         body:
-            'During a period, the uterus contracts as it sheds its lining. Natural chemicals called prostaglandins help trigger those contractions, and stronger contractions can mean stronger cramps.',
+            'During a period, the uterus contracts as it sheds its lining. Natural chemicals called prostaglandins help drive those contractions, and stronger contractions can mean stronger cramps.',
         note:
-            'Cramps are common, but pain that is unusually severe, suddenly worse, or stopping you from normal activities deserves medical attention.',
+            'Cramps are common, but pain that is unusually severe, suddenly worse, or stopping normal activities deserves medical attention.',
       );
     }
     if (sleep == 'poor' || sleep == 'very_poor') {
       return const CompanionExplanation(
-        title: 'Your period can nudge sleep around too',
+        title: 'Periods can affect sleep too',
         body:
-            'Bleeding, cramps, temperature changes and shifting hormones can all make sleep feel less settled for some people during a period.',
+            'Bleeding, cramps, temperature changes and hormonal shifts can all make sleep feel less settled for some people during a period.',
         note:
-            'That does not mean every bad night is caused by your cycle. Nyla treats it as useful context, not a diagnosis.',
+            'A bad night can have many causes, so cycle timing is useful context rather than a diagnosis.',
       );
     }
     return const CompanionExplanation(
-      title: 'Your cycle has reached its reset point',
+      title: 'A new cycle has started',
       body:
-          'A period begins after estrogen and progesterone fall and the uterine lining starts to shed. That is the biology Nyla tracks underneath the softer day-to-day view.',
+          'A period begins after estrogen and progesterone fall and the uterine lining starts to shed. Cycle day 1 is the first day of menstrual bleeding.',
       note:
-          'Your experience can still vary from one period to another, even when the underlying cycle is completely ordinary.',
+          'Flow, cramps, energy and mood can vary from one period to another even when the underlying cycle is ordinary.',
     );
   }
 
@@ -619,45 +631,48 @@ CompanionExplanation companionExplanationFor(
         'overwhelmed',
       }).isNotEmpty) {
     return const CompanionExplanation(
-      title: 'Hormone shifts may be part of the picture',
+      title: 'Hormone shifts may be one part of it',
       body:
           'After ovulation, progesterone and estrogen change again as the body moves toward the next period. Some people notice mood changes around this time, while others notice very little.',
       note:
-          'Nyla never assumes a feeling is “just hormones.” Your mood has context beyond your cycle too.',
+          'Mood is shaped by much more than the menstrual cycle, so a difficult day should never be dismissed as “just hormones.”',
     );
   }
 
   return switch (phase.phase) {
-    CyclePhase.follicular => const CompanionExplanation(
-        title: 'This is the stretch after your period',
+    CyclePhase.follicular => CompanionExplanation(
+        title: phase.confidence == PhaseConfidence.limited
+            ? 'This is likely the stretch after your period'
+            : 'This is the stretch after your period',
         body:
-            'Estrogen often begins rising again after menstruation while the body prepares for the next ovulatory part of the cycle. Some people notice more energy here, but there is no feeling you are supposed to have.',
-        note:
-            'Nyla uses your timing as context, not as a rule for how your body or mood should behave.',
+            'During the follicular phase, ovarian follicles develop and estrogen generally rises as the body moves toward ovulation. The length of this phase can vary quite a bit from cycle to cycle.',
+        note: phase.confidence == PhaseConfidence.limited
+            ? 'With only a short cycle history, this is broad early-cycle context rather than a precise hormonal reading.'
+            : 'Some people notice changes in energy or discharge here, but there is no single feeling that defines this phase.',
       ),
     CyclePhase.periOvulatory => const CompanionExplanation(
-        title: 'Nyla thinks you may be around mid-cycle',
+        title: 'Mid-cycle timing is only approximate',
         body:
-            'The estimate comes from your recent period timing and cycle pattern. Ovulation itself cannot be confirmed from calendar dates alone, so Nyla deliberately keeps this language uncertain.',
+            'Ovulation happens after the follicular phase, but its timing can move from cycle to cycle. Recent period timing can place a broad mid-cycle window, and watery or stretchy discharge can add context.',
         note:
-            'Body signs can add context, but an app prediction is still an estimate rather than proof of ovulation.',
+            'Calendar dates and symptoms cannot confirm an exact ovulation day, so this should not be used as fertility or contraception guidance.',
       ),
     CyclePhase.luteal => CompanionExplanation(
         title: phase.daysUntilLikelyPeriod != null &&
                 phase.daysUntilLikelyPeriod! <= 4
-            ? 'Your cycle may be moving toward the next period'
+            ? 'Your cycle is moving toward the next period'
             : 'This is likely the later part of your cycle',
         body:
-            'After the ovulatory part of a cycle, progesterone and estrogen shift again. Energy, appetite, sleep or mood can change for some people as the next period approaches.',
+            'After ovulation, progesterone and estrogen shift again. Some people notice changes in energy, appetite, sleep, breast tenderness or mood as the next period approaches.',
         note:
-            'These changes are personal. Nyla uses them as gentle context rather than treating them as symptoms you should have.',
+            'These changes are personal. One cycle can feel quite different from the next.',
       ),
     CyclePhase.uncertain => const CompanionExplanation(
-        title: 'There simply is not enough signal today',
+        title: 'Cycle timing can move around',
         body:
-            'Cycle lengths naturally move around, and recent timing may not support a useful phase estimate. Nyla would rather say “not sure” than turn a weak guess into a confident label.',
+            'The follicular part of a cycle can vary in length, which means calendar day alone cannot always tell whether ovulation is still ahead, nearby, or has already passed.',
         note:
-            'More completed cycles and useful logs can make future context more personal without forcing certainty.',
+            'Cycle day is still useful context. Bleeding, discharge and your own repeated patterns can add more detail without pretending the timing is exact.',
       ),
     CyclePhase.menstruation => throw StateError('Handled above'),
   };
@@ -665,14 +680,12 @@ CompanionExplanation companionExplanationFor(
 
 class CompanionMessage {
   const CompanionMessage({
-    required this.eyebrow,
     required this.title,
     required this.body,
     required this.tip,
     required this.icon,
   });
 
-  final String eyebrow;
   final String title;
   final String body;
   final String? tip;
