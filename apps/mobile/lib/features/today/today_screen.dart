@@ -10,6 +10,8 @@ import '../../core/theme/nyla_theme.dart';
 import '../../data/database/app_database.dart';
 import '../../providers.dart';
 import '../../widgets/nyla_page.dart';
+import '../companion/cycle_pet.dart';
+import '../companion/cycle_pet_state.dart';
 import 'today_companion_card.dart';
 import 'today_quiet_cycle_card.dart';
 import 'today_widgets.dart' hide TodayQuietCycleCard;
@@ -33,6 +35,12 @@ class TodayScreen extends ConsumerWidget {
     final motion = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : const Duration(milliseconds: 300);
+    final petDisposition = cyclePetDisposition(
+      CyclePetSignals.fromToday(
+        phaseContext: current,
+        values: values,
+      ),
+    );
 
     final cycleCard = current != null
         ? TodayCompanionCard(
@@ -62,6 +70,18 @@ class TodayScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          AnimatedSwitcher(
+            duration: motion,
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            child: CyclePetNook(
+              key: ValueKey(
+                'cycle-pet-${petDisposition.mood.name}-${petDisposition.variant}',
+              ),
+              disposition: petDisposition,
+            ),
+          ),
+          const SizedBox(height: 4),
           AnimatedSwitcher(
             duration: motion,
             switchInCurve: Curves.easeOutCubic,
