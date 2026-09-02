@@ -12,13 +12,20 @@ void main() {
     variant: 1,
   );
 
-  Widget app({bool reduceMotion = false}) => MaterialApp(
+  Widget app({
+    bool reduceMotion = false,
+    bool tickerEnabled = true,
+  }) =>
+      MaterialApp(
         theme: NylaTheme.light,
         home: MediaQuery(
           data: MediaQueryData(disableAnimations: reduceMotion),
-          child: const Scaffold(
-            body: Center(
-              child: CyclePetNook(disposition: disposition),
+          child: TickerMode(
+            enabled: tickerEnabled,
+            child: const Scaffold(
+              body: Center(
+                child: CyclePetNook(disposition: disposition),
+              ),
             ),
           ),
         ),
@@ -54,6 +61,21 @@ void main() {
     await gesture.up();
     await tester.pump();
 
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('ticker suspension resets an in-flight reaction cleanly', (tester) async {
+    await tester.pumpWidget(app());
+    final target = find.byKey(const ValueKey('cycle-pet-touch-target'));
+
+    await tester.tap(target);
+    await tester.pump(const Duration(milliseconds: 120));
+    await tester.pumpWidget(app(tickerEnabled: false));
+    await tester.pump(const Duration(seconds: 2));
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(app());
+    await tester.pump(const Duration(seconds: 8));
     expect(tester.takeException(), isNull);
   });
 
