@@ -14,7 +14,7 @@ final class CyclePhaseEngine {
     this.typicalLutealDays = 12,
     this.minimumPeriOvulatoryRadius = 3,
     this.maximumPeriOvulatoryRadius = 6,
-    this.earlyFollicularDaysAfterBleed = 6,
+    this.earlyFollicularDaysAfterBleed = 7,
   });
 
   /// Population evidence places the luteal phase around 12 days on average,
@@ -50,11 +50,6 @@ final class CyclePhaseEngine {
         latest.end != null && today.compareTo(latest.end!) <= 0;
     final onsetObserved = cycleDay == 1;
 
-    // A flow log can support an already-recorded recent period, including a
-    // longer bleed, but it must never create a new period anchor by itself. A
-    // new mid-cycle bleeding log may be intermenstrual bleeding or an unrecorded
-    // new period; either way the honest response is to keep the old cycle anchor
-    // until the user explicitly records a new period start.
     final flowSupportsRecentPeriod =
         signals.bleeding == true && cycleDay <= 14;
     final periodObserved =
@@ -82,17 +77,13 @@ final class CyclePhaseEngine {
     }
 
     if (prediction == null) {
-      // A single recorded period is not enough to estimate ovulation or the
-      // next period, but it does tell us where this cycle began. Immediately
-      // after bleeding, follicular context remains useful even though the
-      // confidence is deliberately limited.
       final recordedBleedDays = latest.end == null
           ? inferredBleedDays
           : latest.start.daysUntil(latest.end!) + 1;
-      final earlyFollicularThrough = (recordedBleedDays +
-              earlyFollicularDaysAfterBleed)
-          .clamp(7, 12)
-          .toInt();
+      final earlyFollicularThrough =
+          (recordedBleedDays + earlyFollicularDaysAfterBleed)
+              .clamp(7, 12)
+              .toInt();
 
       if (cycleDay <= earlyFollicularThrough) {
         return CyclePhaseContext(
@@ -102,10 +93,6 @@ final class CyclePhaseEngine {
         );
       }
 
-      // Beyond the early-cycle window, calendar day alone cannot responsibly
-      // distinguish a later follicular day from peri-ovulatory or luteal timing
-      // without a personal cycle interval. Keep the cycle day, but not a made-up
-      // phase.
       return CyclePhaseContext(
         phase: CyclePhase.uncertain,
         confidence: PhaseConfidence.limited,
@@ -115,9 +102,6 @@ final class CyclePhaseEngine {
 
     final daysUntilLikely = today.daysUntil(prediction.likelyStart);
 
-    // Once even the outer prediction range has passed, do not stretch a luteal
-    // label indefinitely. A late period can have many explanations and the
-    // current cycle deserves fresh observation rather than stronger guessing.
     if (today.compareTo(prediction.latestStart.addDays(1)) > 0) {
       return CyclePhaseContext(
         phase: CyclePhase.uncertain,
@@ -128,11 +112,6 @@ final class CyclePhaseEngine {
       );
     }
 
-    // If the luteal phase is defined as the days after ovulation through the day
-    // before the next period, a ~12-day luteal phase places the ovulation day
-    // roughly 13 days before the next period. Prediction uncertainty and known
-    // biological luteal variability are deliberately converted into a broad
-    // peri-ovulatory window rather than a single date.
     final center =
         prediction.likelyStart.addDays(-(typicalLutealDays + 1));
     final radiusFromPrediction =
