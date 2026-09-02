@@ -79,15 +79,15 @@ void main() {
     expect(context.periodIsObserved, isFalse);
   });
 
-  test('cycle day nine stays useful follicular context before predictions exist', () {
+  test('cycle day ten stays useful after a start recorded nine days ago', () {
     const start = LocalDay(22000);
     final context = engine.describe(
-      today: start.addDays(8),
+      today: start.addDays(9),
       records: [PeriodRecord(start: start)],
       signals: const CycleDaySignals(bleeding: false),
     )!;
 
-    expect(context.cycleDay, 9);
+    expect(context.cycleDay, 10);
     expect(context.phase, CyclePhase.follicular);
     expect(context.confidence, PhaseConfidence.limited);
   });
@@ -118,8 +118,6 @@ void main() {
 
   test('personal prediction yields a broad peri-ovulatory window', () {
     const start = LocalDay(22000);
-    // With a 28-day cycle and a 12-day luteal prior, the center is cycle day
-    // 16 (15-day offset) with a deliberately broad radius around it.
     final context = engine.describe(
       today: start.addDays(15),
       records: [PeriodRecord(start: start, end: start.addDays(4))],
