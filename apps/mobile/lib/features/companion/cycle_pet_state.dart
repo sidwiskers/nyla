@@ -20,6 +20,8 @@ class CyclePetDisposition {
     required this.energy,
     required this.closeness,
     required this.variant,
+    this.familiarity = 0,
+    this.recentlyPetted = false,
   });
 
   final CyclePetMood mood;
@@ -33,6 +35,11 @@ class CyclePetDisposition {
   /// A deterministic tiny visual variant so the pet does not hold one exact
   /// pose every day. It never changes the health meaning of the disposition.
   final int variant;
+
+  /// A small local-only familiarity signal built from distinct days on which
+  /// the user petted the companion. It never affects health interpretation.
+  final double familiarity;
+  final bool recentlyPetted;
 
   String get semantics => switch (mood) {
         CyclePetMood.cozy => 'looking cozy',
@@ -51,10 +58,19 @@ class CyclePetDisposition {
           other.mood == mood &&
           other.energy == energy &&
           other.closeness == closeness &&
-          other.variant == variant;
+          other.variant == variant &&
+          other.familiarity == familiarity &&
+          other.recentlyPetted == recentlyPetted;
 
   @override
-  int get hashCode => Object.hash(mood, energy, closeness, variant);
+  int get hashCode => Object.hash(
+        mood,
+        energy,
+        closeness,
+        variant,
+        familiarity,
+        recentlyPetted,
+      );
 }
 
 @immutable
@@ -67,6 +83,8 @@ class CyclePetSignals {
     this.values = const <String, String>{},
     this.severities = const <String, int>{},
     this.moods = const <String>{},
+    this.familiarity = 0,
+    this.recentlyPetted = false,
   });
 
   final CyclePhase? phase;
@@ -76,10 +94,14 @@ class CyclePetSignals {
   final Map<String, String> values;
   final Map<String, int> severities;
   final Set<String> moods;
+  final double familiarity;
+  final bool recentlyPetted;
 
   factory CyclePetSignals.fromToday({
     required CyclePhaseContext? phaseContext,
     required List<DayValueEntry> values,
+    double familiarity = 0,
+    bool recentlyPetted = false,
   }) {
     final plain = <String, String>{};
     final severities = <String, int>{};
@@ -102,6 +124,8 @@ class CyclePetSignals {
       values: plain,
       severities: severities,
       moods: moods,
+      familiarity: familiarity,
+      recentlyPetted: recentlyPetted,
     );
   }
 }
@@ -161,29 +185,41 @@ CyclePetDisposition cyclePetDisposition(CyclePetSignals signals) {
       backPain >= 3 ||
       flow == 'heavy' ||
       roughSignals >= 3) {
-    return CyclePetDisposition(
-      mood: CyclePetMood.gentle,
-      energy: 0.30,
-      closeness: 0.96,
-      variant: variant,
+    return _remember(
+      const CyclePetDisposition(
+        mood: CyclePetMood.gentle,
+        energy: 0.30,
+        closeness: 0.96,
+        variant: 0,
+      ),
+      signals,
+      variant,
     );
   }
 
   if (poorSleep && lowEnergy) {
-    return CyclePetDisposition(
-      mood: CyclePetMood.drowsy,
-      energy: 0.18,
-      closeness: 0.82,
-      variant: variant,
+    return _remember(
+      const CyclePetDisposition(
+        mood: CyclePetMood.drowsy,
+        energy: 0.18,
+        closeness: 0.82,
+        variant: 0,
+      ),
+      signals,
+      variant,
     );
   }
 
   if (difficultMood.isNotEmpty) {
-    return CyclePetDisposition(
-      mood: CyclePetMood.gentle,
-      energy: 0.38,
-      closeness: 0.92,
-      variant: variant,
+    return _remember(
+      const CyclePetDisposition(
+        mood: CyclePetMood.gentle,
+        energy: 0.38,
+        closeness: 0.92,
+        variant: 0,
+      ),
+      signals,
+      variant,
     );
   }
 
@@ -194,35 +230,65 @@ CyclePetDisposition cyclePetDisposition(CyclePetSignals signals) {
       backPain >= 2 ||
       roughSignals >= 2;
   if (meaningfulPhysicalDiscomfort) {
-    return CyclePetDisposition(
-      mood: CyclePetMood.gentle,
-      energy: 0.42,
-      closeness: 0.86,
-      variant: variant,
+    return _remember(
+      const CyclePetDisposition(
+        mood: CyclePetMood.gentle,
+        energy: 0.42,
+        closeness: 0.86,
+        variant: 0,
+      ),
+      signals,
+      variant,
     );
   }
 
   if (poorSleep || lowEnergy) {
-    return CyclePetDisposition(
-      mood: CyclePetMood.drowsy,
-      energy: 0.30,
-      closeness: 0.76,
-      variant: variant,
+    return _remember(
+      const CyclePetDisposition(
+        mood: CyclePetMood.drowsy,
+        energy: 0.30,
+        closeness: 0.76,
+        variant: 0,
+      ),
+      signals,
+      variant,
     );
   }
 
   // Fresh positive logs outrank a phase stereotype. A good day is allowed to
   // look like a good day in any part of the cycle.
   if (highEnergy || brightMood.isNotEmpty) {
-    return CyclePetDisposition(
-      mood: CyclePetMood.playful,
-      energy: 0.92,
-      closeness: 0.62,
-      variant: variant,
+    return _remember(
+      const CyclePetDisposition(
+        mood: CyclePetMood.playful,
+        energy: 0.92,
+        closeness: 0.62,
+        variant: 0,
+      ),
+      signals,
+      variant,
     );
   }
 
-  return _baselineDisposition(signals, variant);
+  return _remember(_baselineDisposition(signals, variant), signals, variant);
+}
+
+CyclePetDisposition _remember(
+  CyclePetDisposition base,
+  CyclePetSignals signals,
+  int variant,
+) {
+  final familiarity = signals.familiarity.clamp(0.0, 1.0);
+  final closenessBonus = familiarity * 0.055 +
+      (signals.recentlyPetted ? 0.025 : 0.0);
+  return CyclePetDisposition(
+    mood: base.mood,
+    energy: base.energy,
+    closeness: (base.closeness + closenessBonus).clamp(0.0, 1.0),
+    variant: variant,
+    familiarity: familiarity,
+    recentlyPetted: signals.recentlyPetted,
+  );
 }
 
 CyclePetDisposition _baselineDisposition(CyclePetSignals signals, int variant) {
