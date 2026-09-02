@@ -172,15 +172,21 @@ void main() {
     );
   });
 
-  test('everyday care catalog broadens practical questions without filler', () {
-    expect(everydayCareTips, hasLength(16));
-    final ids = everydayCareTips.map((tip) => tip.id).toSet();
-    expect(ids, contains('everyday-menstrual-migraine-timing'));
-    expect(ids, contains('everyday-heavy-flow-iron'));
-    expect(ids, contains('everyday-discharge-warning-signs'));
-    expect(ids, contains('everyday-tampon-pain-stop'));
-    expect(ids, contains('everyday-endometriosis-clues'));
-    expect(ids, contains('everyday-pcos-patterns'));
+  test('everyday care catalog adds distinct practical gaps rather than duplicates', () {
+    expect(everydayCareTips, hasLength(8));
+    expect(
+      everydayCareTips.map((tip) => tip.id).toSet(),
+      {
+        'everyday-cramps-can-travel',
+        'everyday-period-clots-context',
+        'everyday-cycle-day-one',
+        'everyday-period-duration-pattern',
+        'everyday-bloating-persistent',
+        'everyday-moisture-irritation',
+        'everyday-tampon-pain-stop',
+        'everyday-pelvic-pain-between-periods',
+      },
+    );
 
     for (final tip in everydayCareTips) {
       final copy = [
@@ -203,6 +209,9 @@ void main() {
     expect(healthTips.where((tip) => tip.matches('migraine')), isNotEmpty);
     expect(healthTips.where((tip) => tip.matches('iron')), isNotEmpty);
     expect(healthTips.where((tip) => tip.matches('pcos')), isNotEmpty);
+    expect(healthTips.where((tip) => tip.matches('blood clots')), isNotEmpty);
+    expect(healthTips.where((tip) => tip.matches('cycle day')), isNotEmpty);
+    expect(healthTips.where((tip) => tip.matches('rash')), isNotEmpty);
     expect(healthTips.where((tip) => tip.matches('cycle context')), hasLength(17));
     expect(healthTips.where((tip) => tip.matches('stretchier mucus')), isNotEmpty);
     expect(healthTips.where((tip) => tip.matches('breast tenderness')), isNotEmpty);
