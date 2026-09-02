@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-const _sectionEnterCurve = Cubic(0.16, 1, 0.3, 1);
+const _silkCurve = Cubic(0.16, 1, 0.3, 1);
 const _depthEnterCurve = Cubic(0.16, 1, 0.3, 1);
 const _depthExitCurve = Cubic(0.7, 0, 0.84, 0);
 
 /// Bottom-navigation destinations have one spatial order. Keeping that order
-/// in one place lets section motion feel directional instead of random.
+/// explicit makes the motion model predictable in tests and deep links.
 int nylaSectionIndex(String location) {
   if (location.startsWith('/calendar')) return 1;
   if (location.startsWith('/log')) return 2;
@@ -24,9 +24,9 @@ Page<void> nylaSectionPage({
   required LocalKey key,
   required Widget child,
 }) {
-  // The shell is the sole owner of section-to-section animation. Using a
-  // NoTransitionPage here prevents a second Material route animation from
-  // running underneath the shell and causing ghosting/hitches.
+  // StatefulShellRoute owns section motion. Branch-root pages therefore have
+  // no navigator transition of their own; two animation owners caused the old
+  // hitch/ghost effect.
   return NoTransitionPage<void>(key: key, child: child);
 }
 
@@ -88,125 +88,94 @@ Page<void> nylaDepthPage({
   );
 }
 
-/// Nyla's section handoff: the incoming surface follows the physical order of
-/// the nav bar, while the outgoing surface simply recedes. That asymmetry is
-/// intentional: it preserves spatial direction without making two large pages
-/// cross-slide through one another.
-class NylaSectionMotion extends StatelessWidget {
-  const NylaSectionMotion({
-    required this.identity,
-    required this.direction,
+/// Persistent branch container for the five primary sections.
+///
+/// Every branch keeps its own Navigator in the tree, so scroll position and
+/// local route state survive tab switches. Inactive branches sit a tiny amount
+/// toward their physical side of the nav bar. When selected they glide to the
+/// center, fade in and settle from 0.992 scale. Animated* widgets retarget from
+/// their current value when taps are interrupted, which makes rapid tab changes
+/// continuous instead of restarting from a hard-coded pose.
+class NylaBranchMotion extends StatelessWidget {
+  const NylaBranchMotion({
+    required this.currentIndex,
+    required this.children,
     required this.reduceMotion,
-    required this.child,
     super.key,
   });
 
-  final String identity;
-  final int direction;
+  final int currentIndex;
+  final List<Widget> children;
   final bool reduceMotion;
-  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final frame = _SectionFrame(
-      key: ValueKey(identity),
-      direction: direction == 0 ? 1 : direction,
-      child: child,
-    );
+    assert(currentIndex >= 0 && currentIndex < children.length);
+    final movementDuration =
+        reduceMotion ? Duration.zero : const Duration(milliseconds: 330);
+    final fadeDuration =
+        reduceMotion ? Duration.zero : const Duration(milliseconds: 235);
 
-    if (reduceMotion) return frame;
-
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 320),
-      reverseDuration: const Duration(milliseconds: 225),
-      layoutBuilder: (currentChild, previousChildren) {
-        // Only the most recent outgoing surface remains visible. AnimatedSwitcher
-        // may retain several children after rapid taps; drawing all of them is
-        // the classic source of translucent page "ghosts".
-        final latestPrevious =
-            previousChildren.isEmpty ? null : previousChildren.last;
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            if (latestPrevious != null) latestPrevious,
-            if (currentChild != null) currentChild,
-          ],
-        );
-      },
-      transitionBuilder: (transitionChild, animation) {
-        final transitionFrame = transitionChild as _SectionFrame;
-        return _SectionMotionTransition(
-          animation: animation,
-          direction: transitionFrame.direction,
-          child: transitionFrame,
-        );
-      },
-      child: frame,
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (var index = 0; index < children.length; index++)
+          _BranchSurface(
+            active: index == currentIndex,
+            side: index < currentIndex ? -1 : 1,
+            movementDuration: movementDuration,
+            fadeDuration: fadeDuration,
+            child: children[index],
+          ),
+      ],
     );
   }
 }
 
-class _SectionFrame extends StatelessWidget {
-  const _SectionFrame({
-    required this.direction,
-    required this.child,
-    super.key,
-  });
-
-  final int direction;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => RepaintBoundary(child: child);
-}
-
-class _SectionMotionTransition extends StatelessWidget {
-  const _SectionMotionTransition({
-    required this.animation,
-    required this.direction,
+class _BranchSurface extends StatelessWidget {
+  const _BranchSurface({
+    required this.active,
+    required this.side,
+    required this.movementDuration,
+    required this.fadeDuration,
     required this.child,
   });
 
-  final Animation<double> animation;
-  final int direction;
+  final bool active;
+  final int side;
+  final Duration movementDuration;
+  final Duration fadeDuration;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: animation,
-      child: child,
-      builder: (context, child) {
-        final raw = animation.value.clamp(0.0, 1.0).toDouble();
-        final exiting = animation.status == AnimationStatus.reverse;
-        final progress = exiting
-            ? Curves.easeOutCubic.transform(raw)
-            : _sectionEnterCurve.transform(raw);
+    final restingOffset = Offset(side * 0.026, 0.0025);
 
-        // Exiting pages recede instead of cross-sliding. This keeps direction
-        // correct even when the user taps through several tabs very quickly.
-        final dx = exiting ? 0.0 : direction * 0.042 * (1 - progress);
-        final dy =
-            exiting ? -0.005 * (1 - progress) : 0.005 * (1 - progress);
-        final scale = exiting
-            ? 0.993 + (0.007 * progress)
-            : 0.985 + (0.015 * progress);
-        final opacity = exiting
-            ? progress
-            : ((progress - 0.015) / 0.985).clamp(0.0, 1.0).toDouble();
-
-        return Opacity(
-          opacity: opacity,
-          child: FractionalTranslation(
-            translation: Offset(dx, dy),
-            child: Transform.scale(
-              scale: scale,
-              alignment: Alignment.center,
-              child: child,
+    return AnimatedSlide(
+      offset: active ? Offset.zero : restingOffset,
+      duration: movementDuration,
+      curve: _silkCurve,
+      child: AnimatedScale(
+        scale: active ? 1 : 0.992,
+        duration: movementDuration,
+        curve: _silkCurve,
+        alignment: Alignment.center,
+        child: AnimatedOpacity(
+          opacity: active ? 1 : 0,
+          duration: fadeDuration,
+          curve: active ? _silkCurve : Curves.easeOutCubic,
+          child: IgnorePointer(
+            ignoring: !active,
+            child: ExcludeSemantics(
+              excluding: !active,
+              child: TickerMode(
+                enabled: active,
+                child: RepaintBoundary(child: child),
+              ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
