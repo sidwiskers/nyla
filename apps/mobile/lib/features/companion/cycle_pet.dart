@@ -711,7 +711,6 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
               duration: ledgeMotion,
               curve: const Cubic(0.16, 1, 0.3, 1),
               child: AnimatedContainer(
-                key: ValueKey('cycle-pet-state-$_interactionState'),
                 duration: _reduceMotion || _carrying
                     ? Duration.zero
                     : const Duration(milliseconds: 360),
@@ -738,21 +737,24 @@ class _CyclePetLedgeState extends State<CyclePetLedge>
                       onLongPressMoveUpdate: _onLongPressMove,
                       onLongPressEnd: _onLongPressEnd,
                       onLongPressCancel: _cancelTouch,
-                      child: CustomPaint(
-                        painter: _CyclePetPainter(
-                          disposition: widget.disposition,
-                          palette: palette,
-                          dark: dark,
-                          blink: _blinkController,
-                          actionAnimation: _actionController,
-                          action: _action,
-                          petting: _petting,
-                          carrying: _carrying,
-                          carryLift: carryLift,
-                          petLean: _petLean,
-                          petDepth: _petDepth,
-                          reactionLean: _reactionLean,
-                          repaint: _repaint,
+                      child: KeyedSubtree(
+                        key: ValueKey('cycle-pet-state-$_interactionState'),
+                        child: CustomPaint(
+                          painter: _CyclePetPainter(
+                            disposition: widget.disposition,
+                            palette: palette,
+                            dark: dark,
+                            blink: _blinkController,
+                            actionAnimation: _actionController,
+                            action: _action,
+                            petting: _petting,
+                            carrying: _carrying,
+                            carryLift: carryLift,
+                            petLean: _petLean,
+                            petDepth: _petDepth,
+                            reactionLean: _reactionLean,
+                            repaint: _repaint,
+                          ),
                         ),
                       ),
                     ),
