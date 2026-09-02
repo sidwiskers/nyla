@@ -19,7 +19,9 @@ class NotificationService {
   static const _windowStartsId = 41002;
   static const _dailyLogId = 41003;
   static const _careNudgeId = 41004;
-  static const _dailyFallbackId = 41005;
+  static const _dailyFallbackBaseId = 41100;
+  static const _dailyFallbackSlots = 14;
+  static const _dailyLongTermFallbackId = 41199;
   static const _channelId = 'nyla_reminders_v1';
   static const _allowedRoutes = {'/calendar', '/log'};
 
@@ -182,7 +184,10 @@ class NotificationService {
     await _plugin.cancel(id: _windowStartsId);
     await _plugin.cancel(id: _dailyLogId);
     await _plugin.cancel(id: _careNudgeId);
-    await _plugin.cancel(id: _dailyFallbackId);
+    await _plugin.cancel(id: _dailyLongTermFallbackId);
+    for (var index = 0; index < _dailyFallbackSlots; index++) {
+      await _plugin.cancel(id: _dailyFallbackBaseId + index);
+    }
 
     if (prediction != null && config.periodApproaching) {
       final reminderDay =
@@ -194,23 +199,24 @@ class NotificationService {
         minute: 0,
         body: _copy(
           config.privacy,
-          contextual:
-              'Your period may be getting close. Maybe keep the comfy things nearby.',
+          contextual: periodApproachingCompanionBody(reminderDay.epochDay),
+          private: privateCompanionBody(reminderDay.epochDay),
         ),
         payload: '/calendar',
       );
     }
 
     if (prediction != null && config.expectedWindowStarts) {
+      final windowDay = prediction.earliestStart;
       await _scheduleIfFuture(
         id: _windowStartsId,
-        day: prediction.earliestStart,
+        day: windowDay,
         hour: 9,
         minute: 0,
         body: _copy(
           config.privacy,
-          contextual:
-              'Your period could start around now. Be a little extra kind to yourself today.',
+          contextual: expectedWindowCompanionBody(windowDay.epochDay),
+          private: privateCompanionBody(windowDay.epochDay + 5),
         ),
         payload: '/calendar',
       );
@@ -276,15 +282,6 @@ class NotificationService {
       config.dailyHour,
       config.dailyMinute,
     );
-    final tomorrow = today.addDays(1).utcDate;
-    final fallbackStart = tz.TZDateTime(
-      tz.local,
-      tomorrow.year,
-      tomorrow.month,
-      tomorrow.day,
-      config.dailyHour,
-      config.dailyMinute,
-    );
 
     if (todayAtReminder.isAfter(now)) {
       await _plugin.zonedSchedule(
@@ -302,20 +299,58 @@ class NotificationService {
       );
     }
 
-    // Today's message can use today's context. Future days intentionally fall
-    // back to a generic repeating check-in so yesterday's cramps, mood or sleep
-    // can never be repeated as though they were still current. Opening Nyla or
-    // changing a log replaces the next occurrence with fresh context again.
+    // Future reminders cannot use today's symptoms without risking stale copy.
+    // Keep two weeks of varied neutral messages ready locally. Normal use
+    // refreshes this bank long before it runs out, while keeping reschedules
+    // light when logs or cycle context change.
+    for (var offset = 1; offset <= _dailyFallbackSlots; offset++) {
+      final fallbackDay = today.addDays(offset);
+      final fallbackDate = fallbackDay.utcDate;
+      final scheduled = tz.TZDateTime(
+        tz.local,
+        fallbackDate.year,
+        fallbackDate.month,
+        fallbackDate.day,
+        config.dailyHour,
+        config.dailyMinute,
+      );
+      await _plugin.zonedSchedule(
+        id: _dailyFallbackBaseId + offset - 1,
+        title: 'Nyla',
+        body: _copy(
+          config.privacy,
+          contextual: genericCompanionBody(fallbackDay.epochDay),
+          private: privateCompanionBody(fallbackDay.epochDay),
+        ),
+        scheduledDate: scheduled,
+        notificationDetails: _details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: '/log',
+      );
+    }
+
+    // Preserve the user's daily reminder even if Nyla has not been opened for
+    // more than two weeks. The next launch replaces this simple repeating safety
+    // net with a fresh varied bank again.
+    final longTermDay = today.addDays(_dailyFallbackSlots + 1);
+    final longTermDate = longTermDay.utcDate;
+    final longTermStart = tz.TZDateTime(
+      tz.local,
+      longTermDate.year,
+      longTermDate.month,
+      longTermDate.day,
+      config.dailyHour,
+      config.dailyMinute,
+    );
     await _plugin.zonedSchedule(
-      id: _dailyFallbackId,
+      id: _dailyLongTermFallbackId,
       title: 'Nyla',
       body: _copy(
         config.privacy,
-        contextual:
-            'How are you feeling today? No perfect log needed — just a small check-in with yourself.',
-        private: privateCompanionBody(today.epochDay + 1),
+        contextual: genericCompanionBody(longTermDay.epochDay),
+        private: privateCompanionBody(longTermDay.epochDay),
       ),
-      scheduledDate: fallbackStart,
+      scheduledDate: longTermStart,
       notificationDetails: _details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.time,
@@ -337,16 +372,17 @@ class NotificationService {
       date.year,
       date.month,
       date.day,
-      14,
+      plan.careHour,
+      plan.careMinute,
     );
     final now = tz.TZDateTime.now(tz.local);
     if (!scheduled.isAfter(now)) return;
 
     // Do not stack two Nyla notifications close together. If the user's chosen
-    // daily check-in is around the daytime care window, that personalized daily
-    // notification is enough.
+    // daily check-in is around this context-specific care moment, the daily
+    // personalized notification is enough.
     final dailyMinutes = config.dailyHour * 60 + config.dailyMinute;
-    const careMinutes = 14 * 60;
+    final careMinutes = plan.careHour * 60 + plan.careMinute;
     if ((dailyMinutes - careMinutes).abs() <= 90) return;
 
     await _plugin.zonedSchedule(

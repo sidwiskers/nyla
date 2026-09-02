@@ -79,21 +79,45 @@ void main() {
     expect(context.periodIsObserved, isFalse);
   });
 
-  test('without a prediction later cycle timing becomes uncertain', () {
+  test('cycle day ten stays useful after a start recorded nine days ago', () {
     const start = LocalDay(22000);
     final context = engine.describe(
-      today: start.addDays(10),
+      today: start.addDays(9),
+      records: [PeriodRecord(start: start)],
+      signals: const CycleDaySignals(bleeding: false),
+    )!;
+
+    expect(context.cycleDay, 10);
+    expect(context.phase, CyclePhase.follicular);
+    expect(context.confidence, PhaseConfidence.limited);
+  });
+
+  test('known bleed length keeps a short post-period follicular window useful', () {
+    const start = LocalDay(22000);
+    final context = engine.describe(
+      today: start.addDays(9),
       records: [PeriodRecord(start: start, end: start.addDays(4))],
     )!;
 
+    expect(context.cycleDay, 10);
+    expect(context.phase, CyclePhase.follicular);
+    expect(context.confidence, PhaseConfidence.limited);
+  });
+
+  test('without a prediction genuinely later cycle timing remains uncertain', () {
+    const start = LocalDay(22000);
+    final context = engine.describe(
+      today: start.addDays(12),
+      records: [PeriodRecord(start: start, end: start.addDays(4))],
+    )!;
+
+    expect(context.cycleDay, 13);
     expect(context.phase, CyclePhase.uncertain);
     expect(context.confidence, PhaseConfidence.limited);
   });
 
   test('personal prediction yields a broad peri-ovulatory window', () {
     const start = LocalDay(22000);
-    // With a 28-day cycle and a 12-day luteal prior, the center is cycle day
-    // 16 (15-day offset) with a deliberately broad radius around it.
     final context = engine.describe(
       today: start.addDays(15),
       records: [PeriodRecord(start: start, end: start.addDays(4))],
