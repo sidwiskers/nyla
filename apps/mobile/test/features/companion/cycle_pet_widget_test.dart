@@ -25,7 +25,8 @@ void main() {
           child: TickerMode(
             enabled: tickerEnabled,
             child: Scaffold(
-              body: Center(
+              body: Align(
+                alignment: Alignment.topCenter,
                 child: SizedBox(
                   width: 360,
                   child: CyclePetLedge(
