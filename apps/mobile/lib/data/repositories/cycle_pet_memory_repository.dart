@@ -82,6 +82,11 @@ class CyclePetMemoryRepository {
 
   Future<void> _recordPetNow(int day) async {
     final memory = await current();
-    await database.setPreference(_key, memory.recordPet(day).encode());
+    final next = memory.recordPet(day);
+    if (next.daysPetted == memory.daysPetted &&
+        next.lastPettedDay == memory.lastPettedDay) {
+      return;
+    }
+    await database.setPreference(_key, next.encode());
   }
 }
