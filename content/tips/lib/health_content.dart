@@ -3,15 +3,18 @@ library;
 import 'src/catalog.dart' as base;
 import 'src/cycle_body_catalog.dart' as body;
 import 'src/cycle_companion_catalog.dart' as companion;
+import 'src/everyday_care_catalog.dart' as everyday;
 import 'src/models.dart';
 
 export 'src/catalog.dart' hide healthTips;
 export 'src/cycle_body_catalog.dart' show cycleBodyTips;
 export 'src/cycle_companion_catalog.dart' show cycleCompanionTips;
+export 'src/everyday_care_catalog.dart' show everydayCareTips;
 export 'src/models.dart';
 
 final healthTips = List<HealthTip>.unmodifiable([
   ...base.healthTips,
   ...companion.cycleCompanionTips,
   ...body.cycleBodyTips,
+  ...everyday.everydayCareTips,
 ]);
