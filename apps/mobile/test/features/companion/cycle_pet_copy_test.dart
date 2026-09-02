@@ -16,6 +16,8 @@ void main() {
       expect(copy, isNot(contains('sad')));
       expect(copy, isNot(contains('moody')));
       expect(copy, isNot(contains('bad day')));
+      expect(copy, isNot(contains('you feel')));
+      expect(copy, isNot(contains('your mood')));
     }
   });
 }
