@@ -206,7 +206,13 @@ CyclePetDisposition cyclePetDisposition(CyclePetSignals signals) {
         closeness: 0.72,
         variant: variant,
       ),
-    CyclePhase.uncertain || null => CyclePetDisposition(
+    CyclePhase.uncertain => CyclePetDisposition(
+        mood: CyclePetMood.curious,
+        energy: 0.52,
+        closeness: 0.66,
+        variant: variant,
+      ),
+    null => CyclePetDisposition(
         mood: CyclePetMood.curious,
         energy: 0.52,
         closeness: 0.66,
