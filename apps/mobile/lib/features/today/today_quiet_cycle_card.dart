@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/nyla_theme.dart';
+import '../../core/theme/nyla_typography.dart';
 import '../../data/database/app_database.dart';
 
 class TodayQuietCycleCard extends StatelessWidget {
@@ -138,7 +139,11 @@ class _QuietRhythmCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             'A quieter point in your cycle',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 19),
+            style: NylaTypography.companion(
+              Theme.of(context).textTheme.titleLarge,
+              size: 21,
+              height: 1.1,
+            ),
           ),
           const SizedBox(height: 5),
           Text(
@@ -209,7 +214,14 @@ class _FirstCycleCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             'Your cycle begins with one date',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 24),
+            style: NylaTypography.display(
+              Theme.of(context).textTheme.headlineMedium,
+              size: 26,
+              opticalSize: 31,
+              weight: FontWeight.w600,
+              height: 1.05,
+              letterSpacing: -0.22,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
