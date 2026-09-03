@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/export/data_export_service.dart';
 import '../../core/theme/nyla_theme.dart';
+import '../../core/theme/nyla_typography.dart';
 import '../../providers.dart';
 
 class ExportScreen extends ConsumerStatefulWidget {
@@ -76,7 +77,14 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                   const SizedBox(height: 18),
                   Text(
                     'Your history belongs to you.',
-                    style: Theme.of(context).textTheme.headlineMedium,
+                    style: NylaTypography.display(
+                      Theme.of(context).textTheme.headlineMedium,
+                      size: 29,
+                      opticalSize: 34,
+                      weight: FontWeight.w600,
+                      height: 1.04,
+                      letterSpacing: -0.28,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   const Text(

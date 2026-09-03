@@ -78,6 +78,18 @@ void main() {
       expect(style.fontWeight, FontWeight.w600);
       expect(style.fontVariations, isNotEmpty);
     });
+
+    test('companion treatment stays editorial but softer than page display', () {
+      final style = NylaTypography.companion(
+        NylaTheme.light.textTheme.titleLarge,
+        size: 21,
+      );
+      expect(style.fontFamily, NylaTypography.displayFamily);
+      expect(style.fontSize, 21);
+      expect(style.fontWeight, FontWeight.w600);
+      expect(style.letterSpacing, -0.12);
+      expect(style.fontVariations, isNotEmpty);
+    });
   });
 }
 
